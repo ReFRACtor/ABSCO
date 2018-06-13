@@ -12,9 +12,120 @@ sys.path.append('common')
 import utils
 import RC_utils as RC
 
+class configSetup():
+  def __init__(self, inFile):
+    """
+    Parse the input .ini file (inFile) and return as an object for 
+    use in makeABSCO class
+
+    Inputs
+      inFile -- string, full path to .ini file that specifies paths 
+        and filenames for...
+    """
+
+    # standard library, but name depends on Python version
+    if sys.version_info.major < 3:
+      import ConfigParser
+    else:
+      import configparser as ConfigParser
+    # endif Python version
+
+    errMsg = 'Missing field in %s' % inFile
+
+    cParse = ConfigParser.ConfigParser()
+    cParse.read(inFile)
+    cpSections = cParse.sections()
+
+    # loop over each field (of all sections) and keep the field and 
+    # associated value in returned object (self)
+    for iCPS, cps in enumerate(cpSections):
+      cItems = cParse.items(cps)
+      if cps == 'channels':
+        # make channels dictionary with spectral metadata
+        channels = {}
+        for cItem in cItems: 
+          channels[cItem[0]] = \
+            np.array(cItem[1].split()).astype(float)
+        # end item loop
+
+        # these keys are required
+        keys = list(channels.keys())
+        for req in ['wn1', 'wn2', 'res']:
+          if req not in keys:
+            print(errMsg)
+            sys.exit('Could not find %s, returning' % req)
+          # endif required
+        # end required loop
+
+        # there should be an equal number of starting and ending 
+        # wavenumbers and associated spectralresolutions
+        for key in keys[1:]:
+          if channels[key].size != channels[keys[0]].size:
+            chanErrMsg = 'wn1, wn2, and res should have equal ' + \
+              'number of elements, returning'
+            print('Error in %s' % inFile)
+            sys.exit(chanErrMsg)
+          # endif channels
+        # end key loop
+
+        if channels[keys[0]].size == 0:
+          # CONSIDER DEFAULTS
+          chanErrMsg = 'No bands specified in %s, returning' % \
+            inFile
+          sys.exit(chanErrMsg)
+        # endif zero
+
+        setattr(self, 'channels', channels)
+      elif cps == 'molecules':
+        # molecules should be separated by a space
+        # CONSIDER DEFAULTS
+        molecules = []
+
+        # this is a problem for HOBr and CH3Br
+        molNames = cItems[0][1].upper()
+        split = molNames.split()
+        if len(split) == 0:
+          sys.exit('No molecules specified')
+        else:
+          molecules += split
+        setattr(self, 'molnames', molecules)
+      else:
+        for cItem in cItems:
+          if cItem[0] == 'tape5_dir':
+            setattr(self, cItem[0], '%s/%s' % (os.getcwd(), cItem[1]))
+          else:
+            setattr(self, cItem[0], cItem[1])
+          # endif t5
+        # end item loop
+      # endif cps
+    # end sections loop
+
+    # in the makeABSCO() class, we expect certain attributes
+    # let's make sure they exist in the config file
+    reqAtt = ['header', 'channels', 'molnames', 'scale', \
+      'tape5_dir', 'lbl_path', 'tape3_path', 'xs_path', 'fscdxs', \
+      'lbl_run_dir', 'od_dir', 'absco_dir', 'pfile', 'ptfile']
+
+    # loop over all required attributes and do a check
+    for req in reqAtt:
+      if req not in dir(self):
+        print(errMsg)
+        sys.exit('Could not find %s attribute, returning' % req)
+      # endif req
+    # end req loop
+
+    # let's pack all of the files into a single list
+    self.paths = [self.lbl_path, self.tape3_path, self.xs_path, \
+      self.fscdxs, self.pfile, self.ptfile]
+    self.outDirs = [self.tape5_dir, self.lbl_run_dir, self.od_dir, \
+      self.absco_dir]
+  # end constructor
+# end configSetup()
+
 class makeABSCO():
   """
   - Build TAPE5s for each molecule of interest
+  - Build TAPE3 (binary line file)?
   - Run LBLRTM to generate ODInt files
   - Use the ODInt files to calculate absorption coefficients and store
     in HDF file
@@ -31,139 +142,79 @@ class makeABSCO():
     Keywords
     """
 
-    for temp in [ptnFile, tBarFile]: utils.file_check(temp)
-    for temp in [dirT5, dirDen]:
-      if not os.path.exists(temp): os.mkdir(temp)
+    # make sure paths exist before proceeding
+    for path in inObj.paths: utils.file_check(path)
+
+    # make output directories
+    for outDir in inObj.outDirs:
+      if not os.path.exists(outDir): os.mkdir(outDir)
 
     # gather necessary params from input files 
-    # ([density] = molecules/cm2)
-    pBar, tBar, wetAir, h2o, dryAir, o2 = np.loadtxt(\
-      ptnFile, usecols=(4, 5, 6, 7, 18, 13), skiprows=5, unpack=True)
-    pLev, tLev = np.loadtxt(tBarFile, usecols=(0, 3), unpack=True)
+    # [temperature] = K, [pressure] = mbar
+    inP = np.loadtxt(inObj.pfile)
+    allT = np.loadtxt(inObj.ptfile, usecols=(3), unpack=True)
+    uniqT = np.unique(allT)
 
     # set class attributes
-    self.ptnFile = ptnFile
-    self.TMeanFile = tBarFile
-    self.dirT5 = dirT5
-    self.dirDensities = dirDen
-    self.vmrFile = vmr
-    self.pLay = pBar
-    self.tLay = tBar
-    self.nWetAir = wetAir
-    self.nDryAir = dryAir
-    self.nH2O = h2o
-    self.nO2 = o2
-    self.pLev = pLev
-    self.tLev = tLev
-    self.nLay = pBar.size
-    self.nLev = pLev.size
-    self.bands = channels
-    self.molNames = molecules
-
-    # channel provision: do all keys have the same number of elements
-    if not (len(channels['names']) == len(channels['wn1']) == \
-      len(channels['wn2']) == len(channels['res'])):
-      sys.exit('Channels params do not have equal length')
-    self.nBands = len(channels['names'])
-
-    # molecule provision: are we using the same number of ELANOR and 
-    # LBL XS names?
-    if len(molecules['lblxs']) != len(molecules['elanorxs']):
-      print(molecules['lblxs'], molecules['elanorxs'])
-      sys.exit('Molecules arrays are not the same size')
-    self.nMol = len(molecules['lblxs'])
-
-    self.pathLBL = pathLBL
-    self.pathT3 = pathT3
-    self.pathXS = pathXS
-    self.pathFSCDXS = pathFSCDXS
-    self.workDir = dirWork
-    self.fineOD = dirFine
-    self.coarseOD = dirCoarse
-
-    # i thought this would be used in the eventual binary files, but
-    # that's not the case; maybe put it in the TAPE5 header?
-    self.headerOD = odHeader
+    self.headerOD = inObj.header
+    self.cntnmScale = float(inObj.scale)
+    self.dirT5 = str(inObj.tape5_dir)
+    self.pLay = np.array(inP)
+    self.pressures = np.array(inP)
+    self.tLev = np.array(uniqT)
+    self.bands = dict(inObj.channels)
+    self.nBands = len(inObj.channels['res'])
+    self.molNames = list(inObj.molnames)
+    self.pathLBL = str(inObj.lbl_path)
+    self.pathT3 = str(inObj.tape3_path)
+    self.pathXSDB = str(inObj.xs_path)
+    self.pathListXS = str(inObj.fscdxs)
+    self.runDir = str(inObj.lbl_run_dir)
+    self.fineOD = str(inObj.od_dir)
+    self.coarseOD = str(inObj.absco_dir)
 
     # for cd'ing back into the cwd
     self.topDir = os.getcwd()
   # end constructor()
-
-  def calcDensity(self):
-    """
-    Interpolate XS VMRs from LBLATM altitude grid to ABSCO grid
-    Calculate densities for each molecule of interest
-    Write densities to file for each species
-    This will not need to be done everytime
-    """
-    from scipy import interpolate
-
-    for inFile in [self.vmrFile, self.ptnFile]:
-      utils.file_check(inFile)
-
-    # ABSCO altitudes (bottom of layer)
-    altABSCO = np.loadtxt(self.ptnFile, unpack=True, \
-      usecols=[1], skiprows=5)
-
-    # XS molecule names
-    lblHeader = open(self.vmrFile).read().splitlines()[0].split(',')
-
-    # find indices (column numbers) of XS molecules
-    lblUseCol = []
-    for mol in self.molNames['lblxs']:
-      try:
-        iXS = lblHeader.index(mol)
-        lblUseCol.append(iXS)
-      except:
-        print('Could not find %s in %s' % (mol, self.vmrFile))
-        continue
-      # end exception
-    # end molecule loop
-    
-    # loop over each XS and interpolate LBL VMR onto ABSCO altitude
-    # grid, then calculate and store associated number densities
-    for iXS, lblXS in enumerate(lblUseCol):
-      altLBL, vmrLBL = np.loadtxt(self.vmrFile, unpack=True, \
-        usecols=(0, lblXS), skiprows=1, delimiter=',')
-      vmrInterp = interpolate.interp1d(altLBL, vmrLBL, kind='linear')
-      vmrLBL = vmrInterp(altABSCO)
-      denXS = vmrLBL * self.nDryAir
-
-      outFile = '%s/%s_densities.txt' % \
-        (self.dirDensities, self.molNames['lblxs'][iXS])
-      outFP = open(outFile, 'w')
-      for p, den in zip(self.pLay, denXS):
-        outFP.write('%10.4f%10.3e\n' % (p, den))
-      outFP.close()
-    # end loop over LBL XS
-
-    return True
-  # end calcDensity()
 
   def makeTAPE5(self):
     """
     Make a TAPE5 for every temperature, band, and molecule
     """
 
-    # some constant LBLRTM TAPE5 records
-    # record12 copied straight from make_pan_absco_tape5s.pro
-    record12 = ' HI=9 F4=0 CN=0 AE=0 EM=0 SC=0 FI=0 PL=0 TS=0 ' + \
-      'AM=0 MG=1 LA=0 OD=1 XS=1    0    0'
-    record21 = '    1    7   1.00000' # 1 layer, 7 molecules
-    record22 = '    1        0' # 1 XS, convolved with P
-    record222 = ' 1  1    1  1.000000    XS Values'
+    # some constant LBLRTM TAPE5 records 
+    # (see lblrtm_instructions.html for help with each record)
+    # record1.2: HI=9: central line contribution omitted
+    # CN=6: continuum scale factor for given molecules used
+    # MG=1, OD=1: optical depth computation, layer-by-layer
+    record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 TS=0 ' + \
+      'AM=0 MG=1 LA=0 OD=1 XS=0    0    0'
 
-    for iMol, mol in enumerate(self.molNames['lblxs']):
+    # multiplicative continuum factors (because CN=6 in record12)
+    scales = np.repeat(0.0, 7)
+
+    # record 2.1: default P format (F10.4), 1 layer, 1 molecule 
+    record21 = ' %1d%3d%5d' % (0, 1, 1)
+
+    for mol in self.molNames:
       print('Writing %s TAPE5s' % mol)
-      xsFile = '%s/%s_densities.txt' % (self.dirDensities, mol)
-      utils.file_check(xsFile)
-      pMol, denMol = np.loadtxt(xsFile, unpack=True)
+
+      # continuum scale factors
+      if mol == 'H2O':
+        scales[:2] = self.cntnmScale
+      elif mol == 'CO2':
+        scales[2] = self.cntnmScale
+      elif mol == 'O3':
+        scales[3] = self.cntnmScale
+      elif mol == 'O2':
+        scales[4] = self.cntnmScale
+      elif mol == 'N2':
+        scales[5] = self.cntnmScale
+      # endif CNTNM scales
+      record12a = ' '.join(scales.astype(str))
 
       outDirT5 = '%s/%s' % (self.dirT5, mol)
       if not os.path.exists(outDirT5): os.mkdir(outDirT5)
-
-      # TAPE5 records
-      record221 = '%10s' % mol
 
       for iP, pLay in enumerate(self.pLay):
         # find number of temperatures at this pressure
@@ -264,7 +315,7 @@ class makeABSCO():
 
         # grab extension for use in renaming the ODint LBL output file
         ext = base.replace('TAPE5_', '')
-        sub.call(['lblrtm'])
+        sub.call(['./lblrtm'])
         odStr = 'ODint_001'
 
         # if all ODs are zero, remove the file and continue to next 
@@ -283,110 +334,7 @@ class makeABSCO():
     return True
   # end runLBL()
 
-# end xsABSCO()
-
-class configSetup():
-  def __init__(self, inFile):
-    """
-    Parse the input .ini file (inFile) and return as a dictionary for 
-    use in the rest of this module
-
-    Inputs
-      inFile -- string, full path to .ini file that specifies paths 
-        and filenames for...
-    """
-
-    # standard library, but name depends on Python version
-    if sys.version_info.major < 3:
-      import ConfigParser
-    else:
-      import configparser as ConfigParser
-    # endif Python version
-
-    errMsg = 'Missing field in %s' % inFile
-
-    cParse = ConfigParser.ConfigParser()
-    cParse.read(inFile)
-    cpSections = cParse.sections()
-
-    # loop over each field (of all sections) and keep the field and 
-    # associated value in returned object (self)
-    for iCPS, cps in enumerate(cpSections):
-      cItems = cParse.items(cps)
-      if cps == 'channels':
-        # make channels dictionary with spectral metadata
-        channels = {}
-        for cItem in cItems: 
-          channels[cItem[0]] = \
-            np.array(cItem[1].split()).astype(float)
-        # end item loop
-
-        # these keys are required
-        keys = list(channels.keys())
-        for req in ['wn1', 'wn2', 'res']:
-          if req not in keys:
-            print(errMsg)
-            sys.exit('Could not find %s, returning' % req)
-          # endif required
-        # end required loop
-
-        # there should be an equal number of starting and ending 
-        # wavenumbers and associated spectralresolutions
-        for key in keys[1:]:
-          if channels[key].size != channels[keys[0]].size:
-            chanErrMsg = 'wn1, wn2, and res should have equal ' + \
-              'number of elements, returning'
-            print('Error in %s' % inFile)
-            sys.exit(chanErrMsg)
-          # endif channels
-        # end key loop
-
-        if channels[keys[0]].size == 0:
-          # CONSIDER DEFAULTS
-          chanErrMsg = 'No bands specified in %s, returning' % \
-            inFile
-          sys.exit(chanErrMsg)
-        # endif zero
-
-        setattr(self, 'channels', channels)
-      elif cps == 'molecules':
-        # molecules should be separated by a space
-        # CONSIDER DEFAULTS
-        molecules = []
-        molNames = cItems[0][1]
-        split = molNames.split()
-        if len(split) == 0:
-          sys.exit('No molecules specified')
-        else:
-          molecules += split
-        setattr(self, 'molnames', molecules)
-      else:
-        for cItem in cItems:
-          if cItem[0] == 'tape5_dir':
-            setattr(self, cItem[0], '%s/%s' % (os.getcwd(), cItem[1]))
-          else:
-            setattr(self, cItem[0], cItem[1])
-          # endif t5
-        # end item loop
-      # endif cps
-    # end sections loop
-
-    # in the makeABSCO() class, we expect certain attributes
-    # let's make sure they exist in the config file
-    reqAtt = ['header', 'channels', 'molnames', \
-      'tape5_dir', 'lbl_path', 'tape3_path', 'xs_path', 'fscdxs', \
-      'lbl_run_dir', 'od_dir', 'absco_dir']
-
-    # loop over all required attributes and do a check
-    for req in reqAtt:
-      if req not in dir(self):
-        print(errMsg)
-        sys.exit('Could not find %s attribute, returning' % req)
-      # endif req
-    # end req loop
-
-  # end constructor
-# end configSetup()
+# end makeABSCO()
 
 if __name__ == '__main__':
 
@@ -412,7 +360,6 @@ if __name__ == '__main__':
 
   iniFile = args.config_file; utils.file_check(iniFile)
   ini = configSetup(iniFile)
-  sys.exit()
 
   # instantiation; there are lots of keywords here so that we have 
   # some flexibility (i did not wanna force the user to have to use 
