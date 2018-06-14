@@ -1,5 +1,6 @@
 *.pyc
-TAPE5_dir
+LNFL_Runs
+TAPE3_dir
 LBL_Runs
 OD_Fine
 ABSCO_Coarse

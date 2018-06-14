@@ -78,7 +78,8 @@ class configSetup():
         setattr(self, 'channels', channels)
       elif cps == 'molecules':
         # molecules should be separated by a space
-        # CONSIDER DEFAULTS
+        # CONSIDER DEFAULTS; put list of defaults somewhere in here 
+        # and don't do the upper(); stay case sensitive
         molecules = []
 
         # this is a problem for HOBr and CH3Br
@@ -102,9 +103,10 @@ class configSetup():
 
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
-    reqAtt = ['header', 'channels', 'molnames', 'scale', \
-      'tape5_dir', 'lbl_path', 'tape3_path', 'xs_path', 'fscdxs', \
-      'lbl_run_dir', 'od_dir', 'absco_dir', 'pfile', 'ptfile']
+    reqAtt = ['pfile', 'ptfile', 'channels', 'molnames', 'scale', \
+      'lnfl_run_dir', 'lnfl_path', 'tape1_path', 'tape3_dir', \
+      'tape5_dir', 'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', \
+      'od_dir', 'absco_dir']
 
     # loop over all required attributes and do a check
     for req in reqAtt:
@@ -115,22 +117,23 @@ class configSetup():
     # end req loop
 
     # let's pack all of the files into a single list
-    self.paths = [self.lbl_path, self.tape3_path, self.xs_path, \
-      self.fscdxs, self.pfile, self.ptfile]
-    self.outDirs = [self.tape5_dir, self.lbl_run_dir, self.od_dir, \
-      self.absco_dir]
+    self.paths = [self.pfile, self.ptfile, \
+      self.lbl_path, self.xs_path, self.fscdxs]
+    self.outDirs = [self.tape3_dir, self.tape5_dir, \
+      self.lnfl_run_dir, self.lbl_run_dir, self.od_dir, self.absco_dir]
   # end constructor
 # end configSetup()
 
 class makeABSCO():
   """
-  - Build TAPE5s for each molecule of interest
-  - Build TAPE3 (binary line file)?
+  - Build TAPE5s (LNFL and LBLRTM) for each molecule of interest
+  - Build TAPE3 (binary line file) for specified bands
   - Run LBLRTM to generate ODInt files
   - Use the ODInt files to calculate absorption coefficients and store
     in HDF file
 
-  Generate absorption coefficient tables for molecules of interest
+  Generate absorption coefficient tables (ABSCO as a function of 
+  wavenumber, pressure, temperature, and band) for specified molecule
   """
 
   def __init__(self, inObj):
@@ -138,6 +141,7 @@ class makeABSCO():
     """
     Inputs
       inObj -- configSetup instance
+      molecule -- str, HITRAN molecule name
 
     Keywords
     """
@@ -149,56 +153,116 @@ class makeABSCO():
     for outDir in inObj.outDirs:
       if not os.path.exists(outDir): os.mkdir(outDir)
 
-    # gather necessary params from input files 
+    # gather necessary params from input files
     # [temperature] = K, [pressure] = mbar
+    # let's go from surface to TOA
     inP = np.loadtxt(inObj.pfile)
+    if np.diff(inP)[0] > 0: inP = inP[::-1]
     allT = np.loadtxt(inObj.ptfile, usecols=(3), unpack=True)
     uniqT = np.unique(allT)
 
     # set class attributes
     self.headerOD = inObj.header
     self.cntnmScale = float(inObj.scale)
-    self.dirT5 = str(inObj.tape5_dir)
-    self.pLay = np.array(inP)
+    self.pLev = np.array(inP)
     self.pressures = np.array(inP)
     self.tLev = np.array(uniqT)
     self.bands = dict(inObj.channels)
     self.nBands = len(inObj.channels['res'])
     self.molNames = list(inObj.molnames)
+    self.runDirLNFL = str(inObj.lnfl_run_dir)
+    self.dirT3 = str(inObj.tape3_dir)
+    self.runDirLBL = str(inObj.lbl_run_dir)
+    self.dirT5 = str(inObj.tape5_dir)
     self.pathLBL = str(inObj.lbl_path)
-    self.pathT3 = str(inObj.tape3_path)
     self.pathXSDB = str(inObj.xs_path)
     self.pathListXS = str(inObj.fscdxs)
-    self.runDir = str(inObj.lbl_run_dir)
     self.fineOD = str(inObj.od_dir)
     self.coarseOD = str(inObj.absco_dir)
+
+    # all HITRAN molecule names
+    # might be useful later...
+    """
+    lfMolDir = '/nas/project/rc_static/models/' + \
+      'aer_line_parameters/AER_line_files/aer_v_3.6/' + \
+      'line_files_By_Molecule/*'
+    molDirs = sorted(glob.glob(lfMolDir))
+
+    # the upper() takes care of the Br problem
+    htMols = [os.path.basename(md).split('_')[1].upper() for \
+      md in molDirs]
+    print(htMols)
+    """
+    self.HITRAN = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
+      'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OH', 'HF', 'HCL', 'HBR', \
+      'HI', 'CLO', 'OCS', 'H2CO', 'HOCL', 'N2', 'HCN', 'CH3CL', \
+      'H2O2', 'C2H2', 'C2H6', 'PH3', 'COF2', 'SF6', 'H2S', 'HCOOH', \
+      'HO2', 'O', 'CLONO2', 'NO+', 'HOBr', 'C2H4', 'CH3OH', 'CH3Br', \
+      'CH3CN', 'CF4', 'C4H2', 'HC3N', 'H2', 'CS', 'SO3']
 
     # for cd'ing back into the cwd
     self.topDir = os.getcwd()
   # end constructor()
 
-  def makeTAPE5(self):
+  def lnflT5(self):
     """
-    Make a TAPE5 for every temperature, band, and molecule
+    Make a TAPE5 for every band and molecule that can be used as 
+    input into an LNFL run
+    """
+
+    # this is part of record 3 (LNFL instructions), all molecules off
+    molIndInit = np.repeat('0', 47)
+
+    # the other part of record 3 -- let's always keep line coupling on
+    # so we get the O2, CO2, and CH4 coupling params; and always 
+    # use extra broadening params
+    holInd = 'EXBRD'
+    for mol in self.molNames:
+      try:
+        iMol = self.HITRAN.index(mol)
+      except:
+        print('Could not find %s in HITRAN names' % mol)
+        continue
+      # end exception
+
+      for iBand in range(self.nBands):
+        wvn1 = self.bands['wn1'][iBand]
+        wvn2 = self.bands['wn2'][iBand]
+        record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
+        record2 = '%10.3f%10.3f' % (wvn1, wvn2)
+        molInd = np.array(molIndInit)
+        molInd[iMol] = 1
+        record3 = '%47s%4s%40s' % (''.join(list(molInd)), ' ', holInd)
+        print(record3)
+      # end band loop
+    # end mol loop
+  # end lnflT5()
+
+  def lblT5(self):
+    """
+    Make a TAPE5 for every temperature, band, and molecule that can 
+    be used as input into an LBLRTM run
     """
 
     # some constant LBLRTM TAPE5 records 
     # (see lblrtm_instructions.html for help with each record)
     # record1.2: HI=9: central line contribution omitted
     # CN=6: continuum scale factor for given molecules used
-    # MG=1, OD=1: optical depth computation, layer-by-layer
+    # OD=1, MG=1: optical depth computation, layer-by-layer
     record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 TS=0 ' + \
-      'AM=0 MG=1 LA=0 OD=1 XS=0    0    0'
+      'AM=1 MG=1 LA=0 OD=1 XS=0'
 
     # multiplicative continuum factors (because CN=6 in record12)
     scales = np.repeat(0.0, 7)
 
-    # record 2.1: default P format (F10.4), 1 layer, 1 molecule 
-    record21 = ' %1d%3d%5d' % (0, 1, 1)
+    # records required with IATM=1 (provide some doc on this rec)
+    # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
+    # pressure levels, no zero-filling, full printout, 7 molecules,
+    # print to TAPE7 (not actually needed for final product, probably
+    # useful for debugging)
+    record31 = '%5d%5d%5d%5d%5d%5d%5d' % (6, 2, -2, 0, 0, 7)
 
     for mol in self.molNames:
-      print('Writing %s TAPE5s' % mol)
-
       # continuum scale factors
       if mol == 'H2O':
         scales[:2] = self.cntnmScale
@@ -211,51 +275,53 @@ class makeABSCO():
       elif mol == 'N2':
         scales[5] = self.cntnmScale
       # endif CNTNM scales
+
+      # generate free-format record 1.2
       record12a = ' '.join(scales.astype(str))
 
-      outDirT5 = '%s/%s' % (self.dirT5, mol)
+      outDirT5 = '%s/%s/%s' % (self.lbl_run_dir, self.dirT5, mol)
       if not os.path.exists(outDirT5): os.mkdir(outDirT5)
 
-      for iP, pLay in enumerate(self.pLay):
-        # find number of temperatures at this pressure
-        iTemp = np.where(self.pLev == (iP+1) )
+      for iP, pLev in enumerate(self.pLev):
+        # need 2 P bounds for LBLATM
+        if iP == 0: continue
+        pArr = [self.pLev[iP-1], self.pLev[iP]]
 
-        if iTemp[0].size == 0: continue
+        # record 3.2: pressure limits for all levels, nadir SZA
+        record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
 
-        broadener = self.nDryAir[iP] * 0.79 # N2 in molecules/cm2
+        # record 3.3b: pressure levels
+        record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
 
-        # TAPE5 records
-        record212 = ''.join(['%10.3e' % 0] * 7)
-        record212 += '%10.3e' % broadener
-        record224 = '%15.7e' % (denMol[iP])
-        for itLev, tLev in enumerate(self.tLev[iTemp]):
-          for iBand, band in enumerate(self.bands['names']):
-            outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK_%s' % \
-              (outDirT5, mol, pLay, tLev, band)
+        for itLev, tLev in enumerate(self.tLev):
+          for iBand in range(self.nBands):
+            outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK' % \
+              (outDirT5, mol, pLev, tLev)
 
             # TAPE5 records
-            # record 1.3 is kinda long...
+            # record 1.3 is kinda long...first, band limits
             record13 = '%10.3e%10.3e' % \
-              (self.bands['wn1'][iBand], self.bands['wn2'][iBand])
-            # concatenate (NOT append) 6 zeros in scientific notation
-            record13 += ''.join(['%10.3e' % 0 for i in range(6)])
-            record13 += '%4s%1d%5s%10.3e' % \
-              (' ', 0, ' ', self.bands['res'][iBand])
+              (self.bands['wn1'][0], self.bands['wn2'][0])
 
-            record211 = '%10.4f%10.4f' % (pLay, tLev)
-            record223 = '%15.7e%10.4f' % (pLay, tLev)
+            # concatenate (NOT append) 6 zeros in scientific notation
+            # using defaults for SAMPLE, DVSET, ALFAL0, AVMASS, 
+            # DPTMIN, and DPTFAC params
+            record13 += ''.join(['%10.3e' % 0 for i in range(6)])
+
+            # line rejection not recorded and 1e-4 output OD spectral
+            # resolution
+            record13 += '%4s%1d%5s%10.3e' % \
+              (' ', 0, ' ', self.bands['res'][0])
 
             # write the TAPE5 for this set of params
-            recs = [record12, record13, record21, record211, \
-              record212, record22, record221, record222, \
-              record223, record224]
+            recs = [record12, record12a, record13, \
+              record31, record32, record33b]
 
             if os.path.exists(outFile):
               print('WARNING: Overwriting %s' % outFile)
 
             outFP = open(outFile, 'w')
-            outFP.write('$ %s ABSCO %s\n' % \
-              (mol, os.path.basename(outFile)))
+            outFP.write('$ %s\n' % self.headerOD)
             for rec in recs: outFP.write('%s\n' % rec)
             outFP.write('%%%%')
             outFP.close()
@@ -265,11 +331,11 @@ class makeABSCO():
     # end molecule loop
 
     return True
-  # end makeTAPE5()
+  # end lblT5()
 
   def runLBL(self):
     """
-    Run LBLRTM for each TAPE5 made in makeTAPE5
+    Run LBLRTM for each TAPE5 made in lblT5
 
     This can be run in parallel for each molecule
     """
@@ -298,7 +364,7 @@ class makeABSCO():
         if not os.path.islink(target): os.symlink(source, target)
       # end LBL file loop
 
-      # link to the TAPE5s created with makeTAPE5() and run LBL
+      # link to the TAPE5s created with lblT5() and run LBL
       globStr = '%s/%s/TAPE5*' % (self.dirT5, mol)
       lblT5 = sorted(glob.glob(globStr))
 
@@ -346,12 +412,18 @@ if __name__ == '__main__':
     'directory names necessary for the makeABSCO class.')
 
   # argument switches (booleans, no assignments)
-  parser.add_argument('-t5', '--make_tape5', action='store_true', \
-    help='Make the TAPE5 files for each species, channel, ' + \
+  parser.add_argument('-lft5', '--lnfl_tape5', action='store_true', \
+    help='Make the LBLRTM TAPE5 files for each species, channel, ' + \
+    'pressure, and temperature.')
+  parser.add_argument('-lnfl', '--run_lnfl', action='store_true', \
+    help='Run LBLRTM for each of the TAPE5s generated and saved ' + \
+    'in lblT5().')
+  parser.add_argument('-lblt5', '--lbl_tape5', action='store_true', \
+    help='Make the LBLRTM TAPE5 files for each species, channel, ' + \
     'pressure, and temperature.')
   parser.add_argument('-lbl', '--run_lbl', action='store_true', \
     help='Run LBLRTM for each of the TAPE5s generated and saved ' + \
-    'in makeTAPE5().')
+    'in lblT5().')
   parser.add_argument('-e2e', '--end_to_end', action='store_true', \
     help='Runs the entire process from tape 5 generation to ' + \
     'post-processing (rather than entering all of the keywords ' + \
@@ -361,17 +433,17 @@ if __name__ == '__main__':
   iniFile = args.config_file; utils.file_check(iniFile)
   ini = configSetup(iniFile)
 
-  # instantiation; there are lots of keywords here so that we have 
-  # some flexibility (i did not wanna force the user to have to use 
-  # a configSetup object with the xsABSCO class)
+  # instantiation
   absco = makeABSCO(ini)
 
-  if args.make_tape5: absco.makeTAPE5()
+  if args.lnfl_tape5: absco.lnflT5()
+  if args.run_lnfl: absco.runLNFL()
+  if args.lbl_tape5: absco.lblT5()
   if args.run_lbl: absco.runLBL()
 
   # haven't tested this yet, but no reason it won't work...right?
   if args.end_to_end:
-    absco.makeTAPE5()
+    absco.lblT5()
     absco.runLBL()
   # endif e2e
 # end main()
