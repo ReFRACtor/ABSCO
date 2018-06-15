@@ -339,7 +339,7 @@ class makeABSCO():
         split = os.path.basename(t5).split('_')
         band = split[-1]
         os.symlink(t5, 'TAPE5')
-        sub.call(['./lnfl']
+        sub.call(['./lnfl'])
         os.rename('TAPE3', '%s/TAPE3_%s_%s' % (outDirT3, band))
       # end TAPE5 loop
 
