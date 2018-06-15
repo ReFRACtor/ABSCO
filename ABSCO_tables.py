@@ -296,7 +296,8 @@ class makeABSCO():
     """
     Run executable to generate a binary line file (TAPE3) for usage
     in LBLRTM.  Do this for each TAPE5 input available for a given 
-    molecule.
+    molecule.  Each TAPE3 contains a subset of the full TAPE1 line 
+    file (i.e., only the lines for the given band and molecule).
     """
 
     # link to extra broadening and speed dependence parameters
@@ -323,6 +324,8 @@ class makeABSCO():
     for mol in self.molNames:
       inDirT5 = '%s/%s' % (self.dirT5, mol)
       inT5 = sorted(glob.glob('%s/TAPE5_*' % inDirT5))
+      outDirT3 = '%s/%s/%s' % (self.topDir, self.dirT3, mol)
+      if not os.path.exists(outDirT3): os.mkdir(outDirT3)
 
       if len(inT5) == 0:
         print('Found no TAPE5s for %s' % mol)
@@ -331,9 +334,13 @@ class makeABSCO():
 
       for t5 in inT5:
         print('Running LNFL for %s' % os.path.basename(t5))
+
+        # making some assumptions about file naming convention...
+        split = os.path.basename(t5).split('_')
+        band = split[-1]
         os.symlink(t5, 'TAPE5')
-        #sub.call(['./lnfl']
-        #os.rename()
+        sub.call(['./lnfl']
+        os.rename('TAPE3', '%s/TAPE3_%s_%s' % (outDirT3, band))
       # end TAPE5 loop
 
     # end mol loop
