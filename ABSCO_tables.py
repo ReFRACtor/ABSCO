@@ -334,7 +334,7 @@ class makeABSCO():
 
       for t5 in inT5:
         print('Running LNFL for %s' % os.path.basename(t5))
-        if os.path.exists('TAPE5'): os.remove('TAPE5')
+        if os.path.islink('TAPE5'): os.unlink('TAPE5')
 
         # making some assumptions about file naming convention...
         split = os.path.basename(t5).split('_')
