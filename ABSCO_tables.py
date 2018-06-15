@@ -126,6 +126,8 @@ def makeSymLinks(sources, targets):
   """
 
   for source, target in zip(sources, targets):
+    # UNCOMMENT THIS WHEN NOT DEBUGGING
+    #utils.file_check(source)
     if os.path.exists(target): os.unlink(target)
     os.symlink(source, target)
   # end link loop
@@ -218,8 +220,8 @@ class makeABSCO():
     self.coarseOD = str(inObj.absco_dir)
 
     # all HITRAN molecule names
-    # might be useful later...
     """
+    # might be useful later...
     lfMolDir = '/nas/project/rc_static/models/' + \
       'aer_line_parameters/AER_line_files/aer_v_3.6/' + \
       'line_files_By_Molecule/*'
@@ -268,11 +270,13 @@ class makeABSCO():
       # end exception
 
       for iBand in range(self.nBands):
+        # band specification	
         wvn1 = self.bands['wn1'][iBand]
         wvn2 = self.bands['wn2'][iBand]
         record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
         record2 = '%10.3f%10.3f' % (wvn1, wvn2)
 
+        # switch molecule "on" for LNFL
         molInd = np.array(molIndInit)
         molInd[iMol] = '1'
         record3 = '%47s%4s%40s' % (''.join(list(molInd)), ' ', holInd)
@@ -330,12 +334,12 @@ class makeABSCO():
       if len(inT5) == 0:
         print('Found no TAPE5s for %s' % mol)
         continue
+
       # endif nT5
 
       for t5 in inT5:
         print('Running LNFL for %s' % os.path.basename(t5))
         if os.path.islink('TAPE5'): os.unlink('TAPE5')
-
         # making some assumptions about file naming convention...
         split = os.path.basename(t5).split('_')
         band = split[-1]
@@ -370,8 +374,6 @@ class makeABSCO():
     # records required with IATM=1 (provide some doc on this rec)
     # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
     # pressure levels, no zero-filling, full printout, 7 molecules,
-    # print to TAPE7 (not actually needed for final product, probably
-    # useful for debugging)
     record31 = '%5d%5d%5d%5d%5d%5d' % (6, 2, -2, 0, 0, 7)
 
     for mol in self.molNames:
@@ -449,43 +451,49 @@ class makeABSCO():
     """
     Run LBLRTM for each TAPE5 made in lblT5
 
-    This can be run in parallel for each molecule
+    This can be run in parallel for each molecule, but that means 
+    each molecule should have its own LBL_Run directory (as specified
+    in the input configuration file)
     """
 
-    if not os.path.exists(self.workDir): os.mkdir(self.workDir)
-    for mol in self.molNames['lblxs']:
+    workSubDir = '%s/%s' % (self.topDir, self.runDirLBL)
+    os.chdir(workSubDir)
+
+    # aliases for symlinks; should correspond to lblFiles
+    # these are identical for all LBL runs for this task
+    targets = ['lblrtm', 'xs', 'FSCDXS']
+    sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
+    makeSymLinks(sources, targets)
+
+    for mol in self.molNames:
       # set up working subdirectory
-      workSubDir = '%s/%s' % (self.workDir, mol)
-      outDirOD = '%s/%s' % (workSubDir, self.fineOD)
-      if not os.path.exists(workSubDir): os.mkdir(workSubDir)
-      if not os.path.exists(outDirOD): os.mkdir(outDirOD)
-      os.chdir(workSubDir)
+      # find TAPE3s and their associated TAPE5s (TAPE5s should follow
+      # the same naming convention as TAPE3s)
+      searchStr = '%s/%s/%s/TAPE3*' % (self.topDir, self.dirT3, mol)
+      molT3 = sorted(glob.glob(searchStr))
+      if len(molT3) == 0:
+        print('Found no TAPE3 files for %s' % mol)
+        continue
+      # endif nT3
 
-      # aliases for symlinks; should correspond to lblFiles
-      # these are identical for all LBL runs for this task
-      targets = ['lblrtm', 'TAPE3', 'xs', 'FSCDXS']
-      lblFiles = \
-        [self.pathLBL, self.pathT3, self.pathXS, self.pathFSCDXS]
-      for source, target in zip(lblFiles, targets):
-        utils.file_check(source)
+      molT5 = []
+      for t3 in molT3:
+        t5 = '%s/%s/%s/%s/%s' % (self.topDir, self.runDirLBL, \
+          self.dirT5, mol, t3.replace('TAPE3', 'TAPE5')
 
-        # will crash if the link already exists
-        if not os.path.islink(target): os.symlink(source, target)
-      # end LBL file loop
+        if not os.path.exists(t5):
+          print('Could not find %s' % t5)
+          continue
+        # endif t5
+        molT5.append(t5)
+      # end t3 loop
+      print('No LBL run')
+      continue
 
-      # link to the TAPE5s created with lblT5() and run LBL
-      globStr = '%s/%s/TAPE5*' % (self.dirT5, mol)
-      lblT5 = sorted(glob.glob(globStr))
-
-      if len(lblT5) == 0:
-        print('Found no match: %s' % globStr)
-        return
-      # endif T5
-
-      for t5 in lblT5:
+      for t3, t5 in zip(molT3, molT5):
         base = os.path.basename(t5)
         print(base)
-        if os.path.islink('TAPE5'): os.remove('TAPE5')
+        if os.path.islink('TAPE5'): os.unlink('TAPE5')
         os.symlink(t5, 'TAPE5')
 
         # grab extension for use in renaming the ODint LBL output file
