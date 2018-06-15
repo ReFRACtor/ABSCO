@@ -324,6 +324,11 @@ class makeABSCO():
       inDirT5 = '%s/%s' % (self.dirT5, mol)
       inT5 = sorted(glob.glob('%s/TAPE5_*' % inDirT5))
 
+      if len(inT5) == 0:
+        print('Found no TAPE5s for %s' % mol)
+        continue
+      # endif nT5
+
       for t5 in inT5:
         print('Running LNFL for %s' % os.path.basename(t5))
         os.symlink(t5, 'TAPE5')
