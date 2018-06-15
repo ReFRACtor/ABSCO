@@ -341,7 +341,7 @@ class makeABSCO():
         band = split[-1]
         os.symlink(t5, 'TAPE5')
         sub.call(['./lnfl'])
-        os.rename('TAPE3', '%s/TAPE3_%s_%s' % (outDirT3, band))
+        os.rename('TAPE3', '%s/TAPE3_%s_%s' % (outDirT3, mol, band))
       # end TAPE5 loop
 
     # end mol loop
@@ -372,7 +372,7 @@ class makeABSCO():
     # pressure levels, no zero-filling, full printout, 7 molecules,
     # print to TAPE7 (not actually needed for final product, probably
     # useful for debugging)
-    record31 = '%5d%5d%5d%5d%5d%5d%5d' % (6, 2, -2, 0, 0, 7)
+    record31 = '%5d%5d%5d%5d%5d%5d' % (6, 2, -2, 0, 0, 7)
 
     for mol in self.molNames:
       # continuum scale factors
