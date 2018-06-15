@@ -126,7 +126,9 @@ def makeSymLinks(sources, targets):
   """
 
   for source, target in zip(sources, targets):
+    if os.path.exists(target): os.unlink(target)
     os.symlink(source, target)
+  # end link loop
 
   return None
 # end makeSymLinks()
@@ -153,6 +155,7 @@ class makeABSCO():
     Keywords
     """
 
+    # UNCOMMENT THIS WHEN NOT DEBUGGING
     # make sure paths exist before proceeding
     #for path in inObj.paths: utils.file_check(path)
 
@@ -188,6 +191,7 @@ class makeABSCO():
     uniqT = np.unique(allT)
 
     # set class attributes
+    # state, etc. atts
     self.headerOD = inObj.header
     self.cntnmScale = float(inObj.scale)
     self.pLev = np.array(inP)
@@ -196,15 +200,20 @@ class makeABSCO():
     self.bands = dict(inObj.channels)
     self.nBands = len(inObj.channels['res'])
     self.molNames = list(inObj.molnames)
-    self.pathLNFL = str(inObj.lnfl_path)
+
+    # LNFL atts
     self.runDirLNFL = str(inObj.lnfl_run_dir)
+    self.pathLNFL = str(inObj.lnfl_path)
+    self.pathT1 = str(inObj.tape1_path)
     self.dirExtras = str(inObj.extra_params)
     self.dirT3 = str(inObj.tape3_dir)
+
+    # LBL atts
     self.runDirLBL = str(inObj.lbl_run_dir)
-    self.dirT5 = str(inObj.tape5_dir)
     self.pathLBL = str(inObj.lbl_path)
     self.pathXSDB = str(inObj.xs_path)
     self.pathListXS = str(inObj.fscdxs)
+    self.dirT5 = str(inObj.tape5_dir)
     self.fineOD = str(inObj.od_dir)
     self.coarseOD = str(inObj.absco_dir)
 
@@ -294,21 +303,32 @@ class makeABSCO():
     # equivalent to `ln -s full_path`
     os.chdir(self.runDirLNFL)
     extras = glob.glob('%s/*_param' % self.dirExtras)
+    # UNCOMMENT THIS WHEN NOT DEBUGGING
+    """
     if len(extras) == 0:
       print('No broadening or speed dependence parameters found')
       print('Returning')
       sys.exit(1)
     # endif extras
+    """
 
     slExtras = [os.path.basename(extra) for extra in extras]
     makeSymLinks(extras, slExtras)
+
+    # other LNFL links that will not change
+    srcLNFL = [self.pathLNFL, self.pathT1]
+    tarLNFL = ['lnfl', 'TAPE1']
+    makeSymLinks(srcLNFL, tarLNFL)
 
     for mol in self.molNames:
       inDirT5 = '%s/%s' % (self.dirT5, mol)
       inT5 = sorted(glob.glob('%s/TAPE5_*' % inDirT5))
 
       for t5 in inT5:
-        continue
+        print('Running LNFL for %s' % os.path.basename(t5))
+        os.symlink(t5, 'TAPE5')
+        #sub.call(['./lnfl']
+        #os.rename()
       # end TAPE5 loop
 
     # end mol loop
