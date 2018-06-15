@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import os, sys, glob, argparse
 import numpy as np
+import subprocess as sub
 
 # path to GIT common submodules (not a Python standard lib)
 sys.path.append('common')
@@ -16,7 +17,7 @@ class configSetup():
   def __init__(self, inFile):
     """
     Parse the input .ini file (inFile) and return as an object for 
-    use in makeABSCO class
+    use in makeABSCO class.  Also do some error checking
 
     Inputs
       inFile -- string, full path to .ini file that specifies paths 
@@ -91,13 +92,7 @@ class configSetup():
           molecules += split
         setattr(self, 'molnames', molecules)
       else:
-        for cItem in cItems:
-          if cItem[0] == 'tape5_dir':
-            setattr(self, cItem[0], '%s/%s' % (os.getcwd(), cItem[1]))
-          else:
-            setattr(self, cItem[0], cItem[1])
-          # endif t5
-        # end item loop
+        for cItem in cItems: setattr(self, cItem[0], cItem[1])
       # endif cps
     # end sections loop
 
@@ -105,8 +100,8 @@ class configSetup():
     # let's make sure they exist in the config file
     reqAtt = ['pfile', 'ptfile', 'channels', 'molnames', 'scale', \
       'lnfl_run_dir', 'lnfl_path', 'tape1_path', 'tape3_dir', \
-      'tape5_dir', 'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', \
-      'od_dir', 'absco_dir']
+      'extra_params', 'tape5_dir', 'lbl_path', 'xs_path', 'fscdxs', \
+      'lbl_run_dir', 'od_dir', 'absco_dir']
 
     # loop over all required attributes and do a check
     for req in reqAtt:
@@ -117,12 +112,24 @@ class configSetup():
     # end req loop
 
     # let's pack all of the files into a single list
-    self.paths = [self.pfile, self.ptfile, \
-      self.lbl_path, self.xs_path, self.fscdxs]
+    self.paths = [self.pfile, self.ptfile, self.extra_params, \
+      self.lnfl_path, self.lbl_path, self.xs_path, self.fscdxs]
     self.outDirs = [self.tape3_dir, self.tape5_dir, \
-      self.lnfl_run_dir, self.lbl_run_dir, self.od_dir, self.absco_dir]
+      self.lnfl_run_dir, self.lbl_run_dir, \
+      self.od_dir, self.absco_dir]
   # end constructor
 # end configSetup()
+
+def makeSymLinks(sources, targets):
+  """
+  Loop over input files and make symbolic links for them
+  """
+
+  for source, target in zip(sources, targets):
+    os.symlink(source, target)
+
+  return None
+# end makeSymLinks()
 
 class makeABSCO():
   """
@@ -147,17 +154,36 @@ class makeABSCO():
     """
 
     # make sure paths exist before proceeding
-    for path in inObj.paths: utils.file_check(path)
+    #for path in inObj.paths: utils.file_check(path)
 
     # make output directories
     for outDir in inObj.outDirs:
-      if not os.path.exists(outDir): os.mkdir(outDir)
+      if outDir == 'TAPE5_dir':
+        # make a T5 subdir for LNFL and LBL
+        lnflDirT5 = '%s/%s' % (inObj.lnfl_run_dir, outDir)
+        if not os.path.exists(lnflDirT5): os.mkdir(lnflDirT5)
+
+        lblDirT5 = '%s/%s' % (inObj.lbl_run_dir, outDir)
+        if not os.path.exists(lblDirT5): os.mkdir(lblDirT5)
+      else:
+        if not os.path.exists(outDir): os.mkdir(outDir)
+      # endif outDir
 
     # gather necessary params from input files
     # [temperature] = K, [pressure] = mbar
     # let's go from surface to TOA
     inP = np.loadtxt(inObj.pfile)
-    if np.diff(inP)[0] > 0: inP = inP[::-1]
+
+    # is pressure ascending or descending? force descending
+    pDiff = np.diff(inP)
+    if (pDiff > 0).all():
+      inP = inP[::-1]
+    elif (pDiff < 0).all():
+      pass
+    else:
+      sys.exit('Please provide monotonic pressures')
+    # endif ascend
+
     allT = np.loadtxt(inObj.ptfile, usecols=(3), unpack=True)
     uniqT = np.unique(allT)
 
@@ -170,7 +196,9 @@ class makeABSCO():
     self.bands = dict(inObj.channels)
     self.nBands = len(inObj.channels['res'])
     self.molNames = list(inObj.molnames)
+    self.pathLNFL = str(inObj.lnfl_path)
     self.runDirLNFL = str(inObj.lnfl_run_dir)
+    self.dirExtras = str(inObj.extra_params)
     self.dirT3 = str(inObj.tape3_dir)
     self.runDirLBL = str(inObj.lbl_run_dir)
     self.dirT5 = str(inObj.tape5_dir)
@@ -197,7 +225,7 @@ class makeABSCO():
       'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OH', 'HF', 'HCL', 'HBR', \
       'HI', 'CLO', 'OCS', 'H2CO', 'HOCL', 'N2', 'HCN', 'CH3CL', \
       'H2O2', 'C2H2', 'C2H6', 'PH3', 'COF2', 'SF6', 'H2S', 'HCOOH', \
-      'HO2', 'O', 'CLONO2', 'NO+', 'HOBr', 'C2H4', 'CH3OH', 'CH3Br', \
+      'HO2', 'O', 'CLONO2', 'NO+', 'HOBR', 'C2H4', 'CH3OH', 'CH3BR', \
       'CH3CN', 'CF4', 'C4H2', 'HC3N', 'H2', 'CS', 'SO3']
 
     # for cd'ing back into the cwd
@@ -207,17 +235,22 @@ class makeABSCO():
   def lnflT5(self):
     """
     Make a TAPE5 for every band and molecule that can be used as 
-    input into an LNFL run
+    input into an LNFL run. We will only be using the extra broadening
+    option (so we are not writing to an ASCII TAPE7 and are including 
+    line coupling.
     """
 
     # this is part of record 3 (LNFL instructions), all molecules off
     molIndInit = np.repeat('0', 47)
 
     # the other part of record 3 -- let's always keep line coupling on
-    # so we get the O2, CO2, and CH4 coupling params; and always 
-    # use extra broadening params
+    # so we get the O2, CO2, and CH4 coupling params; suppress any 
+    # output to an ASCII TAPE7; and always use extra broadening params
     holInd = 'EXBRD'
     for mol in self.molNames:
+      outDirT5 = '%s/%s/%s' % (self.runDirLNFL, self.dirT5, mol)
+      if not os.path.exists(outDirT5): os.mkdir(outDirT5)
+
       try:
         iMol = self.HITRAN.index(mol)
       except:
@@ -230,13 +263,53 @@ class makeABSCO():
         wvn2 = self.bands['wn2'][iBand]
         record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
         record2 = '%10.3f%10.3f' % (wvn1, wvn2)
+
         molInd = np.array(molIndInit)
-        molInd[iMol] = 1
+        molInd[iMol] = '1'
         record3 = '%47s%4s%40s' % (''.join(list(molInd)), ' ', holInd)
-        print(record3)
+
+        # write LNFL TAPE5 for this band and molecule
+        recs = [record1, record2, record3]
+
+        # making WN1 and WN2 ints just to keep "." out of name
+        outFile = '%s/TAPE5_%s_%d-%d' % \
+          (outDirT5, mol, \
+           self.bands['wn1'][iBand], self.bands['wn2'][iBand])
+        outFP = open(outFile, 'w')
+        for rec in recs: outFP.write('%s\n' % rec)
+        outFP.close()
+        print('Wrote %s' % outFile)
       # end band loop
     # end mol loop
   # end lnflT5()
+
+  def runLNFL(self):
+    """
+    Run executable to generate a binary line file (TAPE3) for usage
+    in LBLRTM.  Do this for each TAPE5 input available for a given 
+    molecule.
+    """
+
+    # link to extra broadening and speed dependence parameters
+    # equivalent to `ln -s full_path`
+    os.chdir(self.runDirLNFL)
+    extras = glob.glob(self.dirExtras)
+    slExtras = [os.path.basename(extra) for extra in extras]
+    makeSymLinks(extras, slExtras)
+
+    for mol in self.molNames:
+      inDirT5 = '%s/%s' % (self.dirT5, mol)
+      inT5 = sorted(glob.glob('%s/TAPE5_*' % inDirT5))
+
+      for t5 in inT5:
+        continue
+      # end TAPE5 loop
+
+    # end mol loop
+
+    os.chdir(self.topDir)
+    print(os.getcwd())
+  # end runLNFL()
 
   def lblT5(self):
     """
@@ -279,7 +352,7 @@ class makeABSCO():
       # generate free-format record 1.2
       record12a = ' '.join(scales.astype(str))
 
-      outDirT5 = '%s/%s/%s' % (self.lbl_run_dir, self.dirT5, mol)
+      outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
       if not os.path.exists(outDirT5): os.mkdir(outDirT5)
 
       for iP, pLev in enumerate(self.pLev):
@@ -339,9 +412,6 @@ class makeABSCO():
 
     This can be run in parallel for each molecule
     """
-
-    # standard library
-    import subprocess as sub
 
     if not os.path.exists(self.workDir): os.mkdir(self.workDir)
     for mol in self.molNames['lblxs']:
