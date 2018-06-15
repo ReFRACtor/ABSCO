@@ -293,7 +293,13 @@ class makeABSCO():
     # link to extra broadening and speed dependence parameters
     # equivalent to `ln -s full_path`
     os.chdir(self.runDirLNFL)
-    extras = glob.glob(self.dirExtras)
+    extras = glob.glob('%s/*_param' % self.dirExtras)
+    if len(extras) == 0:
+      print('No broadening or speed dependence parameters found')
+      print('Returning')
+      sys.exit(1)
+    # endif extras
+
     slExtras = [os.path.basename(extra) for extra in extras]
     makeSymLinks(extras, slExtras)
 
