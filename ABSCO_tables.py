@@ -12,6 +12,7 @@ import subprocess as sub
 sys.path.append('common')
 import utils
 import RC_utils as RC
+import lblTools
 
 class configSetup():
   def __init__(self, inFile):
@@ -285,7 +286,7 @@ class makeABSCO():
         recs = [record1, record2, record3]
 
         # making WN1 and WN2 ints just to keep "." out of name
-        outFile = '%s/TAPE5_%s_%d-%d' % \
+        outFile = '%s/TAPE5_%s_%05d-%05d' % \
           (outDirT5, mol, \
            self.bands['wn1'][iBand], self.bands['wn2'][iBand])
         outFP = open(outFile, 'w')
@@ -409,8 +410,9 @@ class makeABSCO():
 
         for itLev, tLev in enumerate(self.tLev):
           for iBand in range(self.nBands):
-            outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK' % \
-              (outDirT5, mol, pLev, tLev)
+            outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK_%05d-%05d' % \
+              (outDirT5, mol, pLev, tLev, self.bands['wn1'][iBand], \
+               self.bands['wn2'][iBand])
 
             # TAPE5 records
             # record 1.3 is kinda long...first, band limits
@@ -466,9 +468,12 @@ class makeABSCO():
     makeSymLinks(sources, targets)
 
     for mol in self.molNames:
+      outDirOD = '%s/%s/%s' % (self.topDir, self.fineOD, mol)
+      if not os.path.exists(outDirOD): os.mkdir(outDirOD)
+
       # set up working subdirectory
-      # find TAPE3s and their associated TAPE5s (TAPE5s should follow
-      # the same naming convention as TAPE3s)
+      # find TAPE3s and their associated TAPE5s (for every TAPE3, 
+      # there is a TAPE5 for every pressure and every temperature)
       searchStr = '%s/%s/%s/TAPE3*' % (self.topDir, self.dirT3, mol)
       molT3 = sorted(glob.glob(searchStr))
       if len(molT3) == 0:
@@ -478,40 +483,41 @@ class makeABSCO():
 
       molT5 = []
       for t3 in molT3:
-        t5 = '%s/%s/%s/%s/%s' % (self.topDir, self.runDirLBL, \
-          self.dirT5, mol, t3.replace('TAPE3', 'TAPE5')
+        base = os.path.basename(t3)
+        band = base.split('_')[-1]
+        searchStr = '%s/%s/%s/%s/TAPE5_*_%s' % \
+          (self.topDir, self.runDirLBL, self.dirT5, mol, band)
+        molT5 = sorted(glob.glob(searchStr))
 
-        if not os.path.exists(t5):
-          print('Could not find %s' % t5)
+        if len(molT5) == 0:
+          print('Found no TAPE5s for %s' % mol)
           continue
         # endif t5
-        molT5.append(t5)
+
+        for t5 in molT5:
+          base = os.path.basename(t5)
+          print(base)
+          if os.path.islink('TAPE5'): os.unlink('TAPE5')
+          os.symlink(t5, 'TAPE5')
+
+          # grab extension for use in renaming the ODint LBL output file
+          ext = base.replace('TAPE5_', '')
+          sub.call(['./lblrtm'])
+          odStr = 'ODint_001'
+
+          # if all ODs are zero, remove the file and continue to next 
+          # iteration (this saves HD space)
+          freq, od = lblTools.readOD(odStr, double=True)
+          if od.min() == 0 and od.max() == 0:
+            os.remove(odStr)
+            continue
+          # endif zero OD
+
+          os.rename(odStr, '%s/%s' % \
+            (outDirOD, odStr.replace('001', ext)))
+          break
+        # end T5 loop
       # end t3 loop
-      print('No LBL run')
-      continue
-
-      for t3, t5 in zip(molT3, molT5):
-        base = os.path.basename(t5)
-        print(base)
-        if os.path.islink('TAPE5'): os.unlink('TAPE5')
-        os.symlink(t5, 'TAPE5')
-
-        # grab extension for use in renaming the ODint LBL output file
-        ext = base.replace('TAPE5_', '')
-        sub.call(['./lblrtm'])
-        odStr = 'ODint_001'
-
-        # if all ODs are zero, remove the file and continue to next 
-        # iteration (this saves HD space)
-        freq, od = lblTools.readOD(odStr, double=True)
-        if od.min() == 0 and od.max() == 0:
-          os.remove(odStr)
-          continue
-        # endif zero OD
-
-        os.rename(\
-          odStr, '%s/%s' % (self.fineOD, odStr.replace('001', ext)) )
-      # end T5 loop
     # end molecule loop
 
     return True
