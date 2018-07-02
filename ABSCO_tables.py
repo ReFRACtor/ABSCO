@@ -25,6 +25,51 @@ class configSetup():
         and filenames for...
     """
 
+    # all allowed molecule names
+    allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
+      'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OCS', 'CH2O', 'N2', \
+      'HCN', 'C2H2', 'HCOOH', 'C2H4', 'CH3OH', 'CCL4', 'CF4', \
+      'F11', 'F12', 'F22', 'ISOPRENE', 'PAN', 'HDO', 'BRO', 'O2-O2']
+
+    # "active" spectral regions for each allowed molecule
+    regions = {}
+    regions['H2O'] = [[100, 25000]]
+    regions['CO2'] = [[500, 12785]]
+    regions['O3'] = [[100, 4000], [8500, 24665], [27370, 54000]]
+    regions['N2O'] = [[550, 7800]]
+    regions['CO'] = [[2000, 2250], [4150, 4350], [6200, 6500], \
+      [8200, 8465]]
+    regions['CH4'] = [[100, 9100]]
+    regions['O2'] = [[0, 150], [1350, 1850], [6200, 6500], \
+      [7500, 8500], [9100, 11000], [12990, 13224], [15000, 29870], \
+      [36000, 50000]]
+    regions['NO'] = [[1750, 2000]]
+    regions['SO2'] = [[450, 600], [1050, 1450], [2440, 2450], \
+      [3950, 4150], [23995, 43985]]
+    regions['NO2'] = [[1550, 1650], [2850, 2950], [15000, 42002]]
+    regions['NH3'] = [[750, 1200], [1450, 1800], [3200, 3600]]
+    regions['HNO3'] = [[400, 950], [1050, 1450], [1600, 1770]]
+    regions['OCS'] = [[500, 2200]]
+    regions['CH2O'] = [[25919, 33300]]
+    regions['N2'] = [[0, 350], [2000, 2900], [4300, 4950]]
+    regions['HCN'] = [[0, 100], [600, 800], [1300, 1500], \
+      [3200, 3500]]
+    regions['C2H2'] = [[650, 800], [3100, 3400]]
+    regions['HCOOH'] = [[950, 1250], [1700, 1890]]
+    regions['C2H4'] = [[600, 1175], [1350, 1550], [2900, 3243]]
+    regions['CH3OH'] = [[950, 1408], [2600, 3250]]
+    regions['CCL4'] = [[740, 820]]
+    regions['CF4'] = [[1250, 1300]]
+    regions['F11'] = [[830, 860], [1060, 1110]]
+    regions['F12'] = [[860, 940], [1080, 1180]]
+    regions['F22'] = [[780, 840], [1080, 1150], [1290, 1335]]
+    regions['ISOPRENE'] = [[850, 1100], [2800, 3200]]
+    regions['PAN'] = [[560, 1400], [1650, 1900]]
+    regions['HDO'] = [[1100, 1800], [2500, 3000], [3300, 4300], \
+      [4800, 5400], [700, 7500]]
+    regions['BRO'] = [[25927, 34919]]
+    regions['O2-O2'] = [[16644, 29785]]
+
     # standard library, but name depends on Python version
     if sys.version_info.major < 3:
       import ConfigParser
@@ -84,9 +129,18 @@ class configSetup():
         # and don't do the upper(); stay case sensitive
         molecules = []
 
-        # this is a problem for HOBr and CH3Br
         molNames = cItems[0][1].upper()
         split = molNames.split()
+
+        # make sure the provided species names are allowed
+        # if not, do not include
+        for mol in split:
+          if mol not in allowed:
+            print('Removing %s because it is not allowed' % allowed)
+            split.remove(mol)
+          # endif mol
+        # end mol loop
+
         if len(split) == 0:
           sys.exit('No molecules specified')
         else:
@@ -115,9 +169,8 @@ class configSetup():
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.extra_params, \
       self.lnfl_path, self.lbl_path, self.xs_path, self.fscdxs]
-    self.outDirs = [self.tape3_dir, self.tape5_dir, \
-      self.lnfl_run_dir, self.lbl_run_dir, \
-      self.od_dir, self.absco_dir]
+    self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
+      self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
   # end constructor
 # end configSetup()
 
@@ -128,7 +181,7 @@ def makeSymLinks(sources, targets):
 
   for source, target in zip(sources, targets):
     # UNCOMMENT THIS WHEN NOT DEBUGGING
-    #utils.file_check(source)
+    utils.file_check(source)
     if os.path.exists(target): os.unlink(target)
     os.symlink(source, target)
   # end link loop
@@ -142,7 +195,7 @@ class makeABSCO():
   - Build TAPE3 (binary line file) for specified bands
   - Run LBLRTM to generate ODInt files
   - Use the ODInt files to calculate absorption coefficients and store
-    in HDF file
+    in netCDF file
 
   Generate absorption coefficient tables (ABSCO as a function of 
   wavenumber, pressure, temperature, and band) for specified molecule
@@ -160,7 +213,7 @@ class makeABSCO():
 
     # UNCOMMENT THIS WHEN NOT DEBUGGING
     # make sure paths exist before proceeding
-    #for path in inObj.paths: utils.file_check(path)
+    for path in inObj.paths: utils.file_check(path)
 
     # make output directories
     for outDir in inObj.outDirs:
@@ -208,6 +261,7 @@ class makeABSCO():
     self.runDirLNFL = str(inObj.lnfl_run_dir)
     self.pathLNFL = str(inObj.lnfl_path)
     self.pathT1 = str(inObj.tape1_path)
+    self.pathT2 = str(inObj.tape2_path)
     self.dirExtras = str(inObj.extra_params)
     self.dirT3 = str(inObj.tape3_dir)
 
@@ -324,9 +378,15 @@ class makeABSCO():
     # other LNFL links that will not change
     srcLNFL = [self.pathLNFL, self.pathT1]
     tarLNFL = ['lnfl', 'TAPE1']
+
     makeSymLinks(srcLNFL, tarLNFL)
 
     for mol in self.molNames:
+      # line coupling molecules have other targets
+      if mol in ['CO2', 'CH4', 'O2']:
+        makeSymLinks([self.pathT2], ['TAPE2'])
+      # endif TAPE2
+
       inDirT5 = '%s/%s' % (self.dirT5, mol)
       inT5 = sorted(glob.glob('%s/TAPE5_*' % inDirT5))
       outDirT3 = '%s/%s/%s' % (self.topDir, self.dirT3, mol)
@@ -335,7 +395,6 @@ class makeABSCO():
       if len(inT5) == 0:
         print('Found no TAPE5s for %s' % mol)
         continue
-
       # endif nT5
 
       for t5 in inT5:
@@ -500,7 +559,8 @@ class makeABSCO():
           if os.path.islink('TAPE5'): os.unlink('TAPE5')
           os.symlink(t5, 'TAPE5')
 
-          # grab extension for use in renaming the ODint LBL output file
+          # grab extension for use in renaming the ODint LBL output 
+          # file
           ext = base.replace('TAPE5_', '')
           sub.call(['./lblrtm'])
           odStr = 'ODint_001'
@@ -554,18 +614,26 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   iniFile = args.config_file; utils.file_check(iniFile)
+
+  # configuration object instantiation
   ini = configSetup(iniFile)
 
-  # instantiation
+  # ABSCO object instantiation
   absco = makeABSCO(ini)
 
-  if args.lnfl_tape5: absco.lnflT5()
-  if args.run_lnfl: absco.runLNFL()
-  if args.lbl_tape5: absco.lblT5()
-  if args.run_lbl: absco.runLBL()
+  if args.run_lnfl: 
+    absco.lnflT5()
+    absco.runLNFL()
+  # end LNFL
+
+  if args.run_lbl:
+    absco.lblT5()
+    #absco.runLBL()
+  # end LBL
 
   # haven't tested this yet, but no reason it won't work...right?
   if args.end_to_end:
+    sys.exit('No e2e yet')
     absco.lblT5()
     absco.runLBL()
   # endif e2e
