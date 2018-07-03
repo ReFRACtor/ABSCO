@@ -27,7 +27,7 @@ class configure():
 
     # all allowed molecule names
     allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
-      'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OCS', 'CH2O', 'N2', \
+      'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OCS', 'H2CO', 'N2', \
       'HCN', 'C2H2', 'HCOOH', 'C2H4', 'CH3OH', 'CCL4', 'CF4', \
       'F11', 'F12', 'F22', 'ISOPRENE', 'PAN', 'HDO', 'BRO', 'O2-O2']
 
@@ -54,17 +54,14 @@ class configure():
         channels = {}
         for cItem in cItems:
           split = cItem[1].split()
-          if len(split) > 1: 
-            print('More than 1 channel specified, ', end='')
-            print('only using the first one.')
-          elif len(split) == 0:
+          if len(split) == 0:
             # CONSIDER DEFAULTS
             chanErrMsg = 'No bands specified in %s, returning' % \
               inFile
             sys.exit(chanErrMsg)
           # endif split
 
-          channels[cItem[0]] = float(split[0])
+          channels[cItem[0]] = np.array(split).astype(float)
         # end item loop
 
         # these keys are required
@@ -75,6 +72,17 @@ class configure():
             sys.exit('Could not find %s, returning' % req)
           # endif required
         # end required loop
+
+        # there should be an equal number of starting and ending 
+        # wavenumbers and associated spectralresolutions
+        for key in keys[1:]:
+          if channels[key].size != channels[keys[0]].size:
+            chanErrMsg = 'wn1, wn2, and res should have equal ' + \
+              'number of elements, returning'
+            print('Error in %s' % inFile)
+            sys.exit(chanErrMsg)
+          # endif channels
+        # end key loop
 
         setattr(self, 'channels', channels)
       elif cps == 'molecules':
@@ -108,10 +116,9 @@ class configure():
           # end active loop
 
           if len(molMissed):
-            prompt = 'The following molecules are active between ' + \
-              '%.2f and %.2f cm-1 ' % \
-              (self.channels['wn1'], self.channels['wn2']) + \
-              'and were not included in the configuration file: ' + \
+            prompt = 'The following molecules are active in one ' + \
+              'of the input spectral ranges and were not ' + \
+              'included in the configuration file: ' + \
               '%s, proceed (y/n)? ' % molMissed
             status = input(prompt)
             status = status.upper()
@@ -126,10 +133,9 @@ class configure():
           # end mol loop
 
           if len(molExtra):
-            prompt = 'The following molecules are not active ' + \
-              'between %.2f and %.2f cm-1 ' % \
-              (self.channels['wn1'], self.channels['wn2']) + \
-              'and were included in the configuration file: ' + \
+            prompt = 'The following molecules are not active in ' + \
+              'any of the input spectral ranges and were ' + \
+              'included in the configuration file: ' + \
               '%s, proceed (y/n)? ' % molExtra
             status = input(prompt)
             status = status.upper()
@@ -166,6 +172,14 @@ class configure():
       self.lnfl_path, self.lbl_path, self.xs_path, self.fscdxs]
     self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
       self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
+
+    # cross section molecules will have to be handled differently
+    # from HITRAN molecules
+    self.xsNames = ['CCL4', 'F11', 'F12', 'F22', 'ISOPRENE', 'PAN']
+
+    # and these guys are neither HITRAN or XS molecules, or are 
+    # both (CF4)
+    self.dunno = ['HDO', 'O2-O2', 'CF4', 'BRO']
   # end constructor
 
   def findActiveMol(self):
@@ -195,7 +209,7 @@ class configure():
     regions['NH3'] = [[750, 1200], [1450, 1800], [3200, 3600]]
     regions['HNO3'] = [[400, 950], [1050, 1450], [1600, 1770]]
     regions['OCS'] = [[500, 2200]]
-    regions['CH2O'] = [[25919, 33300]]
+    regions['H2CO'] = [[25919, 33300]]
     regions['N2'] = [[0, 350], [2000, 2900], [4300, 4950]]
     regions['HCN'] = [[0, 100], [600, 800], [1300, 1500], \
       [3200, 3500]]
@@ -215,18 +229,23 @@ class configure():
     regions['BRO'] = [[25927, 34919]]
     regions['O2-O2'] = [[16644, 29785]]
 
-    # find active species inside specified band
+    # find active species inside specified bands
+    # any mol that is active in ANY user-specified band is returned
     wn1, wn2 = self.channels['wn1'], self.channels['wn2']
     activeMol = []
-    for key in regions.keys():
-      active = False
-      for band in regions[key]:
-        if (wn1 >= band[0]) & (wn2 <= band[1]): active = True
-      # end band loop
-      if active: activeMol.append(key)
-    # end key loop
+    for iWN, fWN in zip(wn1, wn2):
+      for key in regions.keys():
+        active = False
+        for band in regions[key]:
+          # is there any *overlap*? (user band does not have to be 
+          # contained inside active band, just overlap)
+          if (fWN >= band[0]) & (iWN <= band[1]): active = True
+        # end band loop
+        if active: activeMol.append(key)
+      # end key loop
+    # end WN loop
 
-    return activeMol
+    return np.unique(np.array(activeMol))
   # end findActiveMol()
 # end configure()
 
