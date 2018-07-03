@@ -14,7 +14,7 @@ import utils
 import RC_utils as RC
 import lblTools
 
-class configSetup():
+class configure():
   def __init__(self, inFile):
     """
     Parse the input .ini file (inFile) and return as an object for 
@@ -31,7 +31,152 @@ class configSetup():
       'HCN', 'C2H2', 'HCOOH', 'C2H4', 'CH3OH', 'CCL4', 'CF4', \
       'F11', 'F12', 'F22', 'ISOPRENE', 'PAN', 'HDO', 'BRO', 'O2-O2']
 
+    # standard library, but name depends on Python version
+    if sys.version_info.major < 3:
+      import ConfigParser
+    else:
+      import configparser as ConfigParser
+    # endif Python version
+
+    errMsg = 'Missing field in %s' % inFile
+
+    cParse = ConfigParser.ConfigParser()
+    cParse.read(inFile)
+    cpSections = cParse.sections()
+
+    # loop over each field (of all sections) and keep the field and 
+    # associated value in returned object (self)
+    for iCPS, cps in enumerate(cpSections):
+      cItems = cParse.items(cps)
+      if cps == 'channels':
+        # make channels dictionary with spectral metadata
+        # now only allowing 1 channel
+        channels = {}
+        for cItem in cItems:
+          split = cItem[1].split()
+          if len(split) > 1: 
+            print('More than 1 channel specified, ', end='')
+            print('only using the first one.')
+          elif len(split) == 0:
+            # CONSIDER DEFAULTS
+            chanErrMsg = 'No bands specified in %s, returning' % \
+              inFile
+            sys.exit(chanErrMsg)
+          # endif split
+
+          channels[cItem[0]] = float(split[0])
+        # end item loop
+
+        # these keys are required
+        keys = list(channels.keys())
+        for req in ['wn1', 'wn2', 'res']:
+          if req not in keys:
+            print(errMsg)
+            sys.exit('Could not find %s, returning' % req)
+          # endif required
+        # end required loop
+
+        setattr(self, 'channels', channels)
+      elif cps == 'molecules':
+        # molecules should be separated by a space
+        molecules = []
+
+        molNames = cItems[0][1].upper()
+        split = molNames.split()
+
+        # make sure the provided species names are allowed
+        # if not, do not include
+        for mol in split:
+          if mol not in allowed:
+            print('Removing %s because it is not allowed' % mol)
+            split.remove(mol)
+          # endif mol
+        # end mol loop
+
+        # what molecules are active to the wn range specified?
+        molActive = self.findActiveMol()
+        if len(split) == 0:
+          print('No molecules specified, ', end='')
+          print('finding active molecules in %.2f-%.2f cm-1 range' % \
+            (self.channels['wn1'], self.channels['wn2']))
+          molecules = list(molActive)
+        else:
+          # did the user neglect any active molecules?
+          molMissed = []
+          for active in molActive:
+            if active not in split: molMissed.append(active)
+          # end active loop
+
+          if len(molMissed):
+            prompt = 'The following molecules are active between ' + \
+              '%.2f and %.2f cm-1 ' % \
+              (self.channels['wn1'], self.channels['wn2']) + \
+              'and were not included in the configuration file: ' + \
+              '%s, proceed (y/n)? ' % molMissed
+            status = input(prompt)
+            status = status.upper()
+
+            if status == 'N': sys.exit('Exited without proceeding')
+          # endif molMissed
+
+          # did the user include and non-active molecules?
+          molExtra = []
+          for mol in split:
+            if mol not in molActive: molExtra.append(mol)
+          # end mol loop
+
+          if len(molExtra):
+            prompt = 'The following molecules are not active ' + \
+              'between %.2f and %.2f cm-1 ' % \
+              (self.channels['wn1'], self.channels['wn2']) + \
+              'and were included in the configuration file: ' + \
+              '%s, proceed (y/n)? ' % molExtra
+            status = input(prompt)
+            status = status.upper()
+
+            if status == 'N': sys.exit('Exited without proceeding')
+          # endif molExtra
+
+          molecules += split
+        # endif no mol
+
+        setattr(self, 'molnames', molecules)
+      else:
+        for cItem in cItems: setattr(self, cItem[0], cItem[1])
+      # endif cps
+    # end sections loop
+
+    # in the makeABSCO() class, we expect certain attributes
+    # let's make sure they exist in the config file
+    reqAtt = ['pfile', 'ptfile', 'channels', 'molnames', 'scale', \
+      'lnfl_run_dir', 'lnfl_path', 'tape1_path', 'tape3_dir', \
+      'extra_params', 'tape5_dir', 'lbl_path', 'xs_path', 'fscdxs', \
+      'lbl_run_dir', 'od_dir', 'absco_dir']
+
+    # loop over all required attributes and do a check
+    for req in reqAtt:
+      if req not in dir(self):
+        print(errMsg)
+        sys.exit('Could not find %s attribute, returning' % req)
+      # endif req
+    # end req loop
+
+    # let's pack all of the files into a single list
+    self.paths = [self.pfile, self.ptfile, self.extra_params, \
+      self.lnfl_path, self.lbl_path, self.xs_path, self.fscdxs]
+    self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
+      self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
+  # end constructor
+
+  def findActiveMol(self):
+    """
+    If the user only specifies a spectral range and no valid 
+    molecules, try to determine the molecules to be processed based 
+    on the input spectral range
+    """
+
     # "active" spectral regions for each allowed molecule
+    # these will only be used if the user does not specify a molecule
     regions = {}
     regions['H2O'] = [[100, 25000]]
     regions['CO2'] = [[500, 12785]]
@@ -66,113 +211,24 @@ class configSetup():
     regions['ISOPRENE'] = [[850, 1100], [2800, 3200]]
     regions['PAN'] = [[560, 1400], [1650, 1900]]
     regions['HDO'] = [[1100, 1800], [2500, 3000], [3300, 4300], \
-      [4800, 5400], [700, 7500]]
+      [4800, 5400], [7000, 7500]]
     regions['BRO'] = [[25927, 34919]]
     regions['O2-O2'] = [[16644, 29785]]
 
-    # standard library, but name depends on Python version
-    if sys.version_info.major < 3:
-      import ConfigParser
-    else:
-      import configparser as ConfigParser
-    # endif Python version
+    # find active species inside specified band
+    wn1, wn2 = self.channels['wn1'], self.channels['wn2']
+    activeMol = []
+    for key in regions.keys():
+      active = False
+      for band in regions[key]:
+        if (wn1 >= band[0]) & (wn2 <= band[1]): active = True
+      # end band loop
+      if active: activeMol.append(key)
+    # end key loop
 
-    errMsg = 'Missing field in %s' % inFile
-
-    cParse = ConfigParser.ConfigParser()
-    cParse.read(inFile)
-    cpSections = cParse.sections()
-
-    # loop over each field (of all sections) and keep the field and 
-    # associated value in returned object (self)
-    for iCPS, cps in enumerate(cpSections):
-      cItems = cParse.items(cps)
-      if cps == 'channels':
-        # make channels dictionary with spectral metadata
-        channels = {}
-        for cItem in cItems: 
-          channels[cItem[0]] = \
-            np.array(cItem[1].split()).astype(float)
-        # end item loop
-
-        # these keys are required
-        keys = list(channels.keys())
-        for req in ['wn1', 'wn2', 'res']:
-          if req not in keys:
-            print(errMsg)
-            sys.exit('Could not find %s, returning' % req)
-          # endif required
-        # end required loop
-
-        # there should be an equal number of starting and ending 
-        # wavenumbers and associated spectralresolutions
-        for key in keys[1:]:
-          if channels[key].size != channels[keys[0]].size:
-            chanErrMsg = 'wn1, wn2, and res should have equal ' + \
-              'number of elements, returning'
-            print('Error in %s' % inFile)
-            sys.exit(chanErrMsg)
-          # endif channels
-        # end key loop
-
-        if channels[keys[0]].size == 0:
-          # CONSIDER DEFAULTS
-          chanErrMsg = 'No bands specified in %s, returning' % \
-            inFile
-          sys.exit(chanErrMsg)
-        # endif zero
-
-        setattr(self, 'channels', channels)
-      elif cps == 'molecules':
-        # molecules should be separated by a space
-        # CONSIDER DEFAULTS; put list of defaults somewhere in here 
-        # and don't do the upper(); stay case sensitive
-        molecules = []
-
-        molNames = cItems[0][1].upper()
-        split = molNames.split()
-
-        # make sure the provided species names are allowed
-        # if not, do not include
-        for mol in split:
-          if mol not in allowed:
-            print('Removing %s because it is not allowed' % allowed)
-            split.remove(mol)
-          # endif mol
-        # end mol loop
-
-        if len(split) == 0:
-          sys.exit('No molecules specified')
-        else:
-          molecules += split
-        setattr(self, 'molnames', molecules)
-      else:
-        for cItem in cItems: setattr(self, cItem[0], cItem[1])
-      # endif cps
-    # end sections loop
-
-    # in the makeABSCO() class, we expect certain attributes
-    # let's make sure they exist in the config file
-    reqAtt = ['pfile', 'ptfile', 'channels', 'molnames', 'scale', \
-      'lnfl_run_dir', 'lnfl_path', 'tape1_path', 'tape3_dir', \
-      'extra_params', 'tape5_dir', 'lbl_path', 'xs_path', 'fscdxs', \
-      'lbl_run_dir', 'od_dir', 'absco_dir']
-
-    # loop over all required attributes and do a check
-    for req in reqAtt:
-      if req not in dir(self):
-        print(errMsg)
-        sys.exit('Could not find %s attribute, returning' % req)
-      # endif req
-    # end req loop
-
-    # let's pack all of the files into a single list
-    self.paths = [self.pfile, self.ptfile, self.extra_params, \
-      self.lnfl_path, self.lbl_path, self.xs_path, self.fscdxs]
-    self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
-      self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
-  # end constructor
-# end configSetup()
+    return activeMol
+  # end findActiveMol()
+# end configure()
 
 def makeSymLinks(sources, targets):
   """
@@ -205,7 +261,7 @@ class makeABSCO():
 
     """
     Inputs
-      inObj -- configSetup instance
+      inObj -- configure instance
       molecule -- str, HITRAN molecule name
 
     Keywords
@@ -616,7 +672,7 @@ if __name__ == '__main__':
   iniFile = args.config_file; utils.file_check(iniFile)
 
   # configuration object instantiation
-  ini = configSetup(iniFile)
+  ini = configure(iniFile)
 
   # ABSCO object instantiation
   absco = makeABSCO(ini)
