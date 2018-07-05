@@ -175,11 +175,11 @@ class configure():
 
     # cross section molecules will have to be handled differently
     # from HITRAN molecules
-    self.xsNames = ['CCL4', 'F11', 'F12', 'F22', 'ISOPRENE', 'PAN']
+    self.xsNames = \
+      ['CF4', 'CCL4', 'F11', 'F12', 'F22', 'ISOPRENE', 'PAN']
 
-    # and these guys are neither HITRAN or XS molecules, or are 
-    # both (CF4)
-    self.dunno = ['HDO', 'O2-O2', 'CF4', 'BRO']
+    # and these guys are neither HITRAN or XS molecules
+    self.dunno = ['HDO', 'O2-O2', 'BRO']
   # end constructor
 
   def findActiveMol(self):
@@ -692,6 +692,9 @@ if __name__ == '__main__':
 
   # configuration object instantiation
   ini = configure(iniFile)
+  for iniName in ini.molnames:
+    if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
+  sys.exit()
 
   # ABSCO object instantiation
   absco = makeABSCO(ini)
