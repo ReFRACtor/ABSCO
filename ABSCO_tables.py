@@ -88,16 +88,15 @@ class makeABSCO():
       sys.exit('Please provide monotonic pressures')
     # endif ascend
 
-    allT = np.loadtxt(inObj.ptfile, usecols=(3), unpack=True)
-    uniqT = np.unique(allT)
+    gridP, gridT1, gridT2 = np.loadtxt(inObj.ptfile, unpack=True)
 
     # set class attributes
     # state, etc. atts
     self.headerOD = inObj.header
     self.cntnmScale = float(inObj.scale)
     self.pLev = np.array(inP)
+    self.gridPT = {'pressure': gridP, 'T1': gridT1, 'T2': gridT2}
     self.pressures = np.array(inP)
-    self.tLev = np.array(uniqT)
     self.bands = dict(inObj.channels)
     self.nBands = len(inObj.channels['res'])
     self.molNames = list(inObj.molnames)
@@ -171,6 +170,7 @@ class makeABSCO():
       # end exception
 
       for iBand in range(self.nBands):
+        if self.doBand[mol][iBand] is False: continue
         # band specification	
         wvn1 = self.bands['wn1'][iBand]
         wvn2 = self.bands['wn2'][iBand]
@@ -282,39 +282,48 @@ class makeABSCO():
     # pressure levels, no zero-filling, full printout, 7 molecules,
     record31 = '%5d%5d%5d%5d%5d%5d' % (6, 2, -2, 0, 0, 7)
 
+    gridPT = dict(self.gridPT)
     for mol in self.molNames:
-      # continuum scale factors
-      if mol == 'H2O':
-        scales[:2] = self.cntnmScale
-      elif mol == 'CO2':
-        scales[2] = self.cntnmScale
-      elif mol == 'O3':
-        scales[3] = self.cntnmScale
-      elif mol == 'O2':
-        scales[4] = self.cntnmScale
-      elif mol == 'N2':
-        scales[5] = self.cntnmScale
-      # endif CNTNM scales
+      for iBand in range(self.nBands):
 
-      # generate free-format record 1.2
-      record12a = ' '.join(scales.astype(str))
+        if self.doBand[mol][iBand] is False: continue
 
-      outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
-      if not os.path.exists(outDirT5): os.mkdir(outDirT5)
+        # continuum scale factors
+        if mol == 'H2O':
+          scales[:2] = self.cntnmScale
+        elif mol == 'CO2':
+          scales[2] = self.cntnmScale
+        elif mol == 'O3':
+          scales[3] = self.cntnmScale
+        elif mol == 'O2':
+          scales[4] = self.cntnmScale
+        elif mol == 'N2':
+          scales[5] = self.cntnmScale
+        # endif CNTNM scales
 
-      for iP, pLev in enumerate(self.pLev):
-        # need 2 P bounds for LBLATM
-        if iP == 0: continue
-        pArr = [self.pLev[iP-1], self.pLev[iP]]
+        # generate free-format record 1.2
+        record12a = ' '.join(scales.astype(str))
 
-        # record 3.2: pressure limits for all levels, nadir SZA
-        record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
+        outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
+        if not os.path.exists(outDirT5): os.mkdir(outDirT5)
 
-        # record 3.3b: pressure levels
-        record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
+        for iP, pLev in enumerate(self.pLev):
+          # need 2 P bounds for LBLATM
+          if iP == 0: continue
+          pArr = [self.pLev[iP-1], self.pLev[iP]]
 
-        for itLev, tLev in enumerate(self.tLev):
-          for iBand in range(self.nBands):
+          # record 3.2: pressure limits for all levels, nadir SZA
+          record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
+
+          # record 3.3b: pressure levels
+          record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
+
+          # temperatures depend on pressure level, let's do a value
+          # locate of pLev in gridPT
+          iLocP = np.argmin(np.abs(gridPT['pressure']-pLev))
+          tLevs = np.arange(gridPT['T1'], gridPT['T2']+10, 10)
+
+          for tLev in tLevs:
             outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK_%05d-%05d' % \
               (outDirT5, mol, pLev, tLev, self.bands['wn1'][iBand], \
                self.bands['wn2'][iBand])
@@ -346,9 +355,9 @@ class makeABSCO():
             for rec in recs: outFP.write('%s\n' % rec)
             outFP.write('%%%%')
             outFP.close()
-          # end band loop
-        # end temperature loop
-      # end pressure loop
+          # end temperature loop
+        # end pressure loop
+      # end band loop
     # end molecule loop
 
     return True
@@ -470,7 +479,6 @@ if __name__ == '__main__':
 
   for iniName in ini.molnames:
     if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
-  sys.exit()
 
   # ABSCO object instantiation
   absco = makeABSCO(ini)
