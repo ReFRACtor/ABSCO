@@ -5,7 +5,7 @@ Software that can generate a set of ABSCO tables that span the thermal IR to UV 
 Assuming the user has set the `user.name` and `user.email` Git configuration variables and has setup their Github account SSH keys, the repository can be cloned by using:
 
 ```
-git clone --recursive https://github.com/pernak18/common/tree/80a7dd7d47332061d106d9f4d5997de78d0f4d59
+git clone --recursive git@github.com:pernak18/ABSCO.git
 ```
 
 Note the `--recursive` keyword -- it will force the clone to copy the necessary subroutines.
