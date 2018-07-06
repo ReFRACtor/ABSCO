@@ -49,5 +49,5 @@ User must provide a spectral range. Species specification is optional -- if `mol
 
 ## Pressure levels
 
-In `densities` subdirectory, run standard_atm_densities.py.
+In `VMR` subdirectory, run standard_atm_densities.py.
 
