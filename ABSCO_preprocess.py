@@ -101,10 +101,10 @@ class configure():
 
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
-    reqAtt = ['pfile', 'ptfile', 'channels', 'molnames', 'scale', \
-      'lnfl_run_dir', 'lnfl_path', 'tape1_path', 'tape3_dir', \
-      'extra_params', 'tape5_dir', 'lbl_path', 'xs_path', 'fscdxs', \
-      'lbl_run_dir', 'od_dir', 'absco_dir']
+    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', 'molnames', \
+      'scale', 'lnfl_run_dir', 'lnfl_path', 'tape1_path', \
+      'tape3_dir', 'extra_params', 'tape5_dir', 'lbl_path', \
+      'xs_path', 'fscdxs', 'lbl_run_dir', 'od_dir', 'absco_dir']
 
     # loop over all required attributes and do a check
     for req in reqAtt:
@@ -115,8 +115,9 @@ class configure():
     # end req loop
 
     # let's pack all of the files into a single list
-    self.paths = [self.pfile, self.ptfile, self.extra_params, \
-      self.lnfl_path, self.lbl_path, self.xs_path, self.fscdxs]
+    self.paths = [self.pfile, self.ptfile, self.vmrfile, \
+      self.extra_params, self.lnfl_path, self.lbl_path, \
+      self.xs_path, self.fscdxs]
     self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
       self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
 
@@ -127,6 +128,28 @@ class configure():
 
     # and these guys are neither HITRAN or XS molecules
     self.dunno = ['HDO', 'O2-O2', 'BRO']
+
+    # gather necessary params from input files
+    # is pressure ascending or descending? force descending
+    # (i.e., go from surface to TOA)
+    inP = np.loadtxt(self.pfile)
+
+    # is pressure ascending or descending? force descending
+    # TO DO: move this to preprocessor?
+    pDiff = np.diff(inP)
+    if (pDiff > 0).all():
+      inP = inP[::-1]
+    elif (pDiff < 0).all():
+      pass
+    else:
+      sys.exit('Please provide monotonic pressures')
+    # endif ascend
+
+    self.pressures = np.array(inP)
+
+    # TO DO: ensure user profile has the same amount of pressures
+    # could probably do better and return P in profile CSV and then
+    # do the 1-1 P check here
   # end constructor
 
   def findActiveMol(self):

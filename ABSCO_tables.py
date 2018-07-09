@@ -9,6 +9,7 @@ import subprocess as sub
 
 # miniconda-installed libs
 import numpy as np
+import pandas as pd
 
 # local module (part of the ABSCO library)
 import ABSCO_preprocess as preproc
@@ -51,7 +52,6 @@ class makeABSCO():
     """
     Inputs
       inObj -- preproc.configure instance
-      molecule -- str, HITRAN molecule name
 
     Keywords
     """
@@ -72,35 +72,58 @@ class makeABSCO():
       else:
         if not os.path.exists(outDir): os.mkdir(outDir)
       # endif outDir
+    # end outDir loop
 
-    # gather necessary params from input files
+    inP = np.array(inObj.pressures)
+
+    # determine the temperature "levels" at each pressure boundary
     # [temperature] = K, [pressure] = mbar
-    # let's go from surface to TOA
-    inP = np.loadtxt(inObj.pfile)
-
-    # is pressure ascending or descending? force descending
-    pDiff = np.diff(inP)
-    if (pDiff > 0).all():
-      inP = inP[::-1]
-    elif (pDiff < 0).all():
-      pass
-    else:
-      sys.exit('Please provide monotonic pressures')
-    # endif ascend
-
     gridP, gridT1, gridT2 = np.loadtxt(inObj.ptfile, unpack=True)
+    tLevList = []
+    allT = []
+    for pLev in inP:
+      # find closest value to pLev in PT grid
+      iLocP = np.argmin(np.abs(gridP-pLev))
+
+      # generate an array of temperatures for this pressure in 10 K
+      # increments
+      gridT = np.arange(gridT1[iLocP], gridT2[iLocP]+10, 10)
+      tLevList.append(gridT)
+
+      # this will be used for determination of T dimension
+      allT += list(gridT)
+    # end P loop
+
+    # grab the user provided VMR profile for the species of interest
+    # TO DO: _HI and _XS species (so right now, this will not work 
+    # for SO2, NO_2, HNO3, CLONO2, CH3CN, or CF4)
+    userProfAll = pd.read_csv(inObj.vmrfile)
+    userProf = {}
+    userProf['P'] = userProfAll['P'].values
+    userProf['T'] = userProfAll['T'].values
+    userProf['BRD'] = userProfAll['BRD'].values
+    for mol in inObj.molnames:
+      if mol in userProfAll.keys().values:
+        userProf[mol] = userProfAll[mol].values
+      # endif mol
+    # end mol loop
 
     # set class attributes
     # state, etc. atts
     self.headerOD = inObj.header
     self.cntnmScale = float(inObj.scale)
     self.pLev = np.array(inP)
-    self.gridPT = {'pressure': gridP, 'T1': gridT1, 'T2': gridT2}
+    self.nP = inP.size
+    self.tLev = list(tLevList)
+    self.nT = np.unique(np.array(allT)).size
     self.pressures = np.array(inP)
     self.bands = dict(inObj.channels)
     self.nBands = len(inObj.channels['res'])
     self.molNames = list(inObj.molnames)
     self.doBand = dict(inObj.doBand)
+
+    # grab the profiles
+    self.vmrProf = dict(userProf)
 
     # LNFL atts
     self.runDirLNFL = str(inObj.lnfl_run_dir)
@@ -119,9 +142,10 @@ class makeABSCO():
     self.fineOD = str(inObj.od_dir)
     self.coarseOD = str(inObj.absco_dir)
 
-    # all HITRAN molecule names
+    # all HITRAN molecule names (these are the molecules for which we
+    # have line parameters)
     """
-    # might be useful later...
+    # might be useful later...list the HITRAN molecule names
     lfMolDir = '/nas/project/rc_static/models/' + \
       'aer_line_parameters/AER_line_files/aer_v_3.6/' + \
       'line_files_By_Molecule/*'
@@ -264,15 +288,9 @@ class makeABSCO():
     """
     Make a TAPE5 for every temperature, band, and molecule that can 
     be used as input into an LBLRTM run
-    """
 
-    # some constant LBLRTM TAPE5 records 
-    # (see lblrtm_instructions.html for help with each record)
-    # record1.2: HI=9: central line contribution omitted
-    # CN=6: continuum scale factor for given molecules used
-    # OD=1, MG=1: optical depth computation, layer-by-layer
-    record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 TS=0 ' + \
-      'AM=1 MG=1 LA=0 OD=1 XS=0'
+    see lblrtm_instructions.html for doc on each TAPE5 record
+    """
 
     # multiplicative continuum factors (because CN=6 in record12)
     scales = np.repeat(0.0, 7)
@@ -280,10 +298,26 @@ class makeABSCO():
     # records required with IATM=1 (provide some doc on this rec)
     # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
     # pressure levels, no zero-filling, full printout, 7 molecules,
-    record31 = '%5d%5d%5d%5d%5d%5d' % (6, 2, -2, 0, 0, 7)
+    record31 = '%5d%5d%5d%5d%5d%5d' % (0, 2, -2, 0, 0, 7)
 
-    gridPT = dict(self.gridPT)
     for mol in self.molNames:
+      doXS = 0 if mol in self.HITRAN else 1
+
+      # TO DO: WORK ON THIS EVENTUALLY
+      if doXS == 1: continue
+
+      # record1.2: HI=9: central line contribution omitted
+      # CN=6: continuum scale factor for given molecules used
+      # OD=1, MG=1: optical depth computation, layer-by-layer
+      record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 TS=0 ' + \
+        'AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
+
+      # record 3.4: user profile header for given molecule
+      record34 = '%5d%24s' % (self.nP, 'User profile for %s' % mol)
+
+      # this is for record 3.6
+      n36 = len(self.HITRAN) if doXS == 0 else 7
+
       for iBand in range(self.nBands):
 
         if self.doBand[mol][iBand] is False: continue
@@ -318,12 +352,43 @@ class makeABSCO():
           # record 3.3b: pressure levels
           record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
 
-          # temperatures depend on pressure level, let's do a value
-          # locate of pLev in gridPT
-          iLocP = np.argmin(np.abs(gridPT['pressure']-pLev))
-          tLevs = np.arange(gridPT['T1'], gridPT['T2']+10, 10)
+          # record 3.5: level and unit info for record 3.6
+          # using a fill space for "ZM" because whatever i would 
+          # provide for that field would be ignored
+          # really all we're doing is P and T units (in mbar and K)
+          # and using the default (blank) format and units for profile
+          # info (E10.3 VMR)
+          record35 = '%10s%10.3E%10.3E%5sAA' % \
+            ('', pLev, self.vmrProf['T'][iP], '')
 
-          for tLev in tLevs:
+          # record 3.6: provide profile info at a given level, but 
+          # only for the broadener (density) and given mol (VMR)
+          if doXS == 0:
+            hitranAll = np.repeat(0.0, n36)
+
+            # fill in the VMR for the given mol
+            iMatch = self.HITRAN.index(mol)
+            hitranAll[iMatch] = self.vmrProf[mol][iP]
+
+            # insert the broadening density -- the eighth "molecule"
+            hitranAll = np.insert(\
+              hitranAll, 7, self.vmrProf['BRD'][iP])
+
+            # start building the string for record 3.6
+            record36 = ''
+            for iDen, den in enumerate(hitranAll):
+              record36 += '%10.3E' % den
+
+              # eight molecules per line (but only 48 molecules, and 
+              # no need for new line at end)
+              if ((iDen+1) % 8) == 0 and iDen < 47: record36 += '\n'
+            # end record36 loop
+          else:
+            # TO DO: XS record 3.7.1
+            continue
+          # end record36
+
+          for tLev in self.tLev[iP]:
             outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK_%05d-%05d' % \
               (outDirT5, mol, pLev, tLev, self.bands['wn1'][iBand], \
                self.bands['wn2'][iBand])
@@ -344,8 +409,8 @@ class makeABSCO():
               (' ', 0, ' ', self.bands['res'][0])
 
             # write the TAPE5 for this set of params
-            recs = [record12, record12a, record13, \
-              record31, record32, record33b]
+            recs = [record12, record12a, record13, record31, \
+              record32, record33b, record34, record35, record36]
 
             if os.path.exists(outFile):
               print('WARNING: Overwriting %s' % outFile)
@@ -407,6 +472,9 @@ class makeABSCO():
           print('Found no TAPE5s for %s' % mol)
           continue
         # endif t5
+
+        if os.path.islink('TAPE3'): os.unlink('TAPE3')
+        os.symlink(t3, 'TAPE3')
 
         for t5 in molT5:
           base = os.path.basename(t5)
@@ -490,7 +558,7 @@ if __name__ == '__main__':
 
   if args.run_lbl:
     absco.lblT5()
-    #absco.runLBL()
+    absco.runLBL()
   # end LBL
 
   # haven't tested this yet, but no reason it won't work...right?
