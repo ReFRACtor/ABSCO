@@ -55,13 +55,18 @@ class vmrProfiles():
     hiDF = pd.read_csv(self.HITRAN)
     xsDF = pd.read_csv(self.XS)
 
-    # only the first 7 HITRAN molecules and the broadening density
-    # have VMR profiles that are not constant as a function of 
+    # only the first 7 HITRAN molecules, the broadening density, P, 
+    # and T have VMR profiles that are not constant as a function of 
     # standard atmosphere, so only grab the columns corresponding to 
     # the requested stanAtm also keep the corresponding pressure grid
-    first7 = ['H2O', 'CO2', 'O3', 'CO', 'N2O', 'CH4', 'O2', 'BRD']
-    first7 = ['%s_%1d' % (f7, self.stanAtm) for f7 in first7]
-    hiNames = first7 + list(hiDF.keys().values[61:])
+    stanAtmList = ['H2O', 'CO2', 'O3', 'CO', 'N2O', \
+      'CH4', 'O2', 'BRD']
+    stanAtmList = ['%s_%1d' % (param, self.stanAtm) for param in \
+      stanAtmList]
+
+    # P and T have different LBLATM naming conventions...
+    ptList = ['%1s%1d' % (pt, self.stanAtm) for pt in ['P', 'T']]
+    hiNames = ptList + stanAtmList + list(hiDF.keys().values[61:])
     xsNames = xsDF.keys().values
     stanAtmP = hiDF['P%1d' % self.stanAtm].values
 
@@ -76,6 +81,7 @@ class vmrProfiles():
 
       # for output, we can remove the standard atmosphere index substr
       if '_%1d' % self.stanAtm in mol: mol = mol.split('_')[0]
+      if mol in ptList: mol = mol[0]
 
       # handle molecules that have line parameters and XS values
       if mol in xsNames: mol += '_HI'
