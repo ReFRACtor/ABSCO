@@ -51,3 +51,5 @@ User must provide a spectral range. Species specification is optional -- if `mol
 
 In `VMR` subdirectory, run standard_atm_profiles.py.
 
+For whatever atmosphere is used, one must also calculate the broadening density at each pressure for each molecule (i.e., when all of the other molecules are zeroed out in the TAPE5). This can also be done with the `standard_atm_profiles.py` module using the `--broad` keyword.
+

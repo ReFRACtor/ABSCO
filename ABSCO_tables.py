@@ -141,6 +141,7 @@ class makeABSCO():
     self.dirT5 = str(inObj.tape5_dir)
     self.fineOD = str(inObj.od_dir)
     self.coarseOD = str(inObj.absco_dir)
+    self.molMaxLBL = 47
 
     # all HITRAN molecule names (these are the molecules for which we
     # have line parameters)
@@ -298,13 +299,10 @@ class makeABSCO():
     # records required with IATM=1 (provide some doc on this rec)
     # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
     # pressure levels, no zero-filling, full printout, 7 molecules,
-    record31 = '%5d%5d%5d%5d%5d%5d' % (0, 2, -2, 0, 0, 7)
+    record31 = '%5d%5d%5d%5d%5d%5d' % (0, 2, -2, 0, 0, self.molMaxLBL)
 
     for mol in self.molNames:
       doXS = 0 if mol in self.HITRAN else 1
-
-      # TO DO: WORK ON THIS EVENTUALLY
-      if doXS == 1: continue
 
       # record1.2: HI=9: central line contribution omitted
       # CN=6: continuum scale factor for given molecules used
@@ -313,10 +311,7 @@ class makeABSCO():
         'AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
 
       # record 3.4: user profile header for given molecule
-      record34 = '%5d%24s' % (self.nP, 'User profile for %s' % mol)
-
-      # this is for record 3.6
-      n36 = len(self.HITRAN) if doXS == 0 else 7
+      record34 = '%5d%24s' % (1, 'User profile for %s' % mol)
 
       for iBand in range(self.nBands):
 
@@ -337,6 +332,20 @@ class makeABSCO():
 
         # generate free-format record 1.2
         record12a = ' '.join(scales.astype(str))
+
+        # record 1.3 is kinda long...first, band limits
+        record13 = '%10.3e%10.3e' % \
+          (self.bands['wn1'][0], self.bands['wn2'][0])
+
+        # concatenate (NOT append) 6 zeros in scientific notation
+        # using defaults for SAMPLE, DVSET, ALFAL0, AVMASS, 
+        # DPTMIN, and DPTFAC params
+        record13 += ''.join(['%10.3e' % 0 for i in range(6)])
+
+        # line rejection not recorded and 1e-4 output OD spectral
+        # resolution
+        record13 += '%4s%1d%5s%10.3e' % \
+          (' ', 0, ' ', self.bands['res'][0])
 
         outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
         if not os.path.exists(outDirT5): os.mkdir(outDirT5)
@@ -363,29 +372,45 @@ class makeABSCO():
 
           # record 3.6: provide profile info at a given level, but 
           # only for the broadener (density) and given mol (VMR)
-          if doXS == 0:
-            hitranAll = np.repeat(0.0, n36)
+          lblAll = np.repeat(0.0, self.molMaxLBL)
 
-            # fill in the VMR for the given mol
+          # fill in the VMR for the given mol
+          if not doXS:
             iMatch = self.HITRAN.index(mol)
-            hitranAll[iMatch] = self.vmrProf[mol][iP]
+            lblAll[iMatch] = self.vmrProf[mol][iP]
+          # endif doXS
 
-            # insert the broadening density -- the eighth "molecule"
-            hitranAll = np.insert(\
-              hitranAll, 7, self.vmrProf['BRD'][iP])
+          # insert the broadening density -- the eighth "molecule"
+          lblAll = np.insert(lblAll, 7, self.vmrProf['BRD'][iP])
 
-            # start building the string for record 3.6
-            record36 = ''
-            for iDen, den in enumerate(hitranAll):
-              record36 += '%10.3E' % den
+          # start building the string for record 3.6
+          record36 = ''
+          for iDen, den in enumerate(lblAll):
+            record36 += '%10.3E' % den
 
-              # eight molecules per line (but only 48 molecules, and 
-              # no need for new line at end)
-              if ((iDen+1) % 8) == 0 and iDen < 47: record36 += '\n'
-            # end record36 loop
-          else:
-            # TO DO: XS record 3.7.1
-            continue
+            # eight molecules per line (but only 48 molecules, and 
+            # no need for new line at end)
+            if ((iDen+1) % 8) == 0 and iDen < 47: record36 += '\n'
+          # end record36 loop
+
+          if doXS:
+            # record 3.7: 1 molecule, user-provided profile
+            record37 = '%5d%5d' % (1, 0)
+
+            # record 3.7.1: XS molecule name
+            record371 = '%10s' % mol
+
+            # record 3.8: 1 layer, pressure used for "height"
+            record38 = '%5d%5d %s User Profile' % (1, 1, mol)
+
+            # record 3.8.1: boundary pressure
+            record381 = '%10.3f' % pLev
+
+            # record 3.8.2: layer molecule VMR
+            record382 = '%10.3E' % self.vmrProf[mol][iP]
+
+            xsRecs = \
+              [record37, record371, record38, record381, record382]
           # end record36
 
           for tLev in self.tLev[iP]:
@@ -393,24 +418,10 @@ class makeABSCO():
               (outDirT5, mol, pLev, tLev, self.bands['wn1'][iBand], \
                self.bands['wn2'][iBand])
 
-            # TAPE5 records
-            # record 1.3 is kinda long...first, band limits
-            record13 = '%10.3e%10.3e' % \
-              (self.bands['wn1'][0], self.bands['wn2'][0])
-
-            # concatenate (NOT append) 6 zeros in scientific notation
-            # using defaults for SAMPLE, DVSET, ALFAL0, AVMASS, 
-            # DPTMIN, and DPTFAC params
-            record13 += ''.join(['%10.3e' % 0 for i in range(6)])
-
-            # line rejection not recorded and 1e-4 output OD spectral
-            # resolution
-            record13 += '%4s%1d%5s%10.3e' % \
-              (' ', 0, ' ', self.bands['res'][0])
-
             # write the TAPE5 for this set of params
             recs = [record12, record12a, record13, record31, \
               record32, record33b, record34, record35, record36]
+            if doXS: recs += xsRecs
 
             if os.path.exists(outFile):
               print('WARNING: Overwriting %s' % outFile)
@@ -558,7 +569,7 @@ if __name__ == '__main__':
 
   if args.run_lbl:
     absco.lblT5()
-    absco.runLBL()
+    #absco.runLBL()
   # end LBL
 
   # haven't tested this yet, but no reason it won't work...right?
