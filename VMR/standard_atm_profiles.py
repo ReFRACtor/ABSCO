@@ -113,22 +113,32 @@ class vmrProfiles():
   
 # end vmrProfiles()
 
+LBLDEFAULT = '/nas/project/rc_static/models/aer_lblrtm/' + \
+  'lblrtm_v12.9/lblrtm_v12.9_linux_pgi_dbl'
+
 class broadener():
-  def __init__(self, inObj):
+  def __init__(self, inObj, lblPath=LBLDEFAULT):
     """
     After vmrProfiles() object is constructed, run LBLATM (subroutine 
     of LBLRTM that calculates density profiles) to compute the correct
     broadening densities when all only one specified molecule is "on"
 
+    This class is dependent on vmrProfiles attributes to remind the 
+    user that the broadening densities need to be recalculated every 
+    time a new profile is provided
+
     inObj -- vmrProfiles object
+    lblPath -- string, path to LBLRTM executable
     """
 
     utils.file_check(inObj.outFile)
+    utils.file_check(lblPath)
 
     self.vmrObj = inObj
     self.workDir = os.getcwd()
-    self.dirT5 = '%s/LBLATM/TAPE5' % self.workDir
-    self.dirT7 = '%s/LBLATM/TAPE7' % self.workDir
+    self.dirT5 = '%s/LBLATM/TAPE5_dir' % self.workDir
+    self.dirT7 = '%s/LBLATM/TAPE7_dir' % self.workDir
+    self.lblPath = str(lblPath)
 
     # check if output directories exist
     for outDir in ['%s/LBLATM' % self.workDir, self.dirT5, self.dirT7]:
@@ -157,7 +167,6 @@ class broadener():
     # calculation is done (same with resolution)
     self.startWN = 4700.0
     self.endWN = 4800.00
-    self.res = 1e-4
 
     # pressures should be monotonically decreasing since we grabbed 
     # them from LBLATM
@@ -180,6 +189,9 @@ class broadener():
       'HO2', 'O', 'CLONO2', 'NO+', 'HOBR', 'C2H4', 'CH3OH', 'CH3BR', \
       'CH3CN', 'CF4', 'C4H2', 'HC3N', 'H2', 'CS', 'SO3']
 
+    # first generate all of the records needed for the TAPE5
+    # records 1.2, 1.3, 3.1, and 3.2 are independent of molecule
+
     # record1.2: HI=0: HIRAC not activated, no LBL calculation used
     # CN=0: no continuum
     # OD=0, MG=0: no LBL optical depth computation, final layer
@@ -196,27 +208,38 @@ class broadener():
 
     # line rejection not recorded and 1e-4 output OD spectral
     # resolution
-    record13 += '%4s%1d%5s%10.3e' % (' ', 0, ' ', self.res)
+    record13 += '%4s%1d%5s%10.3e' % (' ', 0, ' ', 0)
 
     # records required with IATM=1 (provide some doc on this rec)
     # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
-    # pressure levels, no zero-filling, full printout, 7 molecules,
-    record31 = '%5d%5d%5d%5d%5d%5d' % (0, 2, -2, 0, 0, self.molMaxLBL)
+    # pressure levels, no zero-filling, full printout, 7 molecules, 
+    # print to TAPE7
+    record31 = '%5d%5d%5d%5d%5d%5d%5d' % \
+      (0, 2, -self.nP, 0, 0, self.molMaxLBL, 1)
 
-    # record 3.2: pressure limits for all levels, nadir SZA
-    record32 = '%10.3f%10.3f%10.3f' % (self.pLev[0], self.pLev[1], 0)
+    # record 3.2: pressure limits, nadir SZA
+    record32 = '%10.3f%10.3f%10.3f' % (self.pLev[0], self.pLev[-1], 0)
+
+    # record 3.3b: pressure boundaries at each level
+    record33 = ''
+    for iP, p in enumerate(self.pLev):
+      record33 += '%10.3f' % p
+
+      # eight pressures per line (and no need for new line at end)
+      if ((iP+1) % 8) == 0 and iP < self.nP: record33 += '\n'
+    # end record36 loop
 
     # for record 3.5
-    strForm = ['A'] * self.molMaxLBL
+    strForm = ['A', 'A', ' ', ' '] + ['A'] * self.molMaxLBL
     strForm = ''.join(strForm)
     altSfc = '%10.3E' % 0
 
     for mol in self.molNames:
-      record11 = 'LBLATM run for %s, broadener calc' % mol
-      outFile = '%s/%s_TAPE5' % (self.dirT5, mol)
+      # records 1.1 and 3.4 all depend on molecule
+      record11 = '$ LBLATM run for %s, broadener calc' % mol
 
       # record 3.4: user profile header for given molecule
-      record34 = '%5d%24s' % (self.nP, 'User profile for %s' % mol)
+      record34 = '%5d%24s' % (-self.nP, 'User profile for %s' % mol)
 
       # some molecules have line parameters and XS, use the former
       # and don't do any XS
@@ -226,7 +249,8 @@ class broadener():
       if hiMol not in molHITRAN: continue
 
       recs = [record11, record12, record13, record31, record32, \
-        record34]
+        record33, record34]
+
       for iP, p, t in zip(np.arange(self.nP), self.pLev, self.tLev):
         # record 3.5: level and unit info for record 3.6
         # using a fill space for "ZM" because whatever i would 
@@ -264,6 +288,14 @@ class broadener():
         recs.append(record36)
 
       # end level loop
+
+      # write the TAPE5 for a given molecule
+      outFile = '%s/%s_TAPE5' % (self.dirT5, mol)
+      outFP = open(outFile, 'w')
+      for rec in recs: outFP.write('%s\n' % rec)
+      outFP.write('%%%%%%\n')
+      outFP.close()
+      print('Wrote %s' % outFile)
     # end mol loop
   # end makeT5()
 
@@ -311,6 +343,9 @@ if __name__ == '__main__':
     'broadening parameter for every layer and every molecule.  ' + \
     'This calculation is done by turning "on" one molecule at a ' + \
     'time.  Output is written to a variant of outfile.')
+  parser.add_argument('-lbl', '--lbl_path', default=LBLDEFAULT, \
+    help='Full path to LBLRTM executable that will be used if ' + \
+    '--broad is used.')
   args = parser.parse_args()
 
   hiCSV = args.csvHITRAN; xsCSV = args.csvXS; pFile = args.pressures
@@ -321,7 +356,7 @@ if __name__ == '__main__':
   vmrProf.calcVMR()
 
   if args.broad:
-    broadObj = broadener(vmrProf)
+    broadObj = broadener(vmrProf, lblPath=args.lbl_path)
     broadObj.makeT5()
     broadObj.runLBLATM()
     broadObj.writeCSV()
