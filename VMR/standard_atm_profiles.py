@@ -135,18 +135,20 @@ class broadener():
     utils.file_check(lblPath)
 
     self.vmrObj = inObj
-    self.workDir = os.getcwd()
-    self.dirT5 = '%s/LBLATM/TAPE5_dir' % self.workDir
-    self.dirT7 = '%s/LBLATM/TAPE7_dir' % self.workDir
+    self.curDir = os.getcwd()
+    self.workDir = '%s/LBLATM' % os.getcwd()
+    self.dirT5 = '%s/TAPE5_dir' % self.workDir
+    self.dirT7 = '%s/TAPE7_dir' % self.workDir
     self.lblPath = str(lblPath)
+    self.lblExe = 'lblrtm'
 
     # check if output directories exist
-    for outDir in ['%s/LBLATM' % self.workDir, self.dirT5, self.dirT7]:
+    for outDir in [self.workDir, self.dirT5, self.dirT7]:
       if not os.path.exists(outDir): os.mkdir(outDir)
     # end outDir loop
 
     self.outCSV = '%s/%s_broadener.csv' % \
-      (self.workDir, inObj.outFile[:-4])
+      (self.curDir, inObj.outFile[:-4])
 
     csvDat = pd.read_csv(inObj.outFile)
     molNames = list(csvDat.keys().values)
@@ -161,11 +163,12 @@ class broadener():
 
     # weird...record 3.5 only allows 39 molecules, but HITRAN has 47 
     # and that is the max allowed in record 2.1 (NMOL)
-    self.molMaxLBL = 39
+    # 39 for XS, 47 for line parameter molecules
+    self.molMaxLBL = 47
 
     # the band for LBLATM is arbitrary because no radiative transfer 
     # calculation is done (same with resolution)
-    self.startWN = 4700.0
+    self.startWN = 4700.00
     self.endWN = 4800.00
 
     # pressures should be monotonically decreasing since we grabbed 
@@ -251,6 +254,11 @@ class broadener():
       recs = [record11, record12, record13, record31, record32, \
         record33, record34]
 
+      # for record 3.6
+      # fill in the VMR for the given mol (needs to be in ppmv)
+      iMatch = molHITRAN.index(hiMol)
+      if iMatch >= self.molMaxLBL: continue
+
       for iP, p, t in zip(np.arange(self.nP), self.pLev, self.tLev):
         # record 3.5: level and unit info for record 3.6
         # using a fill space for "ZM" because whatever i would 
@@ -265,10 +273,6 @@ class broadener():
         # record 3.6: provide profile info at a given level, but 
         # only for the broadener (density) and given mol (VMR)
         lblAll = np.repeat(0.0, self.molMaxLBL)
-
-        # fill in the VMR for the given mol (needs to be in ppmv)
-        iMatch = molHITRAN.index(hiMol)
-        if iMatch >= self.molMaxLBL: continue
         lblAll[iMatch] = self.vmr[mol][iP] * 1e6
 
         # insert fill broadening density -- the eighth "molecule"
@@ -290,7 +294,9 @@ class broadener():
       # end level loop
 
       # write the TAPE5 for a given molecule
+      if '_HI' in mol: mol = mol.replace('_HI', '')
       outFile = '%s/%s_TAPE5' % (self.dirT5, mol)
+
       outFP = open(outFile, 'w')
       for rec in recs: outFP.write('%s\n' % rec)
       outFP.write('%%%%%%\n')
@@ -304,6 +310,33 @@ class broadener():
     Run LBLATM with the TAPE5s generated in makeT5(), save TAPE7s in 
     their own directory
     """
+
+    # standard Python libraries
+    import subprocess as sub
+    import glob
+
+    allT5 = sorted(glob.glob('%s/*TAPE5*' % self.dirT5))
+
+    os.chdir(self.workDir)
+    lblExe = self.lblExe
+    if not os.path.islink(lblExe): os.symlink(self.lblPath, lblExe)
+
+    for t5 in allT5:
+      #print('Working on %s' % t5)
+      if os.path.islink('TAPE5'): os.unlink('TAPE5')
+      os.symlink(t5, 'TAPE5')
+      status = sub.run(['./%s' % lblExe])
+      if status.returncode:
+        print('LBLRTM did not work for %s' % os.path.basename(t5))
+        continue
+      # endif returncode
+
+      # for the output file, basically replace "TAPE5" with "TAPE7"
+      outFile = '%s/%s' % \
+        (self.dirT7, os.path.basename(t5).replace('TAPE5', 'TAPE7'))
+      print('Wrote %s' % outFile)
+      os.rename('TAPE7', outFile)
+    # end TAPE5 loop
   # end runLBLATM()
 
   def writeCSV(self):
@@ -359,7 +392,7 @@ if __name__ == '__main__':
     broadObj = broadener(vmrProf, lblPath=args.lbl_path)
     broadObj.makeT5()
     broadObj.runLBLATM()
-    broadObj.writeCSV()
+    #broadObj.writeCSV()
   # endif broad
 # endif main()
 
