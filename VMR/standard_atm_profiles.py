@@ -4,7 +4,7 @@
 # for Python 3 compatibility
 from __future__ import print_function
 
-import os, sys, argparse
+import os, sys, glob, argparse
 
 # miniconda installs
 import numpy as np
@@ -13,6 +13,11 @@ from pandas import DataFrame as DF
 
 sys.path.append('../common')
 import utils
+
+LBLDEFAULT = '/nas/project/rc_static/models/aer_lblrtm/' + \
+  'lblrtm_v12.9/lblrtm_v12.9_linux_pgi_dbl'
+XSDEFAULT = '/nas/project/rc_static/models/aer_line_parameters/' + \
+  'AER_line_files/aer_v_3.6/xs_files_v3.6'
 
 class vmrProfiles():
   def __init__(self, hiFile, xsFile, pressureFile, \
@@ -113,11 +118,9 @@ class vmrProfiles():
   
 # end vmrProfiles()
 
-LBLDEFAULT = '/nas/project/rc_static/models/aer_lblrtm/' + \
-  'lblrtm_v12.9/lblrtm_v12.9_linux_pgi_dbl'
-
 class broadener():
-  def __init__(self, inObj, lblPath=LBLDEFAULT):
+  def __init__(self, inObj, lblPath=LBLDEFAULT, \
+    doXS=False, xsPath=XSDEFAULT):
     """
     After vmrProfiles() object is constructed, run LBLATM (subroutine 
     of LBLRTM that calculates density profiles) to compute the correct
@@ -129,18 +132,28 @@ class broadener():
 
     inObj -- vmrProfiles object
     lblPath -- string, path to LBLRTM executable
+    doXS -- boolean, instead of calculating broadener for each 
+      molecule in inObj.outFile, just do one profile that will be used
+      for all XS species
+    xsPath -- string, path to 
     """
 
     utils.file_check(inObj.outFile)
     utils.file_check(lblPath)
 
+    if doXS:
+      utils.file_check('%s/FSCDXS' % xsPath)
+      utils.file_check('%s/xs' % xsPath)
+    # endif XS
+
     self.vmrObj = inObj
-    self.curDir = os.getcwd()
+    self.topDir = os.getcwd()
     self.workDir = '%s/LBLATM' % os.getcwd()
     self.dirT5 = '%s/TAPE5_dir' % self.workDir
     self.dirT7 = '%s/TAPE7_dir' % self.workDir
     self.lblPath = str(lblPath)
     self.lblExe = 'lblrtm'
+    self.xsPath = str(xsPath)
 
     # check if output directories exist
     for outDir in [self.workDir, self.dirT5, self.dirT7]:
@@ -148,7 +161,7 @@ class broadener():
     # end outDir loop
 
     self.outCSV = '%s/%s_broadener.csv' % \
-      (self.curDir, inObj.outFile[:-4])
+      (self.topDir, inObj.outFile[:-4])
 
     csvDat = pd.read_csv(inObj.outFile)
     molNames = list(csvDat.keys().values)
@@ -159,12 +172,9 @@ class broadener():
       if mol in molNames: molNames.remove(mol)
     # end mol loop
 
-    self.molNames = list(molNames)
-
-    # weird...record 3.5 only allows 39 molecules, but HITRAN has 47 
-    # and that is the max allowed in record 2.1 (NMOL)
-    # 39 for XS, 47 for line parameter molecules
-    self.molMaxLBL = 47
+    self.molNames = ['XS'] if doXS else list(molNames)
+    self.molMaxLBL = 39 if doXS else 47
+    self.doXS = bool(doXS)
 
     # the band for LBLATM is arbitrary because no radiative transfer 
     # calculation is done (same with resolution)
@@ -198,8 +208,9 @@ class broadener():
     # record1.2: HI=0: HIRAC not activated, no LBL calculation used
     # CN=0: no continuum
     # OD=0, MG=0: no LBL optical depth computation, final layer
+    xsStr = 1 if self.doXS else 0
     record12 = ' HI=0 F4=0 CN=0 AE=0 EM=0 SC=0 FI=0 PL=0 TS=0 ' + \
-      'AM=1 MG=0 LA=0 OD=0 XS=0'
+      'AM=1 MG=0 LA=0 OD=0 XS=%1d' % xsStr
 
     # record 1.3 is kinda long...first, band limits
     record13 = '%10.3e%10.3e' % (self.startWN, self.endWN)
@@ -217,8 +228,9 @@ class broadener():
     # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
     # pressure levels, no zero-filling, full printout, 7 molecules, 
     # print to TAPE7
+    nMol = 7 if self.doXS else self.molMaxLBL
     record31 = '%5d%5d%5d%5d%5d%5d%5d' % \
-      (0, 2, -self.nP, 0, 0, self.molMaxLBL, 1)
+      (0, 2, -self.nP, 0, 0, nMol, 1)
 
     # record 3.2: pressure limits, nadir SZA
     record32 = '%10.3f%10.3f%10.3f' % (self.pLev[0], self.pLev[-1], 0)
@@ -233,10 +245,11 @@ class broadener():
     # end record36 loop
 
     # for record 3.5
-    strForm = ['A', 'A', ' ', ' '] + ['A'] * self.molMaxLBL
+    strForm = ['A', 'A', ' ', ' '] + ['A'] * nMol
     strForm = ''.join(strForm)
     altSfc = '%10.3E' % 0
 
+    allT5 = []
     for mol in self.molNames:
       # records 1.1 and 3.4 all depend on molecule
       record11 = '$ LBLATM run for %s, broadener calc' % mol
@@ -244,20 +257,21 @@ class broadener():
       # record 3.4: user profile header for given molecule
       record34 = '%5d%24s' % (-self.nP, 'User profile for %s' % mol)
 
-      # some molecules have line parameters and XS, use the former
-      # and don't do any XS
-      if '_XS' in mol: continue
-      hiMol = mol.split('_')[0] if '_HI' in mol else str(mol)
-      if mol == 'NOPLUS': hiMol = 'NO+'
-      if hiMol not in molHITRAN: continue
-
       recs = [record11, record12, record13, record31, record32, \
         record33, record34]
 
-      # for record 3.6
-      # fill in the VMR for the given mol (needs to be in ppmv)
-      iMatch = molHITRAN.index(hiMol)
-      if iMatch >= self.molMaxLBL: continue
+      if not self.doXS:
+        # some molecules have line parameters and XS, use the former
+        # and don't do the XS ('XS' will be separate)
+        if '_XS' in mol: continue
+        hiMol = mol.split('_')[0] if '_HI' in mol else str(mol)
+        if mol == 'NOPLUS': hiMol = 'NO+'
+        if hiMol not in molHITRAN: continue
+
+        # for record 3.6
+        iMatch = molHITRAN.index(hiMol)
+        if iMatch >= self.molMaxLBL: continue
+      # endif XS
 
       for iP, p, t in zip(np.arange(self.nP), self.pLev, self.tLev):
         # record 3.5: level and unit info for record 3.6
@@ -272,8 +286,9 @@ class broadener():
 
         # record 3.6: provide profile info at a given level, but 
         # only for the broadener (density) and given mol (VMR)
-        lblAll = np.repeat(0.0, self.molMaxLBL)
-        lblAll[iMatch] = self.vmr[mol][iP] * 1e6
+        # fill in the VMR for the given mol (needs to be in ppmv)
+        lblAll = np.repeat(0.0, nMol)
+        if not self.doXS: lblAll[iMatch] = self.vmr[mol][iP] * 1e6
 
         # insert fill broadening density -- the eighth "molecule"
         lblAll = np.insert(lblAll, 7, 0)
@@ -283,15 +298,30 @@ class broadener():
         for iVMR, vmr in enumerate(lblAll):
           record36 += '%10.3E' % vmr
 
-          # eight molecules per line (but only 48 molecules, and 
-          # no need for new line at end)
-          if ((iVMR+1) % 8) == 0 and iVMR < self.molMaxLBL:
-            record36 += '\n'
+          # eight molecules per line, new line every 8 
+          # (but only 48 molecules, and no need for new line at end)
+          if ((iVMR+1) % 8) == 0 and iVMR < nMol: record36 += '\n'
         # end record36 loop
 
         recs.append(record36)
 
       # end level loop
+
+      if self.doXS:
+        # let's just use a single molecule from an LBLATM-determined
+        # standard  atmosphere rather than providing a user profile 
+        # (like the line parameter molecules). the choice of standard
+        # atmosphere is not crucial because we're just interested in
+        # the broadener, and the XS densities are relatively small
+
+        # record 3.7
+        record37 = '%5d%5d%5d' % (1, 1, 0)
+        recs.append(record37)
+
+        # record 3.7.1
+        record371 = 'F11'
+        recs.append(record371)
+      # endif XS
 
       # write the TAPE5 for a given molecule
       if '_HI' in mol: mol = mol.replace('_HI', '')
@@ -302,7 +332,12 @@ class broadener():
       outFP.write('%%%%%%\n')
       outFP.close()
       print('Wrote %s' % outFile)
+      allT5.append(outFile)
     # end mol loop
+
+    self.allT5 = list(allT5)
+
+    return self
   # end makeT5()
 
   def runLBLATM(self):
@@ -311,17 +346,22 @@ class broadener():
     their own directory
     """
 
-    # standard Python libraries
+    # standard Python library
     import subprocess as sub
-    import glob
-
-    allT5 = sorted(glob.glob('%s/*TAPE5*' % self.dirT5))
 
     os.chdir(self.workDir)
     lblExe = self.lblExe
     if not os.path.islink(lblExe): os.symlink(self.lblPath, lblExe)
 
-    for t5 in allT5:
+    if self.doXS:
+      targets = ['FSCDXS', 'xs']
+      sources = ['%s/%s' % (self.xsPath, tar) for tar in targets]
+      for src, tar in zip(sources, targets):
+        if not os.path.islink(tar): os.symlink(src, tar)
+    # endif XS
+
+    allT7 = []
+    for t5 in self.allT5:
       #print('Working on %s' % t5)
       if os.path.islink('TAPE5'): os.unlink('TAPE5')
       os.symlink(t5, 'TAPE5')
@@ -334,16 +374,40 @@ class broadener():
       # for the output file, basically replace "TAPE5" with "TAPE7"
       outFile = '%s/%s' % \
         (self.dirT7, os.path.basename(t5).replace('TAPE5', 'TAPE7'))
-      print('Wrote %s' % outFile)
       os.rename('TAPE7', outFile)
+      print('Wrote %s' % outFile)
+      allT7.append(outFile)
     # end TAPE5 loop
+
+    os.chdir(self.topDir)
+
+    self.allT7 = list(allT7)
+
+    return self
   # end runLBLATM()
 
-  def writeCSV(self):
+  def writeCSV(self, supplementT7=None):
     """
     Write a CSV file that consolidates all of the LBLATM broadener 
     information in it (density as a function of molecule and level)
+
+    supplement -- list, additional TAPE7 files to include in the CSV.
+      this is helpful since XS and HITRAN molecules are processed in 
+      separate broadener objects
     """
+
+    # ABSCO submodule (in ../common)
+    import RC_utils as RC
+
+    allT7 = list(self.allT7) if supplementT7 is None else \
+      self.allT7 + supplementT7
+
+    brdDict = {}
+    for t7 in allT7:
+      mol = os.path.basename(t7).split('_')[0]
+      print(t7)
+      brdDict[mol] = RC.readTAPE7(t7)
+    # end TAPE7 loop
   # end runLBLATM
 # end broadener
 
@@ -357,7 +421,7 @@ if __name__ == '__main__':
     help='CSV file that contains LBLATM VMR profile blocks ' + \
     'for all 6 standard atmospheres.  The VMRs exist for ' + \
     'all HITRAN molecules.')
-  parser.add_argument('-xs', '--csvXS', type=str, \
+  parser.add_argument('-x', '--csvXS', type=str, \
     default='XS_LBLATM_Standard_Profiles.csv', \
     help='CSV file that contains LBLATM VMR profile blocks ' + \
     'for all 6 standard atmospheres.  The VMRs exist for ' + \
@@ -378,7 +442,10 @@ if __name__ == '__main__':
     'time.  Output is written to a variant of outfile.')
   parser.add_argument('-lbl', '--lbl_path', default=LBLDEFAULT, \
     help='Full path to LBLRTM executable that will be used if ' + \
-    '--broad is used.')
+    '--broad is specified.')
+  parser.add_argument('-xs', '--xs_path', default=XSDEFAULT, \
+    help='Full path to directory with FSCDX file and xs ' + \
+    'subdirectory that will be used if --broad is specified.')
   args = parser.parse_args()
 
   hiCSV = args.csvHITRAN; xsCSV = args.csvXS; pFile = args.pressures
@@ -389,10 +456,21 @@ if __name__ == '__main__':
   vmrProf.calcVMR()
 
   if args.broad:
+    print('Calculating broadening density profiles')
+    # HITRAN molecules object
     broadObj = broadener(vmrProf, lblPath=args.lbl_path)
     broadObj.makeT5()
     broadObj.runLBLATM()
-    #broadObj.writeCSV()
+
+    # XS object
+    xsBroadObj = broadener(vmrProf, lblPath=args.lbl_path, \
+      doXS=True, xsPath=args.xs_path)
+    xsBroadObj.makeT5()
+    xsBroadObj.runLBLATM()
+
+    # there is probably a better way to combine the TAPE7s than what 
+    # i am currently doing, but for now the it gets the job done
+    broadObj.writeCSV(supplementT7=xsBroadObj.allT7)
   # endif broad
 # endif main()
 
