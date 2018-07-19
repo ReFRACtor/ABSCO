@@ -120,7 +120,7 @@ class vmrProfiles():
 
 class broadener():
   def __init__(self, inObj, lblPath=LBLDEFAULT, \
-    doXS=False, xsPath=XSDEFAULT):
+    doXS=False, xsPath=XSDEFAULT, debug=False):
     """
     After vmrProfiles() object is constructed, run LBLATM (subroutine 
     of LBLRTM that calculates density profiles) to compute the correct
@@ -135,7 +135,8 @@ class broadener():
     doXS -- boolean, instead of calculating broadener for each 
       molecule in inObj.outFile, just do one profile that will be used
       for all XS species
-    xsPath -- string, path to 
+    xsPath -- string, path to directory with FSCDXS file and xs/ dir
+    debug -- boolean, does not run LBLRTM
     """
 
     utils.file_check(inObj.outFile)
@@ -154,6 +155,7 @@ class broadener():
     self.lblPath = str(lblPath)
     self.lblExe = 'lblrtm'
     self.xsPath = str(xsPath)
+    self.debug = bool(debug)
 
     # check if output directories exist
     for outDir in [self.workDir, self.dirT5, self.dirT7]:
@@ -327,11 +329,14 @@ class broadener():
       if '_HI' in mol: mol = mol.replace('_HI', '')
       outFile = '%s/%s_TAPE5' % (self.dirT5, mol)
 
-      outFP = open(outFile, 'w')
-      for rec in recs: outFP.write('%s\n' % rec)
-      outFP.write('%%%%%%\n')
-      outFP.close()
-      print('Wrote %s' % outFile)
+      if not self.debug:
+        outFP = open(outFile, 'w')
+        for rec in recs: outFP.write('%s\n' % rec)
+        outFP.write('%%%%%%\n')
+        outFP.close()
+        print('Wrote %s' % outFile)
+      # endif debug
+
       allT5.append(outFile)
     # end mol loop
 
@@ -362,20 +367,24 @@ class broadener():
 
     allT7 = []
     for t5 in self.allT5:
-      #print('Working on %s' % t5)
       if os.path.islink('TAPE5'): os.unlink('TAPE5')
       os.symlink(t5, 'TAPE5')
-      status = sub.run(['./%s' % lblExe])
-      if status.returncode:
-        print('LBLRTM did not work for %s' % os.path.basename(t5))
-        continue
-      # endif returncode
 
       # for the output file, basically replace "TAPE5" with "TAPE7"
       outFile = '%s/%s' % \
         (self.dirT7, os.path.basename(t5).replace('TAPE5', 'TAPE7'))
-      os.rename('TAPE7', outFile)
-      print('Wrote %s' % outFile)
+
+      if not self.debug:
+        status = sub.run(['./%s' % lblExe])
+        if status.returncode:
+          print('LBLRTM did not work for %s' % os.path.basename(t5))
+          continue
+        # endif returncode
+
+        os.rename('TAPE7', outFile)
+        print('Wrote %s' % outFile)
+      # endif debug
+
       allT7.append(outFile)
     # end TAPE5 loop
 
@@ -405,10 +414,15 @@ class broadener():
     brdDict = {}
     for t7 in allT7:
       mol = os.path.basename(t7).split('_')[0]
-      print(t7)
-      brdDict[mol] = RC.readTAPE7(t7)
+      brdDict[mol] = RC.readTAPE7(t7)['broadener']
     # end TAPE7 loop
-  # end runLBLATM
+
+    if not self.debug:
+      DF.from_dict(brdDict).to_csv(\
+        self.outCSV, float_format='%10.3E', index=False, na_rep='nan')
+      print('Wrote %s' % self.outCSV)
+    # endif debug
+  # end writeCSV()
 # end broadener
 
 if __name__ == '__main__':
@@ -446,6 +460,10 @@ if __name__ == '__main__':
   parser.add_argument('-xs', '--xs_path', default=XSDEFAULT, \
     help='Full path to directory with FSCDX file and xs ' + \
     'subdirectory that will be used if --broad is specified.')
+  parser.add_argument('-t', '--test', action='store_true', \
+    help='Assumes script has already been run once and thus ' + \
+    'the necessary TAPE5s and TAPE7s have been generated.  ' + \
+    'Useful for debugging.')
   args = parser.parse_args()
 
   hiCSV = args.csvHITRAN; xsCSV = args.csvXS; pFile = args.pressures
@@ -458,13 +476,14 @@ if __name__ == '__main__':
   if args.broad:
     print('Calculating broadening density profiles')
     # HITRAN molecules object
-    broadObj = broadener(vmrProf, lblPath=args.lbl_path)
+    broadObj = broadener(vmrProf, lblPath=args.lbl_path, \
+      debug=args.test)
     broadObj.makeT5()
     broadObj.runLBLATM()
 
     # XS object
     xsBroadObj = broadener(vmrProf, lblPath=args.lbl_path, \
-      doXS=True, xsPath=args.xs_path)
+      debug=args.test, doXS=True, xsPath=args.xs_path)
     xsBroadObj.makeT5()
     xsBroadObj.runLBLATM()
 
