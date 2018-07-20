@@ -95,18 +95,31 @@ class makeABSCO():
     # end P loop
 
     # grab the user provided VMR profile for the species of interest
+    # and handle the broadening density, which will differ depending 
+    # on the molecule
     # TO DO: _HI and _XS species (so right now, this will not work 
     # for SO2, NO_2, HNO3, CLONO2, CH3CN, or CF4)
-    userProfAll = pd.read_csv(inObj.vmrfile)
-    userProf = {}
-    userProf['P'] = userProfAll['P'].values
-    userProf['T'] = userProfAll['T'].values
-    userProf['BRD'] = userProfAll['BRD'].values
+    inUserProf = pd.read_csv(inObj.vmrfile)
+    inBroadProf = pd.read_csv(inObj.broadfile)
+    userProf, broadProf = {}, {}
+    userProf['P'] = inUserProf['P'].values
+    userProf['T'] = inUserProf['T'].values
     for mol in inObj.molnames:
-      if mol in userProfAll.keys().values:
-        userProf[mol] = userProfAll[mol].values
+      # extract VMRs for each specified molecule
+      if mol in inUserProf.keys().values:
+        userProf[mol] = inUserProf[mol].values
       # endif mol
+
+      # extract broadening density associated with each specified 
+      # molecule
+      if mol in inBroadProf.keys().values:
+        broadProf[mol] = inBroadProf[mol]
+
+      # all XS molecules have the same broadening density
+      if mol in inObj.xsNames: broadProf[mol] = inBroadProf['XS']
     # end mol loop
+
+    userProf['BRD'] = dict(broadProf)
 
     # set class attributes
     # state, etc. atts
@@ -235,13 +248,11 @@ class makeABSCO():
     os.chdir(self.runDirLNFL)
     extras = glob.glob('%s/*_param' % self.dirExtras)
     # UNCOMMENT THIS WHEN NOT DEBUGGING
-    """
     if len(extras) == 0:
       print('No broadening or speed dependence parameters found')
       print('Returning')
       sys.exit(1)
     # endif extras
-    """
 
     slExtras = [os.path.basename(extra) for extra in extras]
     makeSymLinks(extras, slExtras)
@@ -381,7 +392,10 @@ class makeABSCO():
           # endif doXS
 
           # insert the broadening density -- the eighth "molecule"
-          lblAll = np.insert(lblAll, 7, self.vmrProf['BRD'][iP])
+          # iP-1 because broadener value is on layers, not levels, 
+          # and we skip iP == 0
+          lblAll = np.insert(lblAll, 7, \
+            self.vmrProf['BRD'][mol].values[iP-1])
 
           # start building the string for record 3.6
           record36 = ''

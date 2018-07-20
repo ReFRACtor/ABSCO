@@ -101,10 +101,11 @@ class configure():
 
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
-    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', 'molnames', \
-      'scale', 'lnfl_run_dir', 'lnfl_path', 'tape1_path', \
-      'tape3_dir', 'extra_params', 'tape5_dir', 'lbl_path', \
-      'xs_path', 'fscdxs', 'lbl_run_dir', 'od_dir', 'absco_dir']
+    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'broadfile', 'channels', \
+      'molnames', 'scale', 'lnfl_run_dir', 'lnfl_path', \
+      'tape1_path', 'tape3_dir', 'extra_params', 'tape5_dir', \
+      'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', 'od_dir', \
+      'absco_dir']
 
     # loop over all required attributes and do a check
     for req in reqAtt:
@@ -135,7 +136,6 @@ class configure():
     inP = np.loadtxt(self.pfile)
 
     # is pressure ascending or descending? force descending
-    # TO DO: move this to preprocessor?
     pDiff = np.diff(inP)
     if (pDiff > 0).all():
       inP = inP[::-1]
