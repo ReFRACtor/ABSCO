@@ -7,7 +7,7 @@ import sys
 import numpy as np
 
 class configure():
-  def __init__(self, inFile, molActiveCheck=True, pCheck=True, ):
+  def __init__(self, inFile, molActiveCheck=True):
     """
     Parse the input .ini file (inFile) and return as an object for 
     use in makeABSCO class.  Also do some error checking
@@ -42,12 +42,13 @@ class configure():
     # and these guys are neither HITRAN or XS molecules
     self.dunno = ['HDO', 'O2-O2', 'BRO']
 
+    # read in pressures and do some quality control
+    self.processP()
+
     # verification of molecules and associated bands to process
     # this should be called to limit unnecessary runs of LNFL and LBL
     if molActiveCheck: self.molProcess()
 
-    # read in pressures and do some quality control
-    self.processP()
   # end constructor
 
   def readConfig(self):
@@ -195,8 +196,11 @@ class configure():
 
     self.pressures = np.array(inP)
 
+    datVMR = pd.read_csv(self.vmrfile)['P'].values
+    pErrMsg = 'Inconsistent pressure inputs.  Check %s and %s' % \
+      (self.pfile, self) 
+    if inP.size != datVMR.size: sys.exit(errMsg)
     # doesn't work yet because of different precisions
-    #datVMR = pd.read_csv(self.vmrfile)['P'].values
     #for p1, p2 in zip(datVMR, inP): print(np.isclose(p1, p2))
 
     # the only real check we can do with the standard_atm_profiles.py
