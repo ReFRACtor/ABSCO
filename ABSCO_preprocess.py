@@ -7,7 +7,7 @@ import sys
 import numpy as np
 
 class configure():
-  def __init__(self, inFile):
+  def __init__(self, inFile, molActiveCheck=True, pCheck=True, ):
     """
     Parse the input .ini file (inFile) and return as an object for 
     use in makeABSCO class.  Also do some error checking
@@ -15,6 +15,45 @@ class configure():
     Inputs
       inFile -- string, full path to .ini file that specifies paths 
         and filenames for...
+
+    Keywords
+      molActiveCheck -- boolean, run a test to determine for which 
+        bands LNFL and LBLRTM should be run based on the user-input 
+        ranges and whether the given molecules are active in the bands
+    """
+
+    # extract everything from config (.ini) file (inFile)
+    self.configFile = str(inFile)
+    self.readConfig()
+    self.checkAtts()
+
+    # let's pack all of the files into a single list
+    self.paths = [self.pfile, self.ptfile, self.vmrfile, \
+      self.broadfile, self.extra_params, self.lnfl_path, \
+      self.lbl_path, self.xs_path, self.fscdxs]
+    self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
+      self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
+
+    # cross section molecules will have to be handled differently
+    # from HITRAN molecules
+    self.xsNames = \
+      ['CF4', 'CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN']
+
+    # and these guys are neither HITRAN or XS molecules
+    self.dunno = ['HDO', 'O2-O2', 'BRO']
+
+    # verification of molecules and associated bands to process
+    # this should be called to limit unnecessary runs of LNFL and LBL
+    if molActiveCheck: self.molProcess()
+
+    # read in pressures and do some quality control
+    self.processP()
+  # end constructor
+
+  def readConfig(self):
+    """
+    Read configuration file and set attributes of configure object
+    accordingly
     """
 
     # all allowed molecule names
@@ -30,10 +69,10 @@ class configure():
       import configparser as ConfigParser
     # endif Python version
 
-    errMsg = 'Missing field in %s' % inFile
+    errMsg = 'Missing field in %s' % self.configFile
 
     cParse = ConfigParser.ConfigParser()
-    cParse.read(inFile)
+    cParse.read(self.configFile)
     cpSections = cParse.sections()
 
     # loop over each field (of all sections) and keep the field and 
@@ -99,6 +138,17 @@ class configure():
       # endif cps
     # end sections loop
 
+    return self
+
+  # end readConfig()
+
+  def checkAtts(self):
+    """
+    Make sure all of the attributes in the configure object that are 
+    necessary for ABSCO_tables.py exist (i.e., that the user did not 
+    delete or forget a field in the .ini file)
+    """
+
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
     reqAtt = ['pfile', 'ptfile', 'vmrfile', 'broadfile', 'channels', \
@@ -114,28 +164,26 @@ class configure():
         sys.exit('Could not find %s attribute, returning' % req)
       # endif req
     # end req loop
+  # end checkAtts()
 
-    # let's pack all of the files into a single list
-    self.paths = [self.pfile, self.ptfile, self.vmrfile, \
-      self.extra_params, self.lnfl_path, self.lbl_path, \
-      self.xs_path, self.fscdxs]
-    self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
-      self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
+  def processP(self):
+    """
+    Read in user pressures, standard atmosphere pressures (associated
+    with VMRs), and broadener pressures and perform quality control --
+    user-specified pressure grid should be identical to standard 
+    atmosphere pressures, standard atmosphere pressures should 
+    correspond (levels) to broadener pressures (layers), and we should
+    make the pressures used in ABSCO_tables.py monotonically 
+    decreasing
+    """
 
-    # cross section molecules will have to be handled differently
-    # from HITRAN molecules
-    self.xsNames = \
-      ['CF4', 'CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN']
+    # miniconda installed library
+    import pandas as pd
 
-    # and these guys are neither HITRAN or XS molecules
-    self.dunno = ['HDO', 'O2-O2', 'BRO']
-
-    # gather necessary params from input files
-    # is pressure ascending or descending? force descending
-    # (i.e., go from surface to TOA)
     inP = np.loadtxt(self.pfile)
 
     # is pressure ascending or descending? force descending
+    # (i.e., go from surface to TOA)
     pDiff = np.diff(inP)
     if (pDiff > 0).all():
       inP = inP[::-1]
@@ -147,10 +195,17 @@ class configure():
 
     self.pressures = np.array(inP)
 
-    # TO DO: ensure user profile has the same amount of pressures
-    # could probably do better and return P in profile CSV and then
-    # do the 1-1 P check here
-  # end constructor
+    # doesn't work yet because of different precisions
+    #datVMR = pd.read_csv(self.vmrfile)['P'].values
+    #for p1, p2 in zip(datVMR, inP): print(np.isclose(p1, p2))
+
+    # the only real check we can do with the standard_atm_profiles.py
+    # outputs (vmrfile and broadfile) are if they are nLevel and 
+    # nLayer in size, but this is not very extensive
+    #datBroad = pd.read_csv(inObj.broadfile)
+
+    return self
+  # end processP()
 
   def findActiveMol(self):
     """
@@ -224,7 +279,7 @@ class configure():
   def molProcess(self):
     """
     Determine for which bands LNFL and LBLRTM should be run based on 
-    the user-input ranges and whether the given molecules are 
+    the user-input ranges and whether the given molecules are active
     """
 
     # what molecules are active to the wn range specified?

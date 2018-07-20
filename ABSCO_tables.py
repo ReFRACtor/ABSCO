@@ -307,7 +307,8 @@ class makeABSCO():
     # multiplicative continuum factors (because CN=6 in record12)
     scales = np.repeat(0.0, 7)
 
-    # records required with IATM=1 (provide some doc on this rec)
+    # records required with IATM=1 (we're using LBLATM to calculate
+    # layer amounts for species -- we only have level amounts)
     # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
     # pressure levels, no zero-filling, full printout, 7 molecules,
     record31 = '%5d%5d%5d%5d%5d%5d' % (0, 2, -2, 0, 0, self.molMaxLBL)
@@ -565,10 +566,6 @@ if __name__ == '__main__':
 
   # configuration object instantiation
   ini = preproc.configure(iniFile)
-
-  # verification of molecules and associated bands to process
-  # this should be called to limit unnecessary runs of LNFL and LBL
-  ini.molProcess()
 
   for iniName in ini.molnames:
     if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
