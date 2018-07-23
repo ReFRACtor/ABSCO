@@ -12,7 +12,7 @@ Note the `--recursive` keyword -- it will force the clone to copy the necessary 
 
 # Dependencies
 
-In `common` subroutine directory. Some dependencies are Python modules, others are FORTRAN source code that will need to be built by the user (note to Rick: do a quick Makefile). NOTE: only Linux executables built with PGI have been tested with the software in this repository.
+In `common` subroutine directory. Some dependencies are Python modules, others are FORTRAN source code that will need to be built by the user (note to Rick: do a quick Makefile). NOTE: only Linux executables built with the PGI compiler have been tested with the software in this repository.
 
 ## Python Packages
 
@@ -35,7 +35,7 @@ All are used in this ABSCO library.
 
 ## FSCDXS
 
-Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and we these are taken into account in the error checking that the ABSCO_preprocess.py module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in FSCDXS_line_params.csv, which was generated with a separate, non-version controlled script.  Currently, there is only one molecule (in one band) where the line parameters are recommended over the XS coefficients (CH<sub>3</sub>CN), and it is not a molecule that ABSCO_tables.py processes.
+Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the ABSCO_preprocess.py module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, non-version controlled script.  Currently, there is only one molecule (in one band) where the line parameters are recommended over the XS coefficients (CH<sub>3</sub>CN), and it is not a molecule that ABSCO_tables.py processes.
 
 # Binary Line Files
 

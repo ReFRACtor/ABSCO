@@ -26,7 +26,6 @@ def makeSymLinks(sources, targets):
   """
 
   for source, target in zip(sources, targets):
-    # UNCOMMENT THIS WHEN NOT DEBUGGING
     utils.file_check(source)
     if os.path.exists(target): os.unlink(target)
     os.symlink(source, target)
@@ -55,10 +54,6 @@ class makeABSCO():
 
     Keywords
     """
-
-    # UNCOMMENT THIS WHEN NOT DEBUGGING
-    # make sure paths exist before proceeding
-    for path in inObj.paths: utils.file_check(path)
 
     # make output directories
     for outDir in inObj.outDirs:
@@ -154,6 +149,7 @@ class makeABSCO():
     self.dirT5 = str(inObj.tape5_dir)
     self.fineOD = str(inObj.od_dir)
     self.coarseOD = str(inObj.absco_dir)
+    self.doXS = dict(inObj.doXS)
     self.molMaxLBL = 47
 
     # all HITRAN molecule names (these are the molecules for which we
@@ -247,7 +243,6 @@ class makeABSCO():
     # equivalent to `ln -s full_path`
     os.chdir(self.runDirLNFL)
     extras = glob.glob('%s/*_param' % self.dirExtras)
-    # UNCOMMENT THIS WHEN NOT DEBUGGING
     if len(extras) == 0:
       print('No broadening or speed dependence parameters found')
       print('Returning')
@@ -316,7 +311,7 @@ class makeABSCO():
       (0, 2, -2, 0, 0, self.molMaxLBL, 1)
 
     for mol in self.molNames:
-      doXS = 0 if mol in self.HITRAN else 1
+      doXS = 0 if self.doXS[mol] else 1
 
       # record1.2: HI=9: central line contribution omitted
       # CN=6: continuum scale factor for given molecules used
@@ -333,6 +328,8 @@ class makeABSCO():
 
         # continuum scale factors
         if mol == 'H2O':
+          # self and foreign...need to address this since we're doing
+          # both for WV in separate runs
           scales[:2] = self.cntnmScale
         elif mol == 'CO2':
           scales[2] = self.cntnmScale
@@ -567,7 +564,7 @@ if __name__ == '__main__':
   iniFile = args.config_file; utils.file_check(iniFile)
 
   # configuration object instantiation
-  ini = preproc.configure(iniFile)
+  ini = preproc.configure(iniFile, molActiveCheck=False)
 
   for iniName in ini.molnames:
     if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)

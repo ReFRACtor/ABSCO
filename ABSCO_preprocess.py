@@ -3,8 +3,13 @@
 from __future__ import print_function
 import sys
 
+# path to GIT common submodules
+sys.path.append('common')
+import utils
+
 # miniconda-installed libs
 import numpy as np
+import pandas as pd
 
 class configure():
   def __init__(self, inFile, molActiveCheck=True):
@@ -30,20 +35,27 @@ class configure():
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \
       self.broadfile, self.extra_params, self.lnfl_path, \
-      self.lbl_path, self.xs_path, self.fscdxs]
+      self.lbl_path, self.xs_path, self.fscdxs, self.xs_lines]
     self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
       self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
 
+    # make sure paths exist before proceeding
+    for path in self.paths: utils.file_check(path)
+
     # cross section molecules will have to be handled differently
-    # from HITRAN molecules
-    self.xsNames = \
-      ['CF4', 'CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN']
+    # from HITRAN molecules; the first 4 actually also have line 
+    # parameters, but HITRAN recommends to use their XS coefficients
+    self.xsNames = ['CF4', 'SO2', 'NO2', 'HNO3', \
+      'CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN']
 
     # and these guys are neither HITRAN or XS molecules
     self.dunno = ['HDO', 'O2-O2', 'BRO']
 
     # read in pressures and do some quality control
     self.processP()
+
+    # XS or line parameter processing?
+    self.xsCheck()
 
     # verification of molecules and associated bands to process
     # this should be called to limit unnecessary runs of LNFL and LBL
@@ -177,9 +189,6 @@ class configure():
     make the pressures used in ABSCO_tables.py monotonically 
     decreasing
     """
-
-    # miniconda installed library
-    import pandas as pd
 
     inP = np.loadtxt(self.pfile)
 
@@ -380,5 +389,30 @@ class configure():
 
     return self
   # end molProcess()
+
+  def xsCheck(self):
+    """
+    Determine if each of the specified molecules should be treated 
+    like a XS or line parameter molecule.
+
+    Right now this is not robust enough to handle 2 different statuses
+    for a single molecule (e.g. HITRAN recommends XS for 5 of the 6 
+    CH3CN bands and line parameters for the remaining band), but that
+    feature is also not necessary given the allowed molecules
+    """
+
+    # extract the molecules for which line parameters are recommended
+    # over the XS coefficients
+    xsLinesNames = pd.read_csv(self.xs_lines)['species'].values
+    doXS = {}
+    for mol in self.molnames:
+      if (mol in self.xsNames) and not (mol in xsLinesNames):
+        doXS[mol] = True
+      else:
+        doXS[mol] = False
+    # end mol loop
+
+    self.doXS = dict(doXS)
+  # end xsCheck
 # end configure()
 
