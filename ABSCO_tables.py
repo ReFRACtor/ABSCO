@@ -310,8 +310,10 @@ class makeABSCO():
     # records required with IATM=1 (we're using LBLATM to calculate
     # layer amounts for species -- we only have level amounts)
     # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
-    # pressure levels, no zero-filling, full printout, 7 molecules,
-    record31 = '%5d%5d%5d%5d%5d%5d' % (0, 2, -2, 0, 0, self.molMaxLBL)
+    # pressure levels, no zero-filling, full printout, 7 molecules, 
+    # write to TAPE7
+    record31 = '%5d%5d%5d%5d%5d%5d%5d' % \
+      (0, 2, -2, 0, 0, self.molMaxLBL, 1)
 
     for mol in self.molNames:
       doXS = 0 if mol in self.HITRAN else 1
