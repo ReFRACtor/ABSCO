@@ -195,18 +195,25 @@ class configure():
     # endif ascend
 
     self.pressures = np.array(inP)
+    nP = inP.size
 
     datVMR = pd.read_csv(self.vmrfile)['P'].values
     pErrMsg = 'Inconsistent pressure inputs.  Check %s and %s' % \
-      (self.pfile, self) 
-    if inP.size != datVMR.size: sys.exit(errMsg)
+      (self.pfile, self.vmrfile) 
+    if nP != datVMR.size: sys.exit(pErrMsg)
+
     # doesn't work yet because of different precisions
     #for p1, p2 in zip(datVMR, inP): print(np.isclose(p1, p2))
 
     # the only real check we can do with the standard_atm_profiles.py
     # outputs (vmrfile and broadfile) are if they are nLevel and 
     # nLayer in size, but this is not very extensive
-    #datBroad = pd.read_csv(inObj.broadfile)
+    # there is no P array in the broadener file, but any species will
+    # work
+    datBroad = pd.read_csv(self.broadfile)['H2O']
+    pErrMsg = 'Inconsistent pressure inputs.\nCheck %s and %s' % \
+      (self.pfile, self.broadfile)
+    if datBroad.size != nP-1: sys.exit(pErrMsg)
 
     return self
   # end processP()
