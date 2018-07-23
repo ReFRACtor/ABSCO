@@ -43,10 +43,12 @@ class configure():
     for path in self.paths: utils.file_check(path)
 
     # cross section molecules will have to be handled differently
-    # from HITRAN molecules; the first 4 actually also have line 
-    # parameters, but HITRAN recommends to use their XS coefficients
-    self.xsNames = ['CF4', 'SO2', 'NO2', 'HNO3', \
-      'CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN']
+    # from HITRAN molecules
+    self.xsNames = ['CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN']
+
+    # these also have line parameters, but HITRAN recommends to use 
+    # their XS coefficients in certain bands (see xsCheck() method).
+    self.xsLines = ['CF4', 'SO2', 'NO2', 'HNO3']
 
     # and these guys are neither HITRAN or XS molecules
     self.dunno = ['HDO', 'O2-O2', 'BRO']
@@ -59,7 +61,7 @@ class configure():
 
     # verification of molecules and associated bands to process
     # this should be called to limit unnecessary runs of LNFL and LBL
-    if molActiveCheck: self.molProcess()
+    self.molProcess()
 
   # end constructor
 
@@ -399,20 +401,72 @@ class configure():
     for a single molecule (e.g. HITRAN recommends XS for 5 of the 6 
     CH3CN bands and line parameters for the remaining band), but that
     feature is also not necessary given the allowed molecules
+
+    Also not robust enough to handle a user-input band spanning line 
+    parameter space into XS space
     """
+
+    # user-specified bands
+    userWN1 = self.channels['wn1']
+    userWN2 = self.channels['wn2']
 
     # extract the molecules for which line parameters are recommended
     # over the XS coefficients
-    xsLinesNames = pd.read_csv(self.xs_lines)['species'].values
+    csvDat = pd.read_csv(self.xs_lines)
+    csvNames = csvDat['species'].values
+    xsWN1 = csvDat['wn1'].values
+    xsWN2 = csvDat['wn2'].values
+    csvFlags = csvDat['flags'].values
+
+    # specify XS processing for each band and each molecule
     doXS = {}
     for mol in self.molnames:
-      if (mol in self.xsNames) and not (mol in xsLinesNames):
-        doXS[mol] = True
-      else:
-        doXS[mol] = False
+      # determine number of bands in XS database for given molecule
+      # by first locating rows corresponding to mol
+      iMatch = np.where(mol == csvNames)[0]
+      nBandsXS = iMatch.size
+      if nBandsXS == 0: continue
+
+      bandXS = []
+      for uwn1, uwn2 in zip(userWN1, userWN2):
+
+        if (mol in self.xsNames):
+          # no doubter: molecule is only XS
+          bandXS.append(True)
+        else:
+          # this gets complicated...if the molecule has both XS and 
+          # line parameters, and there is overlap between the "user"
+          # and "XS" bands, and HITRAN recommends XS over lines, doXS
+          if (mol in self.xsLines):
+            molBandXS = False
+
+            # check if any row in iMatch satisfies criteria
+            for iRow in iMatch:
+              xwn1, xwn2, flag = \
+                xsWN1[iRow], xsWN2[iRow], csvFlags[iRow]
+
+              if (xwn2 >= uwn1) and (xwn1 <= uwn2) and (flag != 1):
+                molBandXS = True
+                break
+              # endif 3-conditional
+            # end row loop
+
+            bandXS.append(molBandXS)
+
+          else:
+            # another no-doubter: molecule has only line parameters
+            bandXS.append(False)
+          # endif xsLines
+        # endif xsNames
+      # end user band loop
+
+      doXS[mol] = list(bandXS)
+
     # end mol loop
 
     self.doXS = dict(doXS)
+
+    return self
   # end xsCheck
 # end configure()
 

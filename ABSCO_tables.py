@@ -173,6 +173,10 @@ class makeABSCO():
       'HO2', 'O', 'CLONO2', 'NO+', 'HOBR', 'C2H4', 'CH3OH', 'CH3BR', \
       'CH3CN', 'CF4', 'C4H2', 'HC3N', 'H2', 'CS', 'SO3']
 
+    # XS species and molecules with XS and line parameters
+    self.xsNames = list(inObj.xsNames)
+    self.xsLines = list(inObj.xsLines)
+
     # for cd'ing back into the cwd
     self.topDir = os.getcwd()
   # end constructor()
@@ -311,20 +315,20 @@ class makeABSCO():
       (0, 2, -2, 0, 0, self.molMaxLBL, 1)
 
     for mol in self.molNames:
-      doXS = 0 if self.doXS[mol] else 1
-
-      # record1.2: HI=9: central line contribution omitted
-      # CN=6: continuum scale factor for given molecules used
-      # OD=1, MG=1: optical depth computation, layer-by-layer
-      record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 TS=0 ' + \
-        'AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
-
       # record 3.4: user profile header for given molecule
       record34 = '%5d%24s' % (1, 'User profile for %s' % mol)
 
       for iBand in range(self.nBands):
 
         if self.doBand[mol][iBand] is False: continue
+
+        doXS = 1 if self.doXS[mol][iBand] else 0
+
+        # record1.2: HI=9: central line contribution omitted
+        # CN=6: continuum scale factor for given molecules used
+        # OD=1, MG=1: optical depth computation, layer-by-layer
+        record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 ' + \
+          'TS=0 AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
 
         # continuum scale factors
         if mol == 'H2O':
@@ -388,7 +392,8 @@ class makeABSCO():
           # fill in the VMR for the given mol
           if not doXS:
             iMatch = self.HITRAN.index(mol)
-            lblAll[iMatch] = self.vmrProf[mol][iP]
+            iMol = '%s_HI' % mol if mol in self.xsLines else str(mol)
+            lblAll[iMatch] = self.vmrProf[iMol][iP]
           # endif doXS
 
           # insert the broadening density -- the eighth "molecule"
@@ -421,7 +426,8 @@ class makeABSCO():
             record381 = '%10.3f' % pLev
 
             # record 3.8.2: layer molecule VMR
-            record382 = '%10.3E' % self.vmrProf[mol][iP]
+            iMol = '%s_XS' % mol if mol in self.xsLines else str(mol)
+            record382 = '%10.3E' % self.vmrProf[iMol][iP]
 
             xsRecs = \
               [record37, record371, record38, record381, record382]
@@ -564,7 +570,7 @@ if __name__ == '__main__':
   iniFile = args.config_file; utils.file_check(iniFile)
 
   # configuration object instantiation
-  ini = preproc.configure(iniFile, molActiveCheck=False)
+  ini = preproc.configure(iniFile)
 
   for iniName in ini.molnames:
     if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
