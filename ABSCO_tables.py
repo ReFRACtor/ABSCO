@@ -101,12 +101,31 @@ class makeABSCO():
     userProf['T'] = inUserProf['T'].values
     for mol in inObj.molnames:
       # extract VMRs for each specified molecule
-      if mol in inUserProf.keys().values:
+      allMol = inUserProf.keys().values
+      if mol in allMol:
         userProf[mol] = inUserProf[mol].values
+      else:
+        # This should be identical to "if mol in self.xsLines" 
+        # NO2 and SO2 have identical XS and HITRAN densities
+        # HNO3 and CF4 do not. whether we use the XS or HITRAN density
+        # is determined in lblT5()
+        self.hiMol = '%s_HI' % mol
+        self.xsMol = '%s_XS' % mol
+
+        if hiMol in allMol:
+          userProf[hiMol] = inUserProf[hiMol].values
+        elif xsMol in allMol:
+          userProf[xsMol] = inUserProf[xsMol].values
+        else:
+          # TO DO: probably not the best way to handle this...put  
+          # something in preprocessor instead?
+          pass
+        # endif HI/XS
       # endif mol
 
       # extract broadening density associated with each specified 
-      # molecule
+      # molecule (no need to worry about hiMol here, because 
+      # broadener CSV makes no distinction)
       if mol in inBroadProf.keys().values:
         broadProf[mol] = inBroadProf[mol]
 
@@ -332,8 +351,8 @@ class makeABSCO():
 
         # continuum scale factors
         if mol == 'H2O':
-          # self and foreign...need to address this since we're doing
-          # both for WV in separate runs
+          # TO DO: self and foreign...need to address this since 
+          # we're doing both for WV in separate runs
           scales[:2] = self.cntnmScale
         elif mol == 'CO2':
           scales[2] = self.cntnmScale
@@ -370,6 +389,17 @@ class makeABSCO():
           if iP == 0: continue
           pArr = [self.pLev[iP-1], self.pLev[iP]]
 
+          # now determine the density to use for the level
+          if mol in self.xsLines:
+            if doXS:
+              layVMR = self.vmrProf[self.xsMol][iP]
+            else:
+              layVMR = self.vmrProf[self.hiMol][iP]
+            # endif doXS
+          else:
+            layVMR = self.vmrProf[mol][iP]
+          # endif doXS
+
           # record 3.2: pressure limits for all levels, nadir SZA
           record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
 
@@ -392,8 +422,7 @@ class makeABSCO():
           # fill in the VMR for the given mol
           if not doXS:
             iMatch = self.HITRAN.index(mol)
-            iMol = '%s_HI' % mol if mol in self.xsLines else str(mol)
-            lblAll[iMatch] = self.vmrProf[iMol][iP]
+            lblAll[iMatch] = float(layVMR)
           # endif doXS
 
           # insert the broadening density -- the eighth "molecule"
@@ -409,7 +438,8 @@ class makeABSCO():
 
             # eight molecules per line (but only 48 molecules, and 
             # no need for new line at end)
-            if ((iDen+1) % 8) == 0 and iDen < 47: record36 += '\n'
+            if ((iDen+1) % 8) == 0 and iDen < self.molMaxLBL:
+              record36 += '\n'
           # end record36 loop
 
           if doXS:
@@ -426,8 +456,7 @@ class makeABSCO():
             record381 = '%10.3f' % pLev
 
             # record 3.8.2: layer molecule VMR
-            iMol = '%s_XS' % mol if mol in self.xsLines else str(mol)
-            record382 = '%10.3E' % self.vmrProf[iMol][iP]
+            record382 = '%10.3E' % float(layVMR)
 
             xsRecs = \
               [record37, record371, record38, record381, record382]
