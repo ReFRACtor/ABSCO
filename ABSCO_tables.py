@@ -120,6 +120,10 @@ class makeABSCO():
           userProf[xsMol] = inUserProf[xsMol].values
       # endif mol
 
+      # this is the only special case so far: allowed molecule that 
+      # has an LBLRTM alias that is not the allowed string
+      if mol == 'F22': userProf[mol] = inUserProf['CHCLF2'].values
+
       # extract broadening density associated with each specified 
       # molecule (no need to worry about hiMol here, because 
       # broadener CSV makes no distinction)
