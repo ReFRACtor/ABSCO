@@ -99,28 +99,25 @@ class makeABSCO():
     userProf, broadProf = {}, {}
     userProf['P'] = inUserProf['P'].values
     userProf['T'] = inUserProf['T'].values
+    allMolCSV = inUserProf.keys().values
+
     for mol in inObj.molnames:
       # extract VMRs for each specified molecule
-      allMol = inUserProf.keys().values
-      if mol in allMol:
+      if mol in allMolCSV:
         userProf[mol] = inUserProf[mol].values
       else:
         # This should be identical to "if mol in self.xsLines" 
         # NO2 and SO2 have identical XS and HITRAN densities
         # HNO3 and CF4 do not. whether we use the XS or HITRAN density
         # is determined in lblT5()
-        self.hiMol = '%s_HI' % mol
-        self.xsMol = '%s_XS' % mol
+        hiMol = '%s_HI' % mol
+        xsMol = '%s_XS' % mol
 
-        if hiMol in allMol:
+        if hiMol in allMolCSV:
           userProf[hiMol] = inUserProf[hiMol].values
-        elif xsMol in allMol:
+
+        if xsMol in allMolCSV:
           userProf[xsMol] = inUserProf[xsMol].values
-        else:
-          # TO DO: probably not the best way to handle this...put  
-          # something in preprocessor instead?
-          pass
-        # endif HI/XS
       # endif mol
 
       # extract broadening density associated with each specified 
@@ -392,9 +389,9 @@ class makeABSCO():
           # now determine the density to use for the level
           if mol in self.xsLines:
             if doXS:
-              layVMR = self.vmrProf[self.xsMol][iP]
+              layVMR = self.vmrProf['%s_XS' % mol][iP]
             else:
-              layVMR = self.vmrProf[self.hiMol][iP]
+              layVMR = self.vmrProf['%s_HI' % mol][iP]
             # endif doXS
           else:
             layVMR = self.vmrProf[mol][iP]
