@@ -382,6 +382,13 @@ class makeABSCO():
         record13 += '%4s%1d%5s%10.3e' % \
           (' ', 0, ' ', self.bands['res'][0])
 
+        # for PWV scaling
+        if mol == 'H2O':
+          record13 += '%3s%2d' % ('', 1)
+          record13a = '1'
+          record13b = '' % self.pwv
+        # end H2O
+
         outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
         if not os.path.exists(outDirT5): os.mkdir(outDirT5)
 
