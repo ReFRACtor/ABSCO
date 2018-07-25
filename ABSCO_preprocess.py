@@ -148,6 +148,10 @@ class configure():
         # end mol loop
 
         setattr(self, 'molnames', split)
+      elif cps == 'pwv':
+        cItem = cItems[0]
+        pwvArr = np.array(cItem[1].split()).astype(float)
+        setattr(self, cItem[0], pwvArr)
       else:
         for cItem in cItems: setattr(self, cItem[0], cItem[1])
       # endif cps

@@ -51,9 +51,24 @@ User must provide a spectral range. Species specification is optional -- if `mol
 
 # User Options
 
+can be set in .ini file that follows ABSCO_config.ini convention.
+
 ## Pressure levels
 
 In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini`.
 
 For whatever atmosphere is used, one must also calculate the broadening density at each pressure layer for each molecule (i.e., when all of the other molecules are zeroed out in the TAPE5). This can also be done with the `standard_atm_profiles.py` module using the `--broad` keyword. This should be done whenever a new profile is calculated. The corresponding output file should be entered into the `broadfile` field in `ABSCO_config.ini` as well.
+
+## Allowed Molecules
+
+While LBLRTM handles a number of molecules via line parameters and cross sections, the allowed molecules for ABSCO processing is more limited.
+
+```
+allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
+  'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OCS', 'H2CO', 'N2', \
+  'HCN', 'C2H2', 'HCOOH', 'C2H4', 'CH3OH', 'CCL4', 'CF4', \
+  'F11', 'F12', 'F22', 'ISOP', 'PAN', 'HDO', 'BRO', 'O2-O2']
+```
+
+water vapor is treated as a number of particles, depending on the number of PWV values provided. in `ABSCO_tables.py`, LBLRTM TAPE5 files are generated in a loop over PWV, and separate TAPE5s are generated for the self and foreign continua.
 

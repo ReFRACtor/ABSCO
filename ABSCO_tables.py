@@ -201,12 +201,12 @@ class makeABSCO():
     self.topDir = os.getcwd()
   # end constructor()
 
-  def lnflT5(self):
+  def lnflT5(self, mol):
     """
-    Make a TAPE5 for every band and molecule that can be used as 
-    input into an LNFL run. We will only be using the extra broadening
-    option (so we are not writing to an ASCII TAPE7 and are including 
-    line coupling.
+    For a given molecule, make a TAPE5 that can be used as input into
+    an LNFL run for every band. We will only be using the extra 
+    broadening option (so we are not writing to an ASCII TAPE7 and 
+    are including line coupling).
     """
 
     # this is part of record 3 (LNFL instructions), all molecules off
@@ -216,43 +216,42 @@ class makeABSCO():
     # so we get the O2, CO2, and CH4 coupling params; suppress any 
     # output to an ASCII TAPE7; and always use extra broadening params
     holInd = 'EXBRD'
-    for mol in self.molNames:
-      outDirT5 = '%s/%s/%s' % (self.runDirLNFL, self.dirT5, mol)
-      if not os.path.exists(outDirT5): os.mkdir(outDirT5)
 
-      try:
-        iMol = self.HITRAN.index(mol)
-      except:
-        print('Could not find %s in HITRAN names' % mol)
-        continue
-      # end exception
+    outDirT5 = '%s/%s/%s' % (self.runDirLNFL, self.dirT5, mol)
+    if not os.path.exists(outDirT5): os.mkdir(outDirT5)
 
-      for iBand in range(self.nBands):
-        if self.doBand[mol][iBand] is False: continue
-        # band specification	
-        wvn1 = self.bands['wn1'][iBand]
-        wvn2 = self.bands['wn2'][iBand]
-        record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
-        record2 = '%10.3f%10.3f' % (wvn1, wvn2)
+    try:
+      iMol = self.HITRAN.index(mol)
+    except:
+      print('Could not find %s in HITRAN names' % mol)
+      return
+    # end exception
 
-        # switch molecule "on" for LNFL
-        molInd = np.array(molIndInit)
-        molInd[iMol] = '1'
-        record3 = '%47s%4s%40s' % (''.join(list(molInd)), ' ', holInd)
+    for iBand in range(self.nBands):
+      if self.doBand[mol][iBand] is False: continue
+      # band specification	
+      wvn1 = self.bands['wn1'][iBand]
+      wvn2 = self.bands['wn2'][iBand]
+      record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
+      record2 = '%10.3f%10.3f' % (wvn1, wvn2)
 
-        # write LNFL TAPE5 for this band and molecule
-        recs = [record1, record2, record3]
+      # switch molecule "on" for LNFL
+      molInd = np.array(molIndInit)
+      molInd[iMol] = '1'
+      record3 = '%47s%4s%40s' % (''.join(list(molInd)), ' ', holInd)
 
-        # making WN1 and WN2 ints just to keep "." out of name
-        outFile = '%s/TAPE5_%s_%05d-%05d' % \
-          (outDirT5, mol, \
-           self.bands['wn1'][iBand], self.bands['wn2'][iBand])
-        outFP = open(outFile, 'w')
-        for rec in recs: outFP.write('%s\n' % rec)
-        outFP.close()
-        print('Wrote %s' % outFile)
-      # end band loop
-    # end mol loop
+      # write LNFL TAPE5 for this band and molecule
+      recs = [record1, record2, record3]
+
+      # making WN1 and WN2 ints just to keep "." out of name
+      outFile = '%s/TAPE5_%s_%05d-%05d' % \
+        (outDirT5, mol, \
+         self.bands['wn1'][iBand], self.bands['wn2'][iBand])
+      outFP = open(outFile, 'w')
+      for rec in recs: outFP.write('%s\n' % rec)
+      outFP.close()
+      print('Wrote %s' % outFile)
+    # end band loop
   # end lnflT5()
 
   def runLNFL(self):
@@ -315,12 +314,18 @@ class makeABSCO():
     print(os.getcwd())
   # end runLNFL()
 
-  def lblT5(self):
+  def lblT5(self, mol, wvSelf=True, pwv=1.0):
     """
-    Make a TAPE5 for every temperature, band, and molecule that can 
-    be used as input into an LBLRTM run
+    For a given molecule, make a TAPE5 for every temperature and band 
+    that can be used as input into an LBLRTM run
 
     see lblrtm_instructions.html for doc on each TAPE5 record
+
+    mol -- string, molecule name from preproc.readConfig.allowed
+    wvSelf -- boolean, generate TAPE5 with only self continuum scaling
+      used (H2O only). if False, foreign continuum is run.
+    pwv -- float, precipitable water vapor [cm] to be used in H2O 
+      scaling
     """
 
     # multiplicative continuum factors (because CN=6 in record12)
@@ -334,164 +339,181 @@ class makeABSCO():
     record31 = '%5d%5d%5d%5d%5d%5d%5d' % \
       (0, 2, -2, 0, 0, self.molMaxLBL, 1)
 
-    for mol in self.molNames:
-      # record 3.4: user profile header for given molecule
-      record34 = '%5d%24s' % (1, 'User profile for %s' % mol)
+    # record 3.4: user profile header for given molecule
+    record34 = '%5d%24s' % (1, 'User profile for %s' % mol)
 
-      for iBand in range(self.nBands):
+    for iBand in range(self.nBands):
 
-        if self.doBand[mol][iBand] is False: continue
+      if self.doBand[mol][iBand] is False: continue
 
-        doXS = 1 if self.doXS[mol][iBand] else 0
+      if mol in self.xsNames or mol in self.xsLines:
+        doXS = 1
+      if mol in self.xsLines and self.doXS[mol][iBand]:
+        doXS = 1
+      else:
+        doXS = 0
+      # endif doXS
 
-        # record1.2: HI=9: central line contribution omitted
-        # CN=6: continuum scale factor for given molecules used
-        # OD=1, MG=1: optical depth computation, layer-by-layer
-        record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 ' + \
-          'TS=0 AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
+      # record1.2: HI=9: central line contribution omitted
+      # CN=6: continuum scale factor for given molecules used
+      # OD=1, MG=1: optical depth computation, layer-by-layer
+      record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 ' + \
+        'TS=0 AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
 
-        # continuum scale factors
-        if mol == 'H2O':
-          # TO DO: self and foreign...need to address this since 
-          # we're doing both for WV in separate runs
-          scales[:2] = self.cntnmScale
-        elif mol == 'CO2':
-          scales[2] = self.cntnmScale
-        elif mol == 'O3':
-          scales[3] = self.cntnmScale
-        elif mol == 'O2':
-          scales[4] = self.cntnmScale
-        elif mol == 'N2':
-          scales[5] = self.cntnmScale
-        # endif CNTNM scales
+      # continuum scale factors
+      if mol == 'H2O':
+        if wvSelf:
+          scales[0] = self.cntnmScale
+        else:
+          scales[1] = self.cntnmScale
+        # endif wvSelf
+      elif mol == 'CO2':
+        scales[2] = self.cntnmScale
+      elif mol == 'O3':
+        scales[3] = self.cntnmScale
+      elif mol == 'O2':
+        scales[4] = self.cntnmScale
+      elif mol == 'N2':
+        scales[5] = self.cntnmScale
+      # endif CNTNM scales
 
-        # generate free-format record 1.2
-        record12a = ' '.join(scales.astype(str))
+      # generate free-format record 1.2
+      record12a = ' '.join(scales.astype(str))
 
-        # record 1.3 is kinda long...first, band limits
-        record13 = '%10.3e%10.3e' % \
-          (self.bands['wn1'][0], self.bands['wn2'][0])
+      # record 1.3 is kinda long...first, band limits
+      record13 = '%10.3e%10.3e' % \
+        (self.bands['wn1'][0], self.bands['wn2'][0])
 
-        # concatenate (NOT append) 6 zeros in scientific notation
-        # using defaults for SAMPLE, DVSET, ALFAL0, AVMASS, 
-        # DPTMIN, and DPTFAC params
-        record13 += ''.join(['%10.3e' % 0 for i in range(6)])
+      # concatenate (NOT append) 6 zeros in scientific notation
+      # using defaults for SAMPLE, DVSET, ALFAL0, AVMASS, 
+      # DPTMIN, and DPTFAC params
+      record13 += ''.join(['%10.3e' % 0 for i in range(6)])
 
-        # line rejection not recorded and 1e-4 output OD spectral
-        # resolution
-        record13 += '%4s%1d%5s%10.3e' % \
-          (' ', 0, ' ', self.bands['res'][0])
+      # line rejection not recorded and 1e-4 output OD spectral
+      # resolution
+      record13 += '%4s%1d%5s%10.3e' % \
+        (' ', 0, ' ', self.bands['res'][0])
 
-        # for PWV scaling
-        if mol == 'H2O':
-          record13 += '%3s%2d' % ('', 1)
-          record13a = '1'
-          record13b = '' % self.pwv
-        # end H2O
+      # for PWV scaling
+      if mol == 'H2O':
+        record13 += '%3s%2d' % ('', 1)
+        record13a = 'P'
+        record13b = '%15.7E' % pwv
+      # end H2O
 
-        outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
-        if not os.path.exists(outDirT5): os.mkdir(outDirT5)
+      outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
+      if not os.path.exists(outDirT5): os.mkdir(outDirT5)
 
-        for iP, pLev in enumerate(self.pLev):
-          # need 2 P bounds for LBLATM
-          if iP == 0: continue
-          pArr = [self.pLev[iP-1], self.pLev[iP]]
+      for iP, pLev in enumerate(self.pLev):
+        # need 2 P bounds for LBLATM
+        if iP == 0: continue
+        pArr = [self.pLev[iP-1], self.pLev[iP]]
 
-          # now determine the density to use for the level
-          if mol in self.xsLines:
-            if doXS:
-              layVMR = self.vmrProf['%s_XS' % mol][iP]
-            else:
-              layVMR = self.vmrProf['%s_HI' % mol][iP]
-            # endif doXS
-          else:
-            layVMR = self.vmrProf[mol][iP]
-          # endif doXS
+        # now determine the density to use for the level
+        if mol in self.xsLines:
 
-          # record 3.2: pressure limits for all levels, nadir SZA
-          record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
-
-          # record 3.3b: pressure levels
-          record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
-
-          # record 3.5: level and unit info for record 3.6
-          # using a fill space for "ZM" because whatever i would 
-          # provide for that field would be ignored
-          # really all we're doing is P and T units (in mbar and K)
-          # and using the default (blank) format and units for profile
-          # info (E10.3 VMR)
-          record35 = '%10s%10.3E%10.3E%5sAA' % \
-            ('', pLev, self.vmrProf['T'][iP], '')
-
-          # record 3.6: provide profile info at a given level, but 
-          # only for the broadener (density) and given mol (VMR)
-          lblAll = np.repeat(0.0, self.molMaxLBL)
-
-          # fill in the VMR for the given mol
-          if not doXS:
-            iMatch = self.HITRAN.index(mol)
-            lblAll[iMatch] = float(layVMR)
-          # endif doXS
-
-          # insert the broadening density -- the eighth "molecule"
-          # iP-1 because broadener value is on layers, not levels, 
-          # and we skip iP == 0
-          lblAll = np.insert(lblAll, 7, \
-            self.vmrProf['BRD'][mol].values[iP-1])
-
-          # start building the string for record 3.6
-          record36 = ''
-          for iDen, den in enumerate(lblAll):
-            record36 += '%10.3E' % den
-
-            # eight molecules per line (but only 48 molecules, and 
-            # no need for new line at end)
-            if ((iDen+1) % 8) == 0 and iDen < self.molMaxLBL:
-              record36 += '\n'
-          # end record36 loop
-
+          # handle the "double agents" -- HITRAN and XS params are 
+          # available, and density profiles for each are stored
           if doXS:
-            # record 3.7: 1 molecule, user-provided profile
-            record37 = '%5d%5d' % (1, 0)
+            layVMR = self.vmrProf['%s_XS' % mol][iP]
+          else:
+            layVMR = self.vmrProf['%s_HI' % mol][iP]
+          # endif doXS
+        else:
+          layVMR = self.vmrProf[mol][iP]
+        # endif doXS
 
-            # record 3.7.1: XS molecule name
-            record371 = '%10s' % mol
+        # record 3.2: pressure limits for all levels, nadir SZA
+        record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
 
-            # record 3.8: 1 layer, pressure used for "height"
-            record38 = '%5d%5d %s User Profile' % (1, 1, mol)
+        # record 3.3b: pressure levels
+        record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
 
-            # record 3.8.1: boundary pressure
-            record381 = '%10.3f' % pLev
+        # record 3.5: level and unit info for record 3.6
+        # using a fill space for "ZM" because whatever i would 
+        # provide for that field would be ignored
+        # really all we're doing is P and T units (in mbar and K)
+        # and using the default (blank) format and units for profile
+        # info (E10.3 VMR)
+        record35 = '%10s%10.3E%10.3E%5sAA' % \
+          ('', pLev, self.vmrProf['T'][iP], '')
 
-            # record 3.8.2: layer molecule VMR
-            record382 = '%10.3E' % float(layVMR)
+        # record 3.6: provide profile info at a given level, but 
+        # only for the broadener (density) and given mol (VMR)
+        lblAll = np.repeat(0.0, self.molMaxLBL)
 
-            xsRecs = \
-              [record37, record371, record38, record381, record382]
-          # end record36
+        # fill in the VMR for the given mol
+        if not doXS:
+          iMatch = self.HITRAN.index(mol)
+          lblAll[iMatch] = float(layVMR)
+        # endif doXS
 
-          for tLev in self.tLev[iP]:
-            outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK_%05d-%05d' % \
-              (outDirT5, mol, pLev, tLev, self.bands['wn1'][iBand], \
-               self.bands['wn2'][iBand])
+        # insert the broadening density -- the eighth "molecule"
+        # iP-1 because broadener value is on layers, not levels, 
+        # and we skip iP == 0
+        lblAll = np.insert(lblAll, 7, \
+          self.vmrProf['BRD'][mol].values[iP-1])
 
-            # write the TAPE5 for this set of params
-            recs = [record12, record12a, record13, record31, \
-              record32, record33b, record34, record35, record36]
-            if doXS: recs += xsRecs
+        # start building the string for record 3.6
+        record36 = ''
+        for iDen, den in enumerate(lblAll):
+          record36 += '%10.3E' % den
 
-            if os.path.exists(outFile):
-              print('WARNING: Overwriting %s' % outFile)
+          # eight molecules per line (but only 48 molecules, and 
+          # no need for new line at end)
+          if ((iDen+1) % 8) == 0 and iDen < self.molMaxLBL:
+            record36 += '\n'
+        # end record36 loop
 
-            outFP = open(outFile, 'w')
-            outFP.write('$ %s\n' % self.headerOD)
-            for rec in recs: outFP.write('%s\n' % rec)
-            outFP.write('%%%%')
-            outFP.close()
-          # end temperature loop
-        # end pressure loop
-      # end band loop
-    # end molecule loop
+        if doXS:
+          # record 3.7: 1 molecule, user-provided profile
+          record37 = '%5d%5d' % (1, 0)
+
+          # record 3.7.1: XS molecule name
+          record371 = '%10s' % mol
+
+          # record 3.8: 1 layer, pressure used for "height"
+          record38 = '%5d%5d %s User Profile' % (1, 1, mol)
+
+          # record 3.8.1: boundary pressure
+          record381 = '%10.3f' % pLev
+
+          # record 3.8.2: layer molecule VMR
+          record382 = '%10.3E' % float(layVMR)
+
+          xsRecs = \
+            [record37, record371, record38, record381, record382]
+        # end record36
+
+        for tLev in self.tLev[iP]:
+          outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK_%05d-%05d' % \
+            (outDirT5, mol, pLev, tLev, self.bands['wn1'][iBand], \
+             self.bands['wn2'][iBand])
+
+          # write the TAPE5 for this set of params
+          recs = [record12, record12a, record13, record31, \
+            record32, record33b, record34, record35, record36]
+
+          if mol == 'H2O':
+            wvCont = 'self' if wvSelf else 'foreign'
+            outFile = '%s_%s_PWV%06.3f' % (outFile, wvCont, pwv)
+            recs.insert(3, record13a)
+            recs.insert(4, record13b)
+          # endif h2o
+
+          if doXS: recs += xsRecs
+
+          if os.path.exists(outFile):
+            print('WARNING: Overwriting %s' % outFile)
+
+          outFP = open(outFile, 'w')
+          outFP.write('$ %s\n' % self.headerOD)
+          for rec in recs: outFP.write('%s\n' % rec)
+          outFP.write('%%%%')
+          outFP.close()
+        # end temperature loop
+      # end pressure loop
+    # end band loop
 
     return True
   # end lblT5()
@@ -615,13 +637,21 @@ if __name__ == '__main__':
   # ABSCO object instantiation
   absco = makeABSCO(ini)
 
-  if args.run_lnfl: 
-    absco.lnflT5()
+  if args.run_lnfl:
+    for mol in ini.molnames: absco.lnflT5(mol)
     absco.runLNFL()
   # end LNFL
 
   if args.run_lbl:
-    absco.lblT5()
+    for mol in ini.molnames:
+      if mol == 'H2O':
+        for pwv in ini.pwv:
+          absco.lblT5(mol, pwv=pwv)
+          absco.lblT5(mol, wvSelf=False, pwv=pwv)
+        # end PWV loop
+      else:
+        absco.lblT5(mol)
+      # endif H2O
     #absco.runLBL()
   # end LBL
 
