@@ -340,7 +340,7 @@ class makeABSCO():
       (0, 2, -2, 0, 0, self.molMaxLBL, 1)
 
     # record 3.4: user profile header for given molecule
-    record34 = '%5d%24s' % (1, 'User profile for %s' % mol)
+    record34 = '%5d%24s' % (-2, 'User profile for %s' % mol)
 
     for iBand in range(self.nBands):
 
@@ -429,41 +429,47 @@ class makeABSCO():
         # record 3.3b: pressure levels
         record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
 
-        # record 3.5: level and unit info for record 3.6
-        # using a fill space for "ZM" because whatever i would 
-        # provide for that field would be ignored
-        # really all we're doing is P and T units (in mbar and K)
-        # and using the default (blank) format and units for profile
-        # info (E10.3 VMR)
-        record35 = '%10s%10.3E%10.3E%5sAA' % \
-          ('', pLev, self.vmrProf['T'][iP], '')
+        # records 3.5 and 3.6 should be repeated twice because we need
+        # two levels to define a layer
+        records35_36 = ''
+        for iLev in [iP-1, iP]:
+          # record 3.5: level and unit info for record 3.6
+          # using a fill space for "ZM" because whatever i would 
+          # provide for that field would be ignored (TO DO: CHECK!!)
+          # really all we're doing is P and T units (in mbar and K)
+          # and using the default (blank) format and units for profile
+          # info (E10.3 VMR)
+          record35 = '%10s%10.3E%10.3E%5sAA' % \
+            ('', self.pLev[iLev], self.vmrProf['T'][iLev], '')
+          records35_36 += '%s\n' % record35
 
-        # record 3.6: provide profile info at a given level, but 
-        # only for the broadener (density) and given mol (VMR)
-        lblAll = np.repeat(0.0, self.molMaxLBL)
+          # record 3.6: provide profile info at a given level, but 
+          # only for the given mol (VMR)
+          lblAll = np.repeat(0.0, self.molMaxLBL)
 
-        # fill in the VMR for the given mol
-        if not doXS:
-          iMatch = self.HITRAN.index(mol)
-          lblAll[iMatch] = float(layVMR)
-        # endif doXS
+          # fill in the VMR for the given mol
+          if not doXS:
+            iMatch = self.HITRAN.index(mol)
+            lblAll[iMatch] = float(layVMR)
+          # endif doXS
 
-        # insert the broadening density -- the eighth "molecule"
-        # iP-1 because broadener value is on layers, not levels, 
-        # and we skip iP == 0
-        lblAll = np.insert(lblAll, 7, \
-          self.vmrProf['BRD'][mol].values[iP-1])
+          # start building the string for record 3.6
+          record36 = ''
+          for iDen, den in enumerate(lblAll):
+            record36 += '%10.3E' % den
 
-        # start building the string for record 3.6
-        record36 = ''
-        for iDen, den in enumerate(lblAll):
-          record36 += '%10.3E' % den
+            # eight molecules per line (but only 48 molecules, and 
+            # no need for new line at end)
+            if ((iDen+1) % 8) == 0 and iDen < self.molMaxLBL:
+              record36 += '\n'
+          # end record36 loop
 
-          # eight molecules per line (but only 48 molecules, and 
-          # no need for new line at end)
-          if ((iDen+1) % 8) == 0 and iDen < self.molMaxLBL:
-            record36 += '\n'
-        # end record36 loop
+          if iLev == iP-1:
+            records35_36 += '%s\n' % record36
+          else:
+            records35_36 += record36
+          # endif iLev
+        # end records 3.5, 3.6 loop
 
         if doXS:
           # record 3.7: 1 molecule, user-provided profile
@@ -472,8 +478,8 @@ class makeABSCO():
           # record 3.7.1: XS molecule name
           record371 = '%10s' % mol
 
-          # record 3.8: 1 layer, pressure used for "height"
-          record38 = '%5d%5d %s User Profile' % (1, 1, mol)
+          # record 3.8: 2 pressure levels, pressure used for "height"
+          record38 = '%5d%5d %s User Profile' % (-2, 1, mol)
 
           # record 3.8.1: boundary pressure
           record381 = '%10.3f' % pLev
@@ -492,7 +498,7 @@ class makeABSCO():
 
           # write the TAPE5 for this set of params
           recs = [record12, record12a, record13, record31, \
-            record32, record33b, record34, record35, record36]
+            record32, record33b, record34, records35_36]
 
           if mol == 'H2O':
             wvCont = 'self' if wvSelf else 'foreign'
