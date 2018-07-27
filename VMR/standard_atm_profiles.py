@@ -74,6 +74,7 @@ class vmrProfiles():
     # P and T have different LBLATM naming conventions...
     ptList = ['%1s%1d' % (pt, self.stanAtm) for pt in ['P', 'T']]
     hiNames = ptList + stanAtmList + list(hiDF.keys().values[61:])
+    hiNames.insert(0, 'ALT')
     xsNames = xsDF.keys().values
     stanAtmP = hiDF['P%1d' % self.stanAtm].values
 
@@ -314,7 +315,7 @@ class broadener():
         # standard  atmosphere rather than providing a user profile 
         # (like the line parameter molecules). the choice of standard
         # atmosphere is not crucial because we're just interested in
-        # the broadener, and the XS densities are relatively small
+        # the broadener, and the XS densities are relatively tiny
 
         # record 3.7
         record37 = '%5d%5d%5d' % (1, 1, 0)
