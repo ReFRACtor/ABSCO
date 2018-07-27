@@ -92,8 +92,6 @@ class makeABSCO():
     # grab the user provided VMR profile for the species of interest
     # and handle the broadening density, which will differ depending 
     # on the molecule
-    # TO DO: _HI and _XS species (so right now, this will not work 
-    # for SO2, NO_2, HNO3, CLONO2, CH3CN, or CF4)
     inUserProf = pd.read_csv(inObj.vmrfile)
     inBroadProf = pd.read_csv(inObj.broadfile)
     userProf, broadProf = {}, {}
@@ -346,9 +344,9 @@ class makeABSCO():
 
       if self.doBand[mol][iBand] is False: continue
 
-      if mol in self.xsNames or mol in self.xsLines:
+      if mol in self.xsNames:
         doXS = 1
-      if mol in self.xsLines and self.doXS[mol][iBand]:
+      elif mol in self.xsLines and self.doXS[mol][iBand]:
         doXS = 1
       else:
         doXS = 0
@@ -409,24 +407,10 @@ class makeABSCO():
         if iP == 0: continue
         pArr = [self.pLev[iP-1], self.pLev[iP]]
 
-        # now determine the density to use for the level
-        if mol in self.xsLines:
-
-          # handle the "double agents" -- HITRAN and XS params are 
-          # available, and density profiles for each are stored
-          if doXS:
-            layVMR = self.vmrProf['%s_XS' % mol][iP]
-          else:
-            layVMR = self.vmrProf['%s_HI' % mol][iP]
-          # endif doXS
-        else:
-          layVMR = self.vmrProf[mol][iP]
-        # endif doXS
-
-        # record 3.2: pressure limits for all levels, nadir SZA
+        # record 3.2: observer pressure limits, nadir SZA
         record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
 
-        # record 3.3b: pressure levels
+        # record 3.3b: LBLRTM pressure levels
         record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
 
         # records 3.5 and 3.6 should be repeated twice because we need
@@ -442,6 +426,20 @@ class makeABSCO():
           record35 = '%10s%10.3E%10.3E%5sAA' % \
             ('', self.pLev[iLev], self.vmrProf['T'][iLev], '')
           records35_36 += '%s\n' % record35
+
+          # now determine the density to use for the level
+          if mol in self.xsLines:
+
+            # handle the "double agents" -- HITRAN and XS params are 
+            # available, and density profiles for each are stored
+            if doXS:
+              layVMR = self.vmrProf['%s_XS' % mol][iLev]
+            else:
+              layVMR = self.vmrProf['%s_HI' % mol][iLev]
+            # endif doXS
+          else:
+            layVMR = self.vmrProf[mol][iLev]
+          # endif doXS
 
           # record 3.6: provide profile info at a given level, but 
           # only for the given mol (VMR)
@@ -484,7 +482,8 @@ class makeABSCO():
           # record 3.8.1: boundary pressure
           record381 = '%10.3f' % pLev
 
-          # record 3.8.2: layer molecule VMR
+          # record 3.8.2: layer molecule VMR, which should have been
+          # defined in when constructing records 3.5 and 3.6
           record382 = '%10.3E' % float(layVMR)
 
           xsRecs = \
