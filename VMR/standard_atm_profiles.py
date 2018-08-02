@@ -78,6 +78,10 @@ class vmrProfiles():
     xsNames = xsDF.keys().values
     stanAtmP = hiDF['P%1d' % self.stanAtm].values
 
+    # altitude hack since 1050 mb is higher than the standard 
+    # atmosphere surface pressures, which are defined as ALT = 0
+    hiDF['ALT'].values[0] = 0.5
+
     # now loop over each variable assemble interpolation function
     outDict = {}
     for mol in hiNames:
