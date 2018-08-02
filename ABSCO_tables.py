@@ -97,6 +97,7 @@ class makeABSCO():
     userProf, broadProf = {}, {}
     userProf['P'] = inUserProf['P'].values
     userProf['T'] = inUserProf['T'].values
+    userProf['ALT'] = inUserProf['ALT'].values
     allMolCSV = inUserProf.keys().values
 
     for mol in inObj.molnames:
@@ -141,7 +142,8 @@ class makeABSCO():
     self.pLev = np.array(inP)
     self.nP = inP.size
     self.tLev = list(tLevList)
-    self.nT = np.unique(np.array(allT)).size
+    self.allT = np.unique(np.array(allT))
+    self.nT = self.allT.size
     self.pressures = np.array(inP)
     self.bands = dict(inObj.channels)
     self.nBands = len(inObj.channels['res'])
@@ -222,7 +224,7 @@ class makeABSCO():
       iMol = self.HITRAN.index(mol)
     except:
       print('Could not find %s in HITRAN names' % mol)
-      return
+      iMol = None
     # end exception
 
     for iBand in range(self.nBands):
@@ -233,9 +235,11 @@ class makeABSCO():
       record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
       record2 = '%10.3f%10.3f' % (wvn1, wvn2)
 
-      # switch molecule "on" for LNFL
+      # switch molecule "on" for LNFL; we still need a TAPE3 for LBL
+      # with XS molecules even though they have no molecule number, 
+      # so just don't turn on any molecules
       molInd = np.array(molIndInit)
-      molInd[iMol] = '1'
+      if iMol is not None: molInd[iMol] = '1'
       record3 = '%47s%4s%40s' % (''.join(list(molInd)), ' ', holInd)
 
       # write LNFL TAPE5 for this band and molecule
@@ -309,10 +313,9 @@ class makeABSCO():
     # end mol loop
 
     os.chdir(self.topDir)
-    print(os.getcwd())
   # end runLNFL()
 
-  def lblT5(self, mol, wvSelf=True, pwv=1.0):
+  def lblT5(self, mol, pwv=1.0):
     """
     For a given molecule, make a TAPE5 for every temperature and band 
     that can be used as input into an LBLRTM run
@@ -320,11 +323,15 @@ class makeABSCO():
     see lblrtm_instructions.html for doc on each TAPE5 record
 
     mol -- string, molecule name from preproc.readConfig.allowed
-    wvSelf -- boolean, generate TAPE5 with only self continuum scaling
-      used (H2O only). if False, foreign continuum is run.
     pwv -- float, precipitable water vapor [cm] to be used in H2O 
       scaling
     """
+
+    pLevArr = np.array(self.pLev)
+
+    # even though we are inputing an entire user profile, we will only
+    # process 1 layer (2 levels) at a time
+    nLevT5 = 2
 
     # multiplicative continuum factors (because CN=6 in record12)
     scales = np.repeat(0.0, 7)
@@ -335,36 +342,35 @@ class makeABSCO():
     # pressure levels, no zero-filling, full printout, 7 molecules, 
     # write to TAPE7
     record31 = '%5d%5d%5d%5d%5d%5d%5d' % \
-      (0, 2, -2, 0, 0, self.molMaxLBL, 1)
+      (0, 2, -nLevT5, 0, 0, self.molMaxLBL, 1)
 
     # record 3.4: user profile header for given molecule
-    record34 = '%5d%24s' % (-2, 'User profile for %s' % mol)
+    record34 = '%5d%24s' % (-self.nP, 'User profile for %s' % mol)
 
     for iBand in range(self.nBands):
 
       if self.doBand[mol][iBand] is False: continue
 
       if mol in self.xsNames:
-        doXS = 1
+        # omit lines
+        doXS, optHI, optF4 = 1, 9, 0
       elif mol in self.xsLines and self.doXS[mol][iBand]:
-        doXS = 1
+        doXS, optHI, optF4 = 1, 9, 0
       else:
-        doXS = 0
+        # use lines +/- 25 cm-1
+        doXS, optHI, optF4 = 0, 1, 1
       # endif doXS
 
       # record1.2: HI=9: central line contribution omitted
       # CN=6: continuum scale factor for given molecules used
       # OD=1, MG=1: optical depth computation, layer-by-layer
-      record12 = ' HI=9 F4=0 CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 ' + \
-        'TS=0 AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
+      record12 = ' HI=%1d F4=%1d CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 ' % \
+        (optHI, optF4) + 'TS=0 AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
 
       # continuum scale factors
       if mol == 'H2O':
-        if wvSelf:
-          scales[0] = self.cntnmScale
-        else:
-          scales[1] = self.cntnmScale
-        # endif wvSelf
+        scales[0] = self.cntnmScale
+        scales[1] = self.cntnmScale
       elif mol == 'CO2':
         scales[2] = self.cntnmScale
       elif mol == 'O3':
@@ -400,55 +406,44 @@ class makeABSCO():
       # end H2O
 
       outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
-      if not os.path.exists(outDirT5): os.mkdir(outDirT5)
+      if not os.path.exists(outDirT5):
+        os.makedirs(outDirT5, exist_ok=True)
 
-      for iP, pLev in enumerate(self.pLev):
-        # need 2 P bounds for LBLATM
-        if iP == 0: continue
-        pArr = [self.pLev[iP-1], self.pLev[iP]]
+      for constantT in self.allT:
 
-        # record 3.2: observer pressure limits, nadir SZA
-        record32 = '%10.3f%10.3f%10.3f' % (pArr[0], pArr[1], 0)
-
-        # record 3.3b: LBLRTM pressure levels
-        record33b = '%10.3f%10.3f' % (pArr[0], pArr[1])
-
-        # records 3.5 and 3.6 should be repeated twice because we need
-        # two levels to define a layer
-        records35_36 = ''
-        for iLev in [iP-1, iP]:
+        # generate entire user profile for given T and write to TAPE5
+        records35_36, records381_382 = [], []
+        for iP, pLev in enumerate(pLevArr):
+          # records 3.5 and 3.6 should be repeated for every level
           # record 3.5: level and unit info for record 3.6
-          # using a fill space for "ZM" because whatever i would 
-          # provide for that field would be ignored (TO DO: CHECK!!)
           # really all we're doing is P and T units (in mbar and K)
           # and using the default (blank) format and units for profile
           # info (E10.3 VMR)
-          record35 = '%10s%10.3E%10.3E%5sAA' % \
-            ('', self.pLev[iLev], self.vmrProf['T'][iLev], '')
-          records35_36 += '%s\n' % record35
+          record35 = '%10.3E%10.3E%10.3E%5sAA\n' % \
+            (self.vmrProf['ALT'][iP], pLev, constantT, '')
+          records35_36.append(record35)
 
           # now determine the density to use for the level
           if mol in self.xsLines:
-
             # handle the "double agents" -- HITRAN and XS params are 
             # available, and density profiles for each are stored
             if doXS:
-              layVMR = self.vmrProf['%s_XS' % mol][iLev]
+              levVMR = self.vmrProf['%s_XS' % mol][iP]
             else:
-              layVMR = self.vmrProf['%s_HI' % mol][iLev]
+              levVMR = self.vmrProf['%s_HI' % mol][iP]
             # endif doXS
           else:
-            layVMR = self.vmrProf[mol][iLev]
+            levVMR = self.vmrProf[mol][iP]
           # endif doXS
 
-          # record 3.6: provide profile info at a given level, but 
-          # only for the given mol (VMR)
+          # record 3.6: provide VMR at a given level, but only for the 
+          # given mol (VMR)
           lblAll = np.repeat(0.0, self.molMaxLBL)
 
           # fill in the VMR for the given mol
           if not doXS:
             iMatch = self.HITRAN.index(mol)
-            lblAll[iMatch] = float(layVMR)
+            lblAll[iMatch] = float(levVMR)
           # endif doXS
 
           # start building the string for record 3.6
@@ -456,18 +451,28 @@ class makeABSCO():
           for iDen, den in enumerate(lblAll):
             record36 += '%10.3E' % den
 
-            # eight molecules per line (but only 48 molecules, and 
-            # no need for new line at end)
-            if ((iDen+1) % 8) == 0 and iDen < self.molMaxLBL:
-              record36 += '\n'
+            # eight molecules per line
+            if ((iDen+1) % 8) == 0: record36 += '\n'
           # end record36 loop
 
-          if iLev == iP-1:
-            records35_36 += '%s\n' % record36
-          else:
-            records35_36 += record36
-          # endif iLev
-        # end records 3.5, 3.6 loop
+          # end of record36, if nMol is not divisible by 8
+          if record36[-1] != '\n' and iP != self.nP-1:record36 += '\n'
+          records35_36.append(record36)
+
+          # record 3.8.1: boundary pressure (really just rec 3.3b)
+          # record 3.8.2: layer molecule VMR, which should have been
+          # defined in when constructing records 3.5 and 3.6
+          # can combine these two since we're only doing 1 XS 
+          # molecule per layer
+          if doXS: 
+            records381_382.append('%10.3f%5s1\n%10.3E' % \
+              (pLev, '', float(levVMR)) )
+            if iP != self.nP-1: records381_382.append('\n')
+          # end doXS
+        # end pressure loop
+
+        # combine the record lists into single strings
+        records35_36 = ''.join(records35_36)
 
         if doXS:
           # record 3.7: 1 molecule, user-provided profile
@@ -476,54 +481,67 @@ class makeABSCO():
           # record 3.7.1: XS molecule name
           record371 = '%10s' % mol
 
-          # record 3.8: 2 pressure levels, pressure used for "height"
-          record38 = '%5d%5d %s User Profile' % (-2, 1, mol)
+          # record 3.8: n pressure levels, pressure used for "height"
+          record38 = '%5d%5d %s User Profile' % (self.nP, 1, mol)
 
-          # record 3.8.1: boundary pressure
-          record381 = '%10.3f' % pLev
+          # records 3.8.1 and 3.8.2: user profile for XS mol
+          records381_382 = ''.join(records381_382)
 
-          # record 3.8.2: layer molecule VMR, which should have been
-          # defined in when constructing records 3.5 and 3.6
-          record382 = '%10.3E' % float(layVMR)
-
-          xsRecs = \
-            [record37, record371, record38, record381, record382]
+          xsRecs = [record37, record371, record38, records381_382]
         # end record36
 
-        for tLev in self.tLev[iP]:
-          outFile = '%s/TAPE5_%s_P%09.4fmb_T%05.1fK_%05d-%05d' % \
-            (outDirT5, mol, pLev, tLev, self.bands['wn1'][iBand], \
-             self.bands['wn2'][iBand])
+        # write the TAPE5 for this set of params
+        recs = [record12, record12a, record13, record31, \
+          record34, records35_36]
 
-          # write the TAPE5 for this set of params
-          recs = [record12, record12a, record13, record31, \
-            record32, record33b, record34, records35_36]
+        if doXS: recs += xsRecs
 
-          if mol == 'H2O':
-            wvCont = 'self' if wvSelf else 'foreign'
-            outFile = '%s_%s_PWV%06.3f' % (outFile, wvCont, pwv)
-            recs.insert(3, record13a)
-            recs.insert(4, record13b)
-          # endif h2o
+        # start writing the TAPE5s, 1 layer (2 levels) at a time
+        for iP, pLev in enumerate(pLevArr):
+          # skip surface since we need to levels
+          if iP == 0: continue
 
-          if doXS: recs += xsRecs
+          # pressure levels might not span all temperatures
+          if constantT not in self.tLev[iP]: continue
+
+          # keep recs constant for this pLev loop for reusability
+          finalRecs = list(recs)
+
+          # record 3.2: observer pressure limits, nadir SZA
+          record32 = '%10.3f%10.3f%10.3f' % (pLevArr[iP-1], pLev, 0)
+          finalRecs.insert(4, record32)
+
+          record33b = '%10.3f%10.3f' % (pLevArr[iP-1], pLev)
+
+          outFile = '%s/TAPE5_%s_P%09.4f_T%05.1fK_%05d-%05d' % \
+            (outDirT5, mol, pLev, constantT, \
+             self.bands['wn1'][iBand], self.bands['wn2'][iBand])
 
           if os.path.exists(outFile):
             print('WARNING: Overwriting %s' % outFile)
 
+          finalRecs.insert(5, record33b)
+
+          # throw the water vapor records into the appropriate spot
+          if mol == 'H2O':
+            outFile = '%s_PWV%06.3f' % (outFile, pwv)
+            finalRecs.insert(3, record13a)
+            finalRecs.insert(4, record13b)
+          # endif h2o
+
           outFP = open(outFile, 'w')
           outFP.write('$ %s\n' % self.headerOD)
-          for rec in recs: outFP.write('%s\n' % rec)
+          for rec in finalRecs: outFP.write('%s\n' % rec)
           outFP.write('%%%%')
           outFP.close()
-        # end temperature loop
-      # end pressure loop
+        # end pressure level loop
+      # end temperature loop
     # end band loop
 
     return True
   # end lblT5()
 
-  def runLBL(self):
+  def runLBL(self, mol):
     """
     Run LBLRTM for each TAPE5 made in lblT5
 
@@ -541,62 +559,60 @@ class makeABSCO():
     sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
     makeSymLinks(sources, targets)
 
-    for mol in self.molNames:
-      outDirOD = '%s/%s/%s' % (self.topDir, self.fineOD, mol)
-      if not os.path.exists(outDirOD): os.mkdir(outDirOD)
+    outDirOD = '%s/%s/%s' % (self.topDir, self.fineOD, mol)
+    if not os.path.exists(outDirOD): os.mkdir(outDirOD)
 
-      # set up working subdirectory
-      # find TAPE3s and their associated TAPE5s (for every TAPE3, 
-      # there is a TAPE5 for every pressure and every temperature)
-      searchStr = '%s/%s/%s/TAPE3*' % (self.topDir, self.dirT3, mol)
-      molT3 = sorted(glob.glob(searchStr))
-      if len(molT3) == 0:
-        print('Found no TAPE3 files for %s' % mol)
+    # set up working subdirectory
+    # find TAPE3s and their associated TAPE5s (for every TAPE3, 
+    # there is a TAPE5 for every pressure and every temperature)
+    searchStr = '%s/%s/%s/TAPE3*' % (self.topDir, self.dirT3, mol)
+    molT3 = sorted(glob.glob(searchStr))
+    if len(molT3) == 0:
+      print('Found no TAPE3 files for %s' % mol)
+      return False
+    # endif nT3
+
+    molT5 = []
+    for t3 in molT3:
+      base = os.path.basename(t3)
+      band = base.split('_')[-1]
+      searchStr = '%s/%s/%s/%s/TAPE5_*_%s*' % \
+        (self.topDir, self.runDirLBL, self.dirT5, mol, band)
+      molT5 = sorted(glob.glob(searchStr))
+
+      if len(molT5) == 0:
+        print('Found no TAPE5s for %s' % mol)
         continue
-      # endif nT3
+      # endif t5
 
-      molT5 = []
-      for t3 in molT3:
-        base = os.path.basename(t3)
-        band = base.split('_')[-1]
-        searchStr = '%s/%s/%s/%s/TAPE5_*_%s' % \
-          (self.topDir, self.runDirLBL, self.dirT5, mol, band)
-        molT5 = sorted(glob.glob(searchStr))
+      if os.path.islink('TAPE3'): os.unlink('TAPE3')
+      os.symlink(t3, 'TAPE3')
 
-        if len(molT5) == 0:
-          print('Found no TAPE5s for %s' % mol)
+      for t5 in molT5:
+        base = os.path.basename(t5)
+        print(base)
+        if os.path.islink('TAPE5'): os.unlink('TAPE5')
+        os.symlink(t5, 'TAPE5')
+
+        # grab extension for use in renaming the ODint LBL output 
+        # file
+        ext = base.replace('TAPE5_', '')
+        sub.call(['./lblrtm'])
+        continue
+        odStr = 'ODint_001'
+
+        # if all ODs are zero, remove the file and continue to next 
+        # iteration (this saves HD space)
+        freq, od = lblTools.readOD(odStr, double=True)
+        if od.min() == 0 and od.max() == 0:
+          os.remove(odStr)
           continue
-        # endif t5
+        # endif zero OD
 
-        if os.path.islink('TAPE3'): os.unlink('TAPE3')
-        os.symlink(t3, 'TAPE3')
-
-        for t5 in molT5:
-          base = os.path.basename(t5)
-          print(base)
-          if os.path.islink('TAPE5'): os.unlink('TAPE5')
-          os.symlink(t5, 'TAPE5')
-
-          # grab extension for use in renaming the ODint LBL output 
-          # file
-          ext = base.replace('TAPE5_', '')
-          sub.call(['./lblrtm'])
-          odStr = 'ODint_001'
-
-          # if all ODs are zero, remove the file and continue to next 
-          # iteration (this saves HD space)
-          freq, od = lblTools.readOD(odStr, double=True)
-          if od.min() == 0 and od.max() == 0:
-            os.remove(odStr)
-            continue
-          # endif zero OD
-
-          os.rename(odStr, '%s/%s' % \
-            (outDirOD, odStr.replace('001', ext)))
-          break
-        # end T5 loop
-      # end t3 loop
-    # end molecule loop
+        os.rename(odStr, '%s/%s' % \
+          (outDirOD, odStr.replace('001', ext)))
+      # end T5 loop
+    # end t3 loop
 
     return True
   # end runLBL()
@@ -650,14 +666,12 @@ if __name__ == '__main__':
   if args.run_lbl:
     for mol in ini.molnames:
       if mol == 'H2O':
-        for pwv in ini.pwv:
-          absco.lblT5(mol, pwv=pwv)
-          absco.lblT5(mol, wvSelf=False, pwv=pwv)
-        # end PWV loop
+        for pwv in ini.pwv: absco.lblT5(mol, pwv=pwv)
       else:
         absco.lblT5(mol)
       # endif H2O
-    #absco.runLBL()
+      absco.runLBL(mol)
+    # end mol loop
   # end LBL
 
   # haven't tested this yet, but no reason it won't work...right?
