@@ -151,6 +151,8 @@ class configure():
       elif cps == 'pwv':
         cItem = cItems[0]
         pwvArr = np.array(cItem[1].split()).astype(float)
+        if pwvArr.size != 2:
+          sys.exit('Please provide 2 values for pwv')
         setattr(self, cItem[0], pwvArr)
       else:
         for cItem in cItems:

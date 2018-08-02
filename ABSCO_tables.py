@@ -295,7 +295,7 @@ class makeABSCO():
       if not os.path.exists(outDirT3): os.mkdir(outDirT3)
 
       if len(inT5) == 0:
-        print('Found no TAPE5s for %s' % mol)
+        print('Found no LBL TAPE5s for %s' % mol)
         continue
       # endif nT5
 
@@ -581,7 +581,7 @@ class makeABSCO():
       molT5 = sorted(glob.glob(searchStr))
 
       if len(molT5) == 0:
-        print('Found no TAPE5s for %s' % mol)
+        print('Found no LNFL TAPE5s for %s' % os.path.basename(t3))
         continue
       # endif t5
 
