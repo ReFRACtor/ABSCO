@@ -153,7 +153,14 @@ class configure():
         pwvArr = np.array(cItem[1].split()).astype(float)
         setattr(self, cItem[0], pwvArr)
       else:
-        for cItem in cItems: setattr(self, cItem[0], cItem[1])
+        for cItem in cItems:
+          param = cItem[0]
+          val = cItem[1]
+          if len(val.split()) > 1 and param != 'header':
+            sys.exit('%s should only have 1 value assigned to it' % \
+              param)
+          setattr(self, param, val)
+        # end item loop
       # endif cps
     # end sections loop
 
