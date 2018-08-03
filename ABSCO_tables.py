@@ -531,10 +531,12 @@ class makeABSCO():
     return True
   # end lblT5()
 
-  def runLBL(self, mol):
+  def calcABSCO(self, mol):
     """
-    Run LBLRTM for each TAPE5 made in lblT5. Extract spectrum and 
-    pressure layers from run results.
+    Run LBLRTM for each TAPE5 made in lblT5(). Extract spectrum and 
+    pressure layers from run results. Then to save time and space, 
+    we will just calculate ABSCOs directory instead of transporting 
+    the data for their computation into another method
 
     This can be run in parallel for each molecule, but that means 
     each molecule should have its own configuration file (each of 
@@ -560,79 +562,114 @@ class makeABSCO():
       return False
     # endif nT3
 
-    molT5 = []
+    # outList is going to be an nBand-element list of dictionaries 
+    # that contain nLev x nT x nWN arrays of ABSCOs ('ABSCO' field)
+    # and nLev-1 x nT arrays of layer pressures ('layerP' field)
+    # the idea with layerP is "this layer pressure is associated with
+    # the layer bounded by this lower level pressure and temperature"
+    # and we will only need to store it once since it remains constant
+    # over all bands
+    outList = {'layerP': None}
     for iBand, t3 in enumerate(molT3):
       # should be one TAPE3 per band, and we are assuming they're 
       # sorted by band
       base = os.path.basename(t3)
       band = base.split('_')[-1]
 
-      # find LBL TAPE5s corresponding to band
-      searchStr = '%s/%s/%s/%s/TAPE5_*_%s*' % \
-        (self.topDir, self.runDirLBL, self.dirT5, mol, band)
-      molT5 = sorted(glob.glob(searchStr))
+      # initialize band output 
+      # (which are dim [nLev x nT x nWN] and [nLay x nT])
+      bandABSCO, bandLayP = [], []
+      bandDict = {}
 
-      # should be one LBL TAPE5 per allowed T on a given P level
-      if len(molT5) == 0:
-        print('Found no LNFL TAPE5s for %s' % os.path.basename(t3))
-        continue
-      # endif t5
+      # wavenumber array of spectrum will remain the same for a 
+      # given band
+      bandWN = None
+      for iP, pLev in enumerate(self.pLev):
+        # do not expect anything for surface level
+        if iP == 0: continue
 
-      if os.path.islink('TAPE3'): os.unlink('TAPE3')
-      os.symlink(t3, 'TAPE3')
+        # initialize output for given pressure
+        # (which are dim [nT x nWN] and [nT])
+        tempABSCO, tempLayP = [], []
+        for iT, tLev in enumerate(self.tLev[iP]):
 
-      outOD, outWN, outP = [], [], []
-      for t5 in molT5:
-        base = os.path.basename(t5)
-        print(base)
-        if os.path.islink('TAPE5'): os.unlink('TAPE5')
-        os.symlink(t5, 'TAPE5')
+          # find LBL TAPE5s corresponding to band
+          searchStr = '%s/%s/%s/%s/TAPE5_%s_P%09.4f_T%05.1fK_%s*' % \
+            (self.topDir, self.runDirLBL, self.dirT5, mol, mol, \
+             pLev, tLev, band)
+          molT5 = sorted(glob.glob(searchStr))
 
-        # files that should be generated and have required info
-        t7 = 'TAPE7'
-        odFile = 'ODint_001'
+          # should be one LBL TAPE5 per allowed T on a given P level
+          if len(molT5) == 0:
+            errMsg = 'Found no LNFL TAPE5 for ' + \
+              '%s, P=%9.4f mbar, T=%5.1f K' % \
+              (os.path.basename(t3), pLev, tLev)
+            print(errMsg)
+            continue
+          else:
+            t5 = molT5[0]
+          # endif t5
 
-        # first delete them if they already exist
-        for lblFile in [odFile, t7]:
-          if os.path.exists(lblFile): os.remove(lblFile)
-        # end lblFile loop
+          # setup the LBL run
+          if os.path.islink('TAPE3'): os.unlink('TAPE3')
+          os.symlink(t3, 'TAPE3')
 
-        # run the model
-        ext = base.replace('TAPE5_', '')
-        status = sub.call(['./lblrtm'])
+          base = os.path.basename(t5)
+          print(base)
+          if os.path.islink('TAPE5'): os.unlink('TAPE5')
+          os.symlink(t5, 'TAPE5')
 
-        # if LBL did not finish, no OD file is generated
-        if not os.path.exists(odFile):
-          dummy = np.array([np.nan])
-          outOD.append(dummy)
-          outWN.append(dummy)
-          print('LBL did not produce %s, skipping' % odFile)
-          continue
-        # endif
+          # files that should be generated and have required info
+          t7 = 'TAPE7'
+          odFile = 'ODint_001'
 
-        # store spectrum, but only after degrading it
-        wnFine, odFine = lblTools.readOD(odFile, double=True)
+          # first delete them if they already exist
+          for lblFile in [odFile, t7]:
+            if os.path.exists(lblFile): os.remove(lblFile)
+          # end lblFile loop
 
-        # degrade the spectrum
-        # convolve optical depth with weighting associated with kernel
-        # then resample; most of this taken directly from IDL code
-        # resample_grid.pro
-        kernel = self.degradeKern[iBand]
-        nDegrade = kernel.size - 1
-        coarseRes = np.arange(0, wnFine.size, nDegrade)
-        odCoarse = np.convolve(odFine, kernel)
-        odCoarse[0], odCoarse[-1] = odFine[0], odFine[-1]
-        odCoarse = odFine[coarseRes]
-        wnCoarse = wnFine[coarseRes]
-        outOD.append(odCoarse)
-        outWN.append(wnCoarse)
+          # run the model
+          ext = base.replace('TAPE5_', '')
+          status = sub.call(['./lblrtm'])
 
-        # store pressure layer calculated in LBLATM
-        t7Dict = RC.readTAPE7('TAPE7', xsTAPE7=self.doXS[mol][iBand])
-        outP.append(t7Dict['p_lay'])
-      # end T5 loop
+          # if LBL does not finish, no OD file is generated
+          if not os.path.exists(odFile):
+            dummy = np.array([np.nan])
+            outOD.append(dummy)
+          else:
+            # save the TAPE7s (fog debugging purposes)
+            #os.rename('TAPE7', 'TAPE7_%s' % ext)
+            # store spectrum, but only after degrading it
+            # TO DO: JUST DO THE ABSCO CONVERSION HERE
+            wnFine, odFine = lblTools.readOD(odFile, double=True)
+
+            # degrade the spectrum
+            # convolve optical depth with weighting associated with 
+            # kernel then resample; most of this taken directly from 
+            # IDL code resample_grid.pro
+            kernel = self.degradeKern[iBand]
+            nDegrade = kernel.size - 1
+            coarseRes = np.arange(0, wnFine.size, nDegrade)
+            odCoarse = np.convolve(odFine, kernel)
+            odCoarse[0], odCoarse[-1] = odFine[0], odFine[-1]
+            odCoarse = odFine[coarseRes]
+            outOD.append(odCoarse)
+
+            if bandWN is None: bandWN = wnFine[coarseRes]
+
+            # store pressure layer calculated in LBLATM
+            t7Dict = RC.readTAPE7('TAPE7', \
+              xsTAPE7=self.doXS[mol][iBand])
+            outP.append(t7Dict['p_lay'])
+          # endif
+        # end temperature loop
+      # end pressure loop
     # end t3 loop
-  # end runLBL()
+
+    # TO DO: STORE IN OBJECT FOR LATER USE!
+    #np.savez('temp.npz', od=outOD, play=np.unique(outP), wn=bandWN)
+    return True
+  # end calcABSCO()
 
 # end makeABSCO()
 
@@ -682,12 +719,14 @@ if __name__ == '__main__':
 
   if args.run_lbl:
     for mol in ini.molnames:
+      """
       if mol == 'H2O':
         for pwv in ini.pwv: absco.lblT5(mol, pwv=pwv)
       else:
         absco.lblT5(mol)
       # endif H2O
-      absco.runLBL(mol)
+      """
+      absco.calcABSCO(mol)
     # end mol loop
   # end LBL
 
@@ -695,7 +734,7 @@ if __name__ == '__main__':
   if args.end_to_end:
     sys.exit('No e2e yet')
     absco.lblT5()
-    absco.runLBL()
+    absco.calcABSCO()
   # endif e2e
 # end main()
 
