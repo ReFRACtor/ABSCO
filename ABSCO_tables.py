@@ -149,6 +149,7 @@ class makeABSCO():
     self.nBands = len(inObj.channels['res'])
     self.molNames = list(inObj.molnames)
     self.doBand = dict(inObj.doBand)
+    self.degradeKern = list(inObj.kernel)
 
     # grab the profiles
     self.vmrProf = dict(userProf)
@@ -167,25 +168,9 @@ class makeABSCO():
     self.pathXSDB = str(inObj.xs_path)
     self.pathListXS = str(inObj.fscdxs)
     self.dirT5 = str(inObj.tape5_dir)
-    self.fineOD = str(inObj.od_dir)
-    self.coarseOD = str(inObj.absco_dir)
     self.doXS = dict(inObj.doXS)
     self.molMaxLBL = 47
 
-    # all HITRAN molecule names (these are the molecules for which we
-    # have line parameters)
-    """
-    # might be useful later...list the HITRAN molecule names
-    lfMolDir = '/nas/project/rc_static/models/' + \
-      'aer_line_parameters/AER_line_files/aer_v_3.6/' + \
-      'line_files_By_Molecule/*'
-    molDirs = sorted(glob.glob(lfMolDir))
-
-    # the upper() takes care of the Br problem
-    htMols = [os.path.basename(md).split('_')[1].upper() for \
-      md in molDirs]
-    print(htMols)
-    """
     self.HITRAN = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
       'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OH', 'HF', 'HCL', 'HBR', \
       'HI', 'CLO', 'OCS', 'H2CO', 'HOCL', 'N2', 'HCN', 'CH3CL', \
@@ -196,6 +181,11 @@ class makeABSCO():
     # XS species and molecules with XS and line parameters
     self.xsNames = list(inObj.xsNames)
     self.xsLines = list(inObj.xsLines)
+
+    # for final output netCDF
+    self.version = str(inObj.sw_ver)
+    self.runDesc = str(inObj.out_file_desc)
+    self.outDir = str(inObj.outdir)
 
     # for cd'ing back into the cwd
     self.topDir = os.getcwd()
@@ -361,7 +351,7 @@ class makeABSCO():
         doXS, optHI, optF4 = 0, 1, 1
       # endif doXS
 
-      # record1.2: HI=9: central line contribution omitted
+      # record1.2: HI, F4: spectral line application
       # CN=6: continuum scale factor for given molecules used
       # OD=1, MG=1: optical depth computation, layer-by-layer
       record12 = ' HI=%1d F4=%1d CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 ' % \
@@ -543,11 +533,12 @@ class makeABSCO():
 
   def runLBL(self, mol):
     """
-    Run LBLRTM for each TAPE5 made in lblT5
+    Run LBLRTM for each TAPE5 made in lblT5. Extract spectrum and 
+    pressure layers from run results.
 
     This can be run in parallel for each molecule, but that means 
-    each molecule should have its own LBL_Run directory (as specified
-    in the input configuration file)
+    each molecule should have its own configuration file (each of 
+    which should specify a different lbl_run_dir)
     """
 
     workSubDir = '%s/%s' % (self.topDir, self.runDirLBL)
@@ -558,9 +549,6 @@ class makeABSCO():
     targets = ['lblrtm', 'xs', 'FSCDXS']
     sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
     makeSymLinks(sources, targets)
-
-    outDirOD = '%s/%s/%s' % (self.topDir, self.fineOD, mol)
-    if not os.path.exists(outDirOD): os.mkdir(outDirOD)
 
     # set up working subdirectory
     # find TAPE3s and their associated TAPE5s (for every TAPE3, 
@@ -573,13 +561,18 @@ class makeABSCO():
     # endif nT3
 
     molT5 = []
-    for t3 in molT3:
+    for iBand, t3 in enumerate(molT3):
+      # should be one TAPE3 per band, and we are assuming they're 
+      # sorted by band
       base = os.path.basename(t3)
       band = base.split('_')[-1]
+
+      # find LBL TAPE5s corresponding to band
       searchStr = '%s/%s/%s/%s/TAPE5_*_%s*' % \
         (self.topDir, self.runDirLBL, self.dirT5, mol, band)
       molT5 = sorted(glob.glob(searchStr))
 
+      # should be one LBL TAPE5 per allowed T on a given P level
       if len(molT5) == 0:
         print('Found no LNFL TAPE5s for %s' % os.path.basename(t3))
         continue
@@ -588,33 +581,57 @@ class makeABSCO():
       if os.path.islink('TAPE3'): os.unlink('TAPE3')
       os.symlink(t3, 'TAPE3')
 
+      outOD, outWN, outP = [], [], []
       for t5 in molT5:
         base = os.path.basename(t5)
         print(base)
         if os.path.islink('TAPE5'): os.unlink('TAPE5')
         os.symlink(t5, 'TAPE5')
 
-        # grab extension for use in renaming the ODint LBL output 
-        # file
+        # files that should be generated and have required info
+        t7 = 'TAPE7'
+        odFile = 'ODint_001'
+
+        # first delete them if they already exist
+        for lblFile in [odFile, t7]:
+          if os.path.exists(lblFile): os.remove(lblFile)
+        # end lblFile loop
+
+        # run the model
         ext = base.replace('TAPE5_', '')
-        sub.call(['./lblrtm'])
-        continue
-        odStr = 'ODint_001'
+        status = sub.call(['./lblrtm'])
 
-        # if all ODs are zero, remove the file and continue to next 
-        # iteration (this saves HD space)
-        freq, od = lblTools.readOD(odStr, double=True)
-        if od.min() == 0 and od.max() == 0:
-          os.remove(odStr)
+        # if LBL did not finish, no OD file is generated
+        if not os.path.exists(odFile):
+          dummy = np.array([np.nan])
+          outOD.append(dummy)
+          outWN.append(dummy)
+          print('LBL did not produce %s, skipping' % odFile)
           continue
-        # endif zero OD
+        # endif
 
-        os.rename(odStr, '%s/%s' % \
-          (outDirOD, odStr.replace('001', ext)))
+        # store spectrum, but only after degrading it
+        wnFine, odFine = lblTools.readOD(odFile, double=True)
+
+        # degrade the spectrum
+        # convolve optical depth with weighting associated with kernel
+        # then resample; most of this taken directly from IDL code
+        # resample_grid.pro
+        kernel = self.degradeKern[iBand]
+        nDegrade = kernel.size - 1
+        coarseRes = np.arange(0, wnFine.size, nDegrade)
+        odCoarse = np.convolve(odFine, kernel)
+        odCoarse[0], odCoarse[-1] = odFine[0], odFine[-1]
+        odCoarse = odFine[coarseRes]
+        wnCoarse = wnFine[coarseRes]
+        outOD.append(odCoarse)
+        outWN.append(wnCoarse)
+
+        # store pressure layer calculated in LBLATM
+        t7Dict = RC.readTAPE7('TAPE7', xsTAPE7=self.doXS[mol][iBand])
+        outP.append(t7Dict['p_lay'])
       # end T5 loop
     # end t3 loop
-
-    return True
   # end runLBL()
 
 # end makeABSCO()

@@ -37,7 +37,7 @@ class configure():
       self.broadfile, self.extra_params, self.lnfl_path, \
       self.lbl_path, self.xs_path, self.fscdxs, self.xs_lines]
     self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
-      self.tape3_dir, self.tape5_dir, self.od_dir, self.absco_dir]
+      self.tape3_dir, self.tape5_dir, self.outdir]
 
     # make sure paths exist before proceeding
     for path in self.paths: utils.file_check(path)
@@ -63,6 +63,8 @@ class configure():
     # this should be called to limit unnecessary runs of LNFL and LBL
     self.molProcess()
 
+    # spectral degradation weight calculation
+    self.degradeWeighting()
   # end constructor
 
   def readConfig(self):
@@ -111,9 +113,8 @@ class configure():
 
         # these keys are required
         keys = list(channels.keys())
-        for req in ['wn1', 'wn2', 'res']:
+        for req in ['wn1', 'wn2', 'res', 'degrade']:
           if req not in keys:
-            print(errMsg)
             sys.exit('Could not find %s, returning' % req)
           # endif required
         # end required loop
@@ -129,6 +130,13 @@ class configure():
             sys.exit(chanErrMsg)
           # endif channels
         # end key loop
+
+        # make sure degradation is an integer exponent of 2
+        if not np.all(np.log2(channels['degrade']) % 1 == 0):
+          errMsg = 'Please provide degradation factor that is an ' + \
+            'integer exponent of 2 (2, 4, 8, 16, etc.)'
+          sys.exit(errMsg)
+        # endif degrade
 
         setattr(self, 'channels', channels)
       elif cps == 'molecules':
@@ -182,14 +190,13 @@ class configure():
     reqAtt = ['pfile', 'ptfile', 'vmrfile', 'broadfile', 'channels', \
       'molnames', 'scale', 'lnfl_run_dir', 'lnfl_path', \
       'tape1_path', 'tape3_dir', 'extra_params', 'tape5_dir', \
-      'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', 'od_dir', \
-      'absco_dir']
+      'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', 'outdir']
 
     # loop over all required attributes and do a check
     for req in reqAtt:
       if req not in dir(self):
-        print(errMsg)
-        sys.exit('Could not find %s attribute, returning' % req)
+        errMsg = 'Could not find %s attribute, returning' % req
+        sys.exit(errMsg)
       # endif req
     # end req loop
   # end checkAtts()
@@ -437,8 +444,6 @@ class configure():
       # determine number of bands in XS database for given molecule
       # by first locating rows corresponding to mol
       iMatch = np.where(mol == csvNames)[0]
-      nBandsXS = iMatch.size
-      if nBandsXS == 0: continue
 
       bandXS = []
       for uwn1, uwn2 in zip(userWN1, userWN2):
@@ -481,5 +486,35 @@ class configure():
 
     return self
   # end xsCheck
+
+  def degradeWeighting(self):
+    """
+    Generate weighting kernels for the spectral degradation
+    """
+
+    # the kernels can be of different size, depending on the 
+    # degradation factor, so let's use a list instead of arrays
+    # 1 kernel per band
+    weights = []
+    for scale in self.channels['degrade']:
+      # number of kernel elements
+      nKernEl = scale + 1
+
+      # denominator for weights
+      denom = 2**(np.log2(scale)-1) + 1
+
+      # not sure what the mathematical term is, but we want to 
+      # increase by 1 until a max, then reverse by 1 (e.g. 1 2 3 2 1)
+      initKern = np.arange(nKernEl)+1
+      revKern = initKern[::-1]
+      middle = np.median(initKern)
+      initKern[initKern > middle] = revKern[initKern > middle]
+      weights.append(np.array(initKern)/denom**2)
+    # end scale loop
+
+    self.kernel = list(weights)
+
+    return self
+  # end degradeWeighting()
 # end configure()
 

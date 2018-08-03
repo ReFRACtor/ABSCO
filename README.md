@@ -72,3 +72,18 @@ allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
 
 water vapor is treated as a number of particles, depending on the number of PWV values provided. in `ABSCO_tables.py`, LBLRTM TAPE5 files are generated in a loop over PWV, and separate TAPE5s are generated for the self and foreign continua.
 
+all HITRAN molecule names (these are the molecules for which we have line parameters)
+
+```
+# might be useful later...list the HITRAN molecule names
+lfMolDir = '/nas/project/rc_static/models/' + \
+  'aer_line_parameters/AER_line_files/aer_v_3.6/' + \
+  'line_files_By_Molecule/*'
+molDirs = sorted(glob.glob(lfMolDir))
+
+# the upper() takes care of the Br problem
+htMols = [os.path.basename(md).split('_')[1].upper() for \
+  md in molDirs]
+print(htMols)
+```
+
