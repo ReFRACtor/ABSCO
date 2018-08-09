@@ -178,6 +178,13 @@ class makeABSCO():
       'HO2', 'O', 'CLONO2', 'NO+', 'HOBR', 'C2H4', 'CH3OH', 'CH3BR', \
       'CH3CN', 'CF4', 'C4H2', 'HC3N', 'H2', 'CS', 'SO3']
 
+    try:
+      self.iMol = self.HITRAN.index(mol)
+    except:
+      print('Could not find %s in HITRAN names' % mol)
+      self.iMol = None
+    # end exception
+
     # XS species and molecules with XS and line parameters
     self.xsNames = list(inObj.xsNames)
     self.xsLines = list(inObj.xsLines)
@@ -209,13 +216,6 @@ class makeABSCO():
 
     outDirT5 = '%s/%s/%s' % (self.runDirLNFL, self.dirT5, mol)
     if not os.path.exists(outDirT5): os.mkdir(outDirT5)
-
-    try:
-      iMol = self.HITRAN.index(mol)
-    except:
-      print('Could not find %s in HITRAN names' % mol)
-      iMol = None
-    # end exception
 
     for iBand in range(self.nBands):
       if self.doBand[mol][iBand] is False: continue
@@ -431,10 +431,7 @@ class makeABSCO():
           lblAll = np.repeat(0.0, self.molMaxLBL)
 
           # fill in the VMR for the given mol
-          if not doXS:
-            iMatch = self.HITRAN.index(mol)
-            lblAll[iMatch] = float(levVMR)
-          # endif doXS
+          if not doXS: lblAll[self.iMol] = float(levVMR)
 
           # start building the string for record 3.6
           record36 = ''
@@ -563,33 +560,35 @@ class makeABSCO():
     # endif nT3
 
     # outList is going to be an nBand-element list of dictionaries 
-    # that contain nLev x nT x nWN arrays of ABSCOs ('ABSCO' field)
-    # and nLev-1 x nT arrays of layer pressures ('layerP' field)
+    # that contain nLay x nT x nWN arrays of ABSCOs ('ABSCO' field)
+    # and nLay x nT arrays of layer pressures ('layerP' field)
     # the idea with layerP is "this layer pressure is associated with
     # the layer bounded by this lower level pressure and temperature"
     # and we will only need to store it once since it remains constant
     # over all bands
-    outList = {'layerP': None}
+    outList = []
     for iBand, t3 in enumerate(molT3):
       # should be one TAPE3 per band, and we are assuming they're 
       # sorted by band
       base = os.path.basename(t3)
       band = base.split('_')[-1]
 
-      # initialize band output 
-      # (which are dim [nLev x nT x nWN] and [nLay x nT])
-      bandABSCO, bandLayP = [], []
       bandDict = {}
 
       # wavenumber array of spectrum will remain the same for a 
       # given band
       bandWN = None
-      for iP, pLev in enumerate(self.pLev):
+
+      # initialize output for given pressure
+      # (which are dim [nT x nWN] and [nT])
+      # the dictionary fields will be level pressures -- since each 
+      # P has a different number of corresponding T values, we 
+      # cannot simply make an nP x nT x nWN array
+      pABSCO, pLayP = {}, {}
+      for iP, pLev in enumerate(self.pLev[:2]):
         # do not expect anything for surface level
         if iP == 0: continue
 
-        # initialize output for given pressure
-        # (which are dim [nT x nWN] and [nT])
         tempABSCO, tempLayP = [], []
         for iT, tLev in enumerate(self.tLev[iP]):
 
@@ -601,8 +600,8 @@ class makeABSCO():
 
           # should be one LBL TAPE5 per allowed T on a given P level
           if len(molT5) == 0:
-            errMsg = 'Found no LNFL TAPE5 for ' + \
-              '%s, P=%9.4f mbar, T=%5.1f K' % \
+            errMsg = 'Found no LBL TAPE5 for ' + \
+              '%s, P=%-9.4f mbar, T=%-5.1f K' % \
               (os.path.basename(t3), pLev, tLev)
             print(errMsg)
             continue
@@ -633,44 +632,77 @@ class makeABSCO():
           status = sub.call(['./lblrtm'])
 
           # if LBL does not finish, no OD file is generated
-          if not os.path.exists(odFile):
-            dummy = np.array([np.nan])
-            outOD.append(dummy)
-          else:
-            # save the TAPE7s (fog debugging purposes)
-            #os.rename('TAPE7', 'TAPE7_%s' % ext)
-            # store spectrum, but only after degrading it
-            # TO DO: JUST DO THE ABSCO CONVERSION HERE
-            wnFine, odFine = lblTools.readOD(odFile, double=True)
+          if not os.path.exists(odFile): continue
 
-            # degrade the spectrum
-            # convolve optical depth with weighting associated with 
-            # kernel then resample; most of this taken directly from 
-            # IDL code resample_grid.pro
-            kernel = self.degradeKern[iBand]
-            nDegrade = kernel.size - 1
-            coarseRes = np.arange(0, wnFine.size, nDegrade)
-            odCoarse = np.convolve(odFine, kernel)
-            odCoarse[0], odCoarse[-1] = odFine[0], odFine[-1]
-            odCoarse = odFine[coarseRes]
-            outOD.append(odCoarse)
+          # grab necessary parameters from TAPE7
+          # store pressure layer calculated in LBLATM
+          t7Dict = RC.readTAPE7('TAPE7', \
+            xsTAPE7=self.doXS[mol][iBand])
+          tempLayP.append(t7Dict['p_lay'][0])
+          molDen = t7Dict['vmrXS'][0][0] if self.doXS else \
+            t7Dict['vmr'][self.iMol][0]
 
-            if bandWN is None: bandWN = wnFine[coarseRes]
+          # extract the spectrum
+          wnFine, odFine = lblTools.readOD(odFile, double=True)
+          abscoFine = odFine / molDen
 
-            # store pressure layer calculated in LBLATM
-            t7Dict = RC.readTAPE7('TAPE7', \
-              xsTAPE7=self.doXS[mol][iBand])
-            outP.append(t7Dict['p_lay'])
-          # endif
+          # calculate absorption coefficients then degrade the 
+          # spectrum. convolve ABSCO with weighting associated with 
+          # kernel then resample; most of this taken directly from 
+          # IDL code resample_grid.pro
+          kernel = self.degradeKern[iBand]
+          nDegrade = kernel.size - 1
+          coarseRes = np.arange(0, wnFine.size, nDegrade)
+          abscoCoarse = np.convolve(abscoFine, kernel)
+          abscoCoarse[0], abscoCoarse[-1] = \
+            abscoFine[0], abscoFine[-1]
+          tempABSCO.append(abscoFine[coarseRes])
+
+          if bandWN is None: bandWN = wnFine[coarseRes]
         # end temperature loop
+        pABSCO[str(pLev)] = np.array(tempABSCO)
+        pLayP[str(pLev)] = np.array(tempLayP)
       # end pressure loop
-    # end t3 loop
 
-    # TO DO: STORE IN OBJECT FOR LATER USE!
-    #np.savez('temp.npz', od=outOD, play=np.unique(outP), wn=bandWN)
-    return True
+      # save the important parameters in outList
+      # number of frequencies will be the same for every LBL run
+      bandDict['nWN'] = len(pABSCO[str(self.pLev[1])][0])
+      bandDict['ABSCO'] = np.array(pABSCO)
+      bandDict['layerP'] = np.array(pLayP)
+      outList.append(bandDict)
+    # end t3 (band) loop
+
+    #np.savez('temp.npz', paramList=outList)
+    self.ABSCO = list(outList)
+
+    return self
   # end calcABSCO()
 
+  def arrABSCO(self):
+    """
+    Organize an array from the dictionary mess returned by calcABSCO()
+    """
+
+    # construct the array, filling in NaNs with pABSCO
+    #abscoArr = np.ones((self.nP-1, self.nT, self.nWN)) * np.nan
+    abscoArr = np.ones((1, self.nT, nWN)) * np.nan
+    for iP, pLev in enumerate(self.pLev[:2]):
+      if iP == 0: continue
+      key = str(pLev)
+      print(pABSCO[key].shape)
+    # end pLev loop
+
+    return self
+
+  # end arrABSCO()
+
+  def makeNC(self):
+    """
+    Generate netCDF that conforms to ESDS-RFC-028v1.1.pdf convention
+    """
+
+    import netCDF4 as nc
+  # end makeNC()
 # end makeABSCO()
 
 if __name__ == '__main__':
