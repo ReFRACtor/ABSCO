@@ -46,7 +46,7 @@ class makeABSCO():
   wavenumber, pressure, temperature, and band) for specified molecule
   """
 
-  def __init__(self, inObj):
+  def __init__(self, inObj, debug=False):
 
     """
     Inputs
@@ -196,6 +196,8 @@ class makeABSCO():
 
     # for cd'ing back into the cwd
     self.topDir = os.getcwd()
+
+    self.debug = bool(debug)
   # end constructor()
 
   def lnflT5(self, mol):
@@ -585,7 +587,7 @@ class makeABSCO():
       # P has a different number of corresponding T values, we 
       # cannot simply make an nP x nT x nWN array
       pABSCO, pLayP = {}, {}
-      for iP, pLev in enumerate(self.pLev[:2]):
+      for iP, pLev in enumerate(self.pLev[:22]):
         # do not expect anything for surface level
         if iP == 0: continue
 
@@ -604,6 +606,11 @@ class makeABSCO():
               '%s, P=%-9.4f mbar, T=%-5.1f K' % \
               (os.path.basename(t3), pLev, tLev)
             print(errMsg)
+
+            # still should append to the lists associated with each
+            # temperature
+            tempLayP.append(np.nan)
+            tempABSCO.append([np.nan])
             continue
           else:
             t5 = molT5[0]
@@ -632,15 +639,19 @@ class makeABSCO():
           status = sub.call(['./lblrtm'])
 
           # if LBL does not finish, no OD file is generated
-          if not os.path.exists(odFile): continue
+          if not os.path.exists(odFile):
+            tempLayP.append(np.nan)
+            tempABSCO.append([np.nan])
+            continue
+          # endif odFile check
 
           # grab necessary parameters from TAPE7
           # store pressure layer calculated in LBLATM
           t7Dict = RC.readTAPE7('TAPE7', \
             xsTAPE7=self.doXS[mol][iBand])
           tempLayP.append(t7Dict['p_lay'][0])
-          molDen = t7Dict['vmrXS'][0][0] if self.doXS else \
-            t7Dict['vmr'][self.iMol][0]
+          molDen = t7Dict['vmrXS'][0][0] if \
+            self.doXS[mol][iBand] else t7Dict['vmr'][self.iMol][0]
 
           # extract the spectrum
           wnFine, odFine = lblTools.readOD(odFile, double=True)
@@ -657,22 +668,32 @@ class makeABSCO():
           abscoCoarse[0], abscoCoarse[-1] = \
             abscoFine[0], abscoFine[-1]
           tempABSCO.append(abscoFine[coarseRes])
+          print(pLev, tLev, coarseRes.size)
 
-          if bandWN is None: bandWN = wnFine[coarseRes]
+          # have to do 2nd conditional in case the first couple of 
+          # runs did not extend the entire spectral range
+          if (bandWN is None) or (coarseRes.size > bandWN.size):
+            bandWN = wnFine[coarseRes]
         # end temperature loop
+
+        # dimensions in tempABSCO are not consistent right now because
+        # of the NaNs. we will fix this is arrABSCO()
         pABSCO[str(pLev)] = np.array(tempABSCO)
         pLayP[str(pLev)] = np.array(tempLayP)
       # end pressure loop
 
       # save the important parameters in outList
       # number of frequencies will be the same for every LBL run
-      bandDict['nWN'] = len(pABSCO[str(self.pLev[1])][0])
-      bandDict['ABSCO'] = np.array(pABSCO)
-      bandDict['layerP'] = np.array(pLayP)
+      bandDict['wavenum'] = np.array(bandWN)
+      bandDict['nWN'] = bandWN.size
+      bandDict['ABSCO'] = dict(pABSCO)
+      bandDict['layerP'] = dict(pLayP)
       outList.append(bandDict)
     # end t3 (band) loop
 
-    #np.savez('temp.npz', paramList=outList)
+    if self.debug:
+      np.savez('%s/temp.npz' % self.topDir, absco=outList)
+
     self.ABSCO = list(outList)
 
     return self
@@ -680,20 +701,70 @@ class makeABSCO():
 
   def arrABSCO(self):
     """
-    Organize an array from the dictionary mess returned by calcABSCO()
+    Organize an array from the complicated dictionary returned by 
+    calcABSCO(). This is where the (nBand x nP x nT x nWN) arrays 
+    are generated.
+
+    Not every LBL run produces spectra of the same size for a given 
+    band, and we know that different temperatures apply depending on 
+    the pressure, so this is where we reconcile differences in 
+    dimensions
     """
 
+    if self.debug:
+      inABSCO = np.load('%s/temp.npz' % self.topDir)['absco']
+    else:
+      inABSCO = list(self.ABSCO)
+    # endif debug
+
     # construct the array, filling in NaNs with pABSCO
-    #abscoArr = np.ones((self.nP-1, self.nT, self.nWN)) * np.nan
-    abscoArr = np.ones((1, self.nT, nWN)) * np.nan
-    for iP, pLev in enumerate(self.pLev[:2]):
-      if iP == 0: continue
-      key = str(pLev)
-      print(pABSCO[key].shape)
-    # end pLev loop
+    arrABSCO = []
+    for bandABSCO in inABSCO:
+      # each ABSCO dictionary has a different key for each P run
+      pKeys = bandABSCO['ABSCO'].keys()
+      numP = len(pKeys)
+      nBandWN = int(bandABSCO['nWN'])
+      bandArr = np.ones((numP, self.nT, nBandWN)) * np.nan
+      fillSpectrum = np.repeat(np.nan, nBandWN)
+
+      for iP, pLev in enumerate(pKeys):
+        # we skipped over the surface level P in the LBL runs, so 
+        # indexing has to be changed accordingly
+        offsetP = iP + 1
+
+        # our T array spans from 180-320, but not every temperature 
+        # is used. whatever range is used, it is in increments of 10 K
+        # so let's find the indices of the T values that are used
+        # for this pressure that correspond to the allT array
+        iMatchT = np.where(np.in1d(self.allT, self.tLev[offsetP]))[0]
+
+        # NaN spectrum for this P over all T if no match
+        if iMatchT.size == 0: continue
+
+        inArr = bandABSCO['ABSCO'][pLev]
+        for iT in range(len(inArr)):
+          # FILL IN EMPTY SPECTRA
+          # here, we assume that if the LBL run did not extend the 
+          # entire spectral range, that it stopped early and we 
+          # append fill values to the end of the array
+          nWN = len(inArr[iT])
+          if nWN < nBandWN:
+            nMiss = nBandWN - nWN  
+            inArr[iT] = np.hstack( \
+              (inArr[iT], np.repeat(np.nan, nMiss) ))
+          # endif nWN
+          bandArr[iP, iMatchT, :] = inArr[iT]
+        # end T loop
+      # end pLev loop
+
+      arrABSCO.append(bandArr)
+
+    # end band loop
+
+    # replace the ABSCO dictionary with the array we'll use in output
+    self.ABSCO = np.array(arrABSCO)
 
     return self
-
   # end arrABSCO()
 
   def makeNC(self):
@@ -731,6 +802,7 @@ if __name__ == '__main__':
     help='Runs the entire process from tape 5 generation to ' + \
     'post-processing (rather than entering all of the keywords ' + \
     'separately).')
+  parser.add_argument('-db', '--debug', action='store_true')
   args = parser.parse_args()
 
   iniFile = args.config_file; utils.file_check(iniFile)
@@ -742,7 +814,7 @@ if __name__ == '__main__':
     if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
 
   # ABSCO object instantiation
-  absco = makeABSCO(ini)
+  absco = makeABSCO(ini, debug=args.debug)
 
   if args.run_lnfl:
     for mol in ini.molnames: absco.lnflT5(mol)
@@ -759,6 +831,7 @@ if __name__ == '__main__':
       # endif H2O
       """
       absco.calcABSCO(mol)
+      absco.arrABSCO()
     # end mol loop
   # end LBL
 

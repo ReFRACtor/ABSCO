@@ -5,4 +5,5 @@ LBL_Runs
 OD_Fine
 ABSCO_Coarse
 obsolete
+*.npz
 
