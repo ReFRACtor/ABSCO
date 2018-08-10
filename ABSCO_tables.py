@@ -193,6 +193,7 @@ class makeABSCO():
     self.version = str(inObj.sw_ver)
     self.runDesc = str(inObj.out_file_desc)
     self.outDir = str(inObj.outdir)
+    self.compress = int(inObj.nc_compress)
 
     # for cd'ing back into the cwd
     self.topDir = os.getcwd()
@@ -586,8 +587,12 @@ class makeABSCO():
       # the dictionary fields will be level pressures -- since each 
       # P has a different number of corresponding T values, we 
       # cannot simply make an nP x nT x nWN array
+      # "pLayP": layer pressure (P) associated with level pressure (p)
+      levP = []
       pABSCO, pLayP = {}, {}
       for iP, pLev in enumerate(self.pLev[:22]):
+        levP.append(pLev)
+
         # do not expect anything for surface level
         if iP == 0: continue
 
@@ -688,6 +693,7 @@ class makeABSCO():
       bandDict['nWN'] = bandWN.size
       bandDict['ABSCO'] = dict(pABSCO)
       bandDict['layerP'] = dict(pLayP)
+      bandDict['levelP'] = np.array(levP)
       outList.append(bandDict)
     # end t3 (band) loop
 
@@ -718,14 +724,23 @@ class makeABSCO():
     # endif debug
 
     # construct the array, filling in NaNs with pABSCO
-    arrABSCO = []
-    for bandABSCO in inABSCO:
+    arrABSCO, wnAll = [], []
+    for iBand, bandABSCO in enumerate(inABSCO):
       # each ABSCO dictionary has a different key for each P run
       pKeys = bandABSCO['ABSCO'].keys()
       numP = len(pKeys)
+
       nBandWN = int(bandABSCO['nWN'])
       bandArr = np.ones((numP, self.nT, nBandWN)) * np.nan
-      fillSpectrum = np.repeat(np.nan, nBandWN)
+      wnAll.append(bandABSCO['wavenum'])
+
+      # only need to do this once because it's the same for all bands
+      if iBand == 0:
+        layPArr = np.ones((numP, self.nT)) * np.nan
+        levelT = np.ones((numP+1, self.nT)) * np.nan
+        iMatchT = np.where(np.in1d(self.allT, self.tLev[0]))[0]
+        if iMatchT.size != 0: levelT[0, iMatchT] = self.allT[iMatchT]
+      # endif band
 
       for iP, pLev in enumerate(pKeys):
         # we skipped over the surface level P in the LBL runs, so 
@@ -741,6 +756,13 @@ class makeABSCO():
         # NaN spectrum for this P over all T if no match
         if iMatchT.size == 0: continue
 
+        # layer P and level T population
+        if iBand == 0:
+          layPArr[iP, iMatchT] = bandABSCO['layerP'][pLev]
+          levelT[offsetP, iMatchT] = self.allT[iMatchT]
+        # endif band 0
+
+        # now build the spectrum array
         inArr = bandABSCO['ABSCO'][pLev]
         for iT in range(len(inArr)):
           # FILL IN EMPTY SPECTRA
@@ -763,16 +785,82 @@ class makeABSCO():
 
     # replace the ABSCO dictionary with the array we'll use in output
     self.ABSCO = np.array(arrABSCO)
+    self.layerP = np.array(layPArr)
+    self.freq = np.array(wnAll)
+    self.levelT = np.array(levelT)
+    self.levelP = bandABSCO['levelP']
 
     return self
   # end arrABSCO()
 
-  def makeNC(self):
+  def makeNC(self, mol):
     """
     Generate netCDF that conforms to ESDS-RFC-028v1.1.pdf convention
     """
 
     import netCDF4 as nc
+
+    outNC = '%s/%s_%05d-%05d_v%s_%s.nc' % \
+      (self.outDir, mol, self.bands['wn1'][0], \
+       self.bands['wn2'][-1], self.version, self.runDesc)
+    if os.path.exists(outNC): print('WARNING: overwriting %s' % outNC)
+    outFP = nc.Dataset(outNC, 'w')
+
+    # extract dimensions from data
+    inDims = self.ABSCO.shape
+    nFreq = inDims[3]
+
+    if self.debug:
+      nLay = inDims[1]
+      nTemp = inDims[2]
+      nRange = inDims[0]
+    else:
+      nLay = inDims[1] # should == self.nLev-1
+      nTemp = inDims[2] # should == self.nT
+      nRange = inDims[0] # should = self.nBands
+    # end debug
+
+    nRangeVal = 2
+    strLen = 5
+    nLev = nLay + 1
+
+    outDimNames = ['nfreq', 'nlev', 'nlay', 'ntemp', 'nranges', \
+      'nranges_vals', 'string_length']
+    outDimVals = [nFreq, nLev, nLay, nTemp, \
+      nRange, nRangeVal, strLen]
+
+    for name, val in zip(outDimNames, outDimVals):
+      outFP.createDimension(name, val)
+
+    # now onto the variables
+    outVar = outFP.createVariable('P_level', float, \
+      ('nlev'), zlib=True, complevel=self.compress)
+    outVar[:] = self.levelP
+    outVar.units = 'mbar'
+
+    outVar = outFP.createVariable('P_layer', float, \
+      ('nlay', 'ntemp'), zlib=True, complevel=self.compress)
+    outVar[:] = self.layerP
+    outVar.units = 'mbar'
+
+    outVar = outFP.createVariable('absco', float, \
+      ('nfreq', 'nranges', 'ntemp', 'nlay'), zlib=True, \
+      complevel=self.compress)
+    outVar[:] = self.ABSCO
+    outVar.units = 'cm2/molecule'
+
+    outVar = outFP.createVariable('Spectral_Grid', float, \
+      ('nfreq'), zlib=True, complevel=self.compress)
+    outVar[:] = self.freq
+    outVar.units = 'cm-1, microns, wavelength...'
+
+    outVar = outFP.createVariable('Temperature', float, \
+      ('nlev', 'ntemp'), zlib=True, complevel=self.compress)
+    outVar[:] = self.levelT
+    outVar.units = 'K'
+
+    outFP.close()
+
   # end makeNC()
 # end makeABSCO()
 
@@ -832,6 +920,7 @@ if __name__ == '__main__':
       """
       absco.calcABSCO(mol)
       absco.arrABSCO()
+      absco.makeNC(mol)
     # end mol loop
   # end LBL
 
