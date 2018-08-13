@@ -138,6 +138,71 @@ class configure():
           sys.exit(errMsg)
         # endif degrade
 
+        # LBLRTM can only handle 2000 cm-1 chunks at a time, so break
+        # up any bands that are larger than this
+        # also make sure user provides correct WN order
+        for iBand in range(len(channels['wn1'])):
+          wn1, wn2, res, deg = \
+            channels['wn1'][iBand], channels['wn2'][iBand], \
+            channels['res'][iBand], channels['degrade'][iBand]
+
+          if wn2 < wn1:
+            print('Swapping user-provided WN1 and WN2 for ' + \
+              'channel %d' % (iBand+1))
+            channels['wn1'][iBand] = wn2
+            channels['wn2'][iBand] = wn1
+            wn1 = channels['wn1'][iBand]
+            wn2 = channels['wn2'][iBand]
+          # endif wn2/wn1 switch
+
+          bandwidth = wn2-wn1
+          if bandwidth > 2000:
+            print('Breaking down channels so they do not ' + \
+              'exceed 2000 cm-1 widths')
+            subChanWN1, subChanWN2 = [], []
+            tempWN1 = float(wn1)
+
+            while (bandwidth/2000 >= 1.0):
+
+              tempWN2 = tempWN1 + 2000
+              if tempWN2 >= wn2: tempWN2 = float(wn2) 
+
+              subChanWN1.append(tempWN1)
+              subChanWN2.append(tempWN2)
+
+              tempWN1 = float(tempWN2)
+              tempWN2 = tempWN1 + 2000
+              if tempWN2 >= wn2: tempWN2 = float(wn2)
+              bandwidth = tempWN2-tempWN1
+            # endif > 1
+
+            subChanWN1.append(tempWN1)
+            subChanWN2.append(tempWN2)
+
+            # remove the entire width > 2000 cm-1 band
+            for key in ['wn1', 'wn2', 'res', 'degrade']:
+              channels[key] = np.delete(channels[key], iBand)
+
+            # reassign channel limits
+            channels['wn1'] = \
+              np.insert(channels['wn1'], iBand, subChanWN1)
+            channels['wn2'] = \
+              np.insert(channels['wn2'], iBand, subChanWN2)
+
+            # now apply resolution and degradation from entire 
+            # (width > 2000 cm-1) channel to the subchannels
+            channels['res'] = np.insert(channels['res'], iBand, \
+              np.repeat(res, len(subChanWN1)))
+            channels['degrade'] = np.insert(channels['degrade'], \
+              iBand, np.repeat(deg, len(subChanWN1)))
+          # endif > 2000
+        # end band loop
+
+        for chan in channels: print(channels)
+        for  wn1, wn2, res, deg in \
+          zip(channels['wn1'], channels['wn2'], \
+            channels['res'], channels['degrade']): print(wn1, wn2, res, deg)
+        sys.exit('CHECKING CHANNELS!')
         setattr(self, 'channels', channels)
       elif cps == 'molecules':
         # molecules should be separated by a space

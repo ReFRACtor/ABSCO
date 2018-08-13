@@ -2,8 +2,7 @@
 LNFL_Runs
 TAPE3_dir
 LBL_Runs
-OD_Fine
-ABSCO_Coarse
+nc_ABSCO
 obsolete
 *.npz
 
