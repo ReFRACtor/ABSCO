@@ -50,8 +50,11 @@ class configure():
     # their XS coefficients in certain bands (see xsCheck() method).
     self.xsLines = ['CF4', 'SO2', 'NO2', 'HNO3']
 
+    # these guys have continua that are affected by WV amount
+    self.molH2O = ['CO2', 'N2']
+
     # and these guys are neither HITRAN or XS molecules
-    self.dunno = ['HDO', 'O2-O2', 'BRO']
+    self.dunno = ['HDO', 'BRO']
 
     # read in pressures and do some quality control
     self.processP()
@@ -77,7 +80,7 @@ class configure():
     allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
       'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OCS', 'H2CO', 'N2', \
       'HCN', 'C2H2', 'HCOOH', 'C2H4', 'CH3OH', 'CCL4', 'CF4', \
-      'F11', 'F12', 'F22', 'ISOP', 'PAN', 'HDO', 'BRO', 'O2-O2']
+      'F11', 'F12', 'F22', 'ISOP', 'PAN', 'HDO', 'BRO']
 
     # standard library, but name depends on Python version
     if sys.version_info.major < 3:
@@ -198,11 +201,6 @@ class configure():
           # endif > 2000
         # end band loop
 
-        for chan in channels: print(channels)
-        for  wn1, wn2, res, deg in \
-          zip(channels['wn1'], channels['wn2'], \
-            channels['res'], channels['degrade']): print(wn1, wn2, res, deg)
-        sys.exit('CHECKING CHANNELS!')
         setattr(self, 'channels', channels)
       elif cps == 'molecules':
         # molecules should be separated by a space
@@ -221,12 +219,12 @@ class configure():
         # end mol loop
 
         setattr(self, 'molnames', split)
-      elif cps == 'pwv':
+      elif cps == 'water_vapor':
         cItem = cItems[0]
-        pwvArr = np.array(cItem[1].split()).astype(float)
-        if pwvArr.size != 2:
-          sys.exit('Please provide 2 values for pwv')
-        setattr(self, cItem[0], pwvArr)
+        wvArr = np.array(cItem[1].split()).astype(float)
+        if wvArr.size != 2:
+          sys.exit('Please provide 2 values for wv_vmr')
+        setattr(self, cItem[0], wvArr)
       else:
         for cItem in cItems:
           param = cItem[0]
@@ -366,6 +364,9 @@ class configure():
     wn1, wn2 = self.channels['wn1'], self.channels['wn2']
     activeMol = []
     for iWN, fWN in zip(wn1, wn2):
+      print('finding active molecules in %.2f-%.2f cm-1 range' % \
+        (iWN, fWN))
+
       for key in regions.keys():
         active = False
         for band in regions[key]:
@@ -395,9 +396,15 @@ class configure():
     molUser = self.molnames
 
     if len(molUser) == 0:
-      print('No molecules specified, ', end='')
-      print('finding active molecules in %.2f-%.2f cm-1 range' % \
-        (self.channels['wn1'], self.channels['wn2']))
+      print('No active molecules specified.')
+      prompt = 'The following molecules are active in the ' + \
+        'first input spectral range and can be processed, ' + \
+        '%s, proceed (y/n)? ' % molActive
+      status = input(prompt)
+      status = status.upper()
+
+      if status == 'N': sys.exit('Exited without proceeding')
+
       molecules = list(molActive)
     else:
       # did the user neglect any active molecules?

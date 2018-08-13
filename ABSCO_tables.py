@@ -169,6 +169,7 @@ class makeABSCO():
     self.pathListXS = str(inObj.fscdxs)
     self.dirT5 = str(inObj.tape5_dir)
     self.doXS = dict(inObj.doXS)
+    self.molH2O = list(inObj.molH2O)
     self.molMaxLBL = 47
 
     self.HITRAN = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
@@ -308,7 +309,7 @@ class makeABSCO():
     os.chdir(self.topDir)
   # end runLNFL()
 
-  def lblT5(self, mol, pwv=1.0):
+  def lblT5(self, mol, vmrWV=1e-2):
     """
     For a given molecule, make a TAPE5 for every temperature and band 
     that can be used as input into an LBLRTM run
@@ -316,8 +317,8 @@ class makeABSCO():
     see lblrtm_instructions.html for doc on each TAPE5 record
 
     mol -- string, molecule name from preproc.readConfig.allowed
-    pwv -- float, precipitable water vapor [cm] to be used in H2O 
-      scaling
+    vmrWV -- float, [true] water vapor mixing ratio to be used in 
+      H2O, CO2, and N2 profiles [NOT ppmv!]
     """
 
     pLevArr = np.array(self.pLev)
@@ -391,13 +392,6 @@ class makeABSCO():
       record13 += '%4s%1d%5s%10.3e' % \
         (' ', 0, ' ', self.bands['res'][0])
 
-      # for PWV scaling
-      if mol == 'H2O':
-        record13 += '%3s%2d' % ('', 1)
-        record13a = 'P'
-        record13b = '%15.7E' % pwv
-      # end H2O
-
       outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
       if not os.path.exists(outDirT5):
         os.makedirs(outDirT5, exist_ok=True)
@@ -434,7 +428,10 @@ class makeABSCO():
           lblAll = np.repeat(0.0, self.molMaxLBL)
 
           # fill in the VMR for the given mol
-          if not doXS: lblAll[self.iMol] = float(levVMR)
+          if not doXS:
+            lblAll[self.iMol] = float(levVMR)
+            if mol in self.molH2O: lblAll[0] = vmrWV
+          # endif no XS
 
           # start building the string for record 3.6
           record36 = ''
@@ -513,10 +510,8 @@ class makeABSCO():
           finalRecs.insert(5, record33b)
 
           # throw the water vapor records into the appropriate spot
-          if mol == 'H2O':
-            outFile = '%s_PWV%06.3f' % (outFile, pwv)
-            finalRecs.insert(3, record13a)
-            finalRecs.insert(4, record13b)
+          if mol in self.molH2O:
+            outFile = '%s_vmrWV%5.3f' % (outFile, vmrWV)
           # endif h2o
 
           outFP = open(outFile, 'w')
@@ -911,13 +906,12 @@ if __name__ == '__main__':
 
   if args.run_lbl:
     for mol in ini.molnames:
-      """
-      if mol == 'H2O':
-        for pwv in ini.pwv: absco.lblT5(mol, pwv=pwv)
+      if mol in ini.molH2O:
+        for vmr in ini.wv_vmr: absco.lblT5(mol, vmrWV=vmr/1e6)
       else:
         absco.lblT5(mol)
       # endif H2O
-      """
+
       absco.calcABSCO(mol)
       absco.arrABSCO()
       absco.makeNC(mol)
