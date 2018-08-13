@@ -696,6 +696,8 @@ class makeABSCO():
       outList.append(bandDict)
     # end t3 (band) loop
 
+    os.chdir(self.topDir)
+
     if self.debug:
       np.savez('%s/temp.npz' % self.topDir, absco=outList)
 
@@ -919,16 +921,11 @@ if __name__ == '__main__':
         vmrObjList = []
         for vmr in ini.wv_vmr:
           absco.lblT5(mol, vmrWV=vmr/1e6)
-          """
           absco.calcABSCO(mol)
           absco.arrABSCO()
           absco.makeNC(mol)
-          """
           vmrObjList.append(absco)
         # end VMR loop
-
-        print(dir(vmrObjList[0]))
-        sys.exit('STOP')
       else:
         absco.lblT5(mol)
         absco.calcABSCO(mol)
