@@ -1,5 +1,7 @@
 # ABSoprtion COefficient (ABSCO) Table Generation
 
+NOTE: this README will be updated more thoroughly and accurately once the software is completed.
+
 Software that can generate a set of ABSCO tables that span the thermal IR to UV spectral range.
 
 Assuming the user has set the `user.name` and `user.email` Git configuration variables and has setup their Github account SSH keys, the repository can be cloned by using:

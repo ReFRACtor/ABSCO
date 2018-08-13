@@ -233,7 +233,7 @@ class makeABSCO():
       # with XS molecules even though they have no molecule number, 
       # so just don't turn on any molecules
       molInd = np.array(molIndInit)
-      if iMol is not None: molInd[iMol] = '1'
+      if self.iMol is not None: molInd[self.iMol] = '1'
       record3 = '%47s%4s%40s' % (''.join(list(molInd)), ' ', holInd)
 
       # write LNFL TAPE5 for this band and molecule
@@ -577,6 +577,10 @@ class makeABSCO():
       # given band
       bandWN = None
 
+      # chose the first 22 levels for testing because that's when the
+      # number of temperatures started to change
+      pLevs = self.pLev[:22] if self.debug else list(self.pLev)
+
       # initialize output for given pressure
       # (which are dim [nT x nWN] and [nT])
       # the dictionary fields will be level pressures -- since each 
@@ -585,7 +589,7 @@ class makeABSCO():
       # "pLayP": layer pressure (P) associated with level pressure (p)
       levP = []
       pABSCO, pLayP = {}, {}
-      for iP, pLev in enumerate(self.pLev[:22]):
+      for iP, pLev in enumerate(pLevs):
         levP.append(pLev)
 
         # do not expect anything for surface level
@@ -885,7 +889,9 @@ if __name__ == '__main__':
     help='Runs the entire process from tape 5 generation to ' + \
     'post-processing (rather than entering all of the keywords ' + \
     'separately).')
-  parser.add_argument('-db', '--debug', action='store_true')
+  parser.add_argument('-db', '--debug', action='store_true', \
+    help='Use for testing (creates temp.npz and only iterates ' + \
+    'over a few pressure levels.)')
   args = parser.parse_args()
 
   iniFile = args.config_file; utils.file_check(iniFile)
@@ -899,30 +905,37 @@ if __name__ == '__main__':
   # ABSCO object instantiation
   absco = makeABSCO(ini, debug=args.debug)
 
-  if args.run_lnfl:
+  if args.run_lnfl or args.end_to_end:
     for mol in ini.molnames: absco.lnflT5(mol)
     absco.runLNFL()
   # end LNFL
 
-  if args.run_lbl:
+  if args.run_lbl or args.end_to_end:
     for mol in ini.molnames:
       if mol in ini.molH2O:
-        for vmr in ini.wv_vmr: absco.lblT5(mol, vmrWV=vmr/1e6)
+        # we have to handle water vapor-effected molecules a little
+        # differently (they will have an extra dimension in their 
+        # output arrays)
+        vmrObjList = []
+        for vmr in ini.wv_vmr:
+          absco.lblT5(mol, vmrWV=vmr/1e6)
+          """
+          absco.calcABSCO(mol)
+          absco.arrABSCO()
+          absco.makeNC(mol)
+          """
+          vmrObjList.append(absco)
+        # end VMR loop
+
+        print(dir(vmrObjList[0]))
+        sys.exit('STOP')
       else:
         absco.lblT5(mol)
+        absco.calcABSCO(mol)
+        absco.arrABSCO()
+        absco.makeNC(mol)
       # endif H2O
-
-      absco.calcABSCO(mol)
-      absco.arrABSCO()
-      absco.makeNC(mol)
     # end mol loop
   # end LBL
-
-  # haven't tested this yet, but no reason it won't work...right?
-  if args.end_to_end:
-    sys.exit('No e2e yet')
-    absco.lblT5()
-    absco.calcABSCO()
-  # endif e2e
 # end main()
 
