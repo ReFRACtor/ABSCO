@@ -46,13 +46,18 @@ class makeABSCO():
   wavenumber, pressure, temperature, and band) for specified molecule
   """
 
-  def __init__(self, inObj, debug=False):
+  def __init__(self, inObj, debug=False, vmrWV=None):
 
     """
     Inputs
       inObj -- preproc.configure instance
 
     Keywords
+      debug -- boolean, only for testing purposes (probably a bit 
+        obsolete as well, except that it does not do a loop over all 
+        TAPE5s)
+      vmrWV -- float, [true] water vapor mixing ratio to be used in 
+        H2O, CO2, and N2 profiles [NOT ppmv!]
     """
 
     # make output directories
@@ -171,6 +176,7 @@ class makeABSCO():
     self.doXS = dict(inObj.doXS)
     self.molH2O = list(inObj.molH2O)
     self.molMaxLBL = 47
+    self.vmrWV = vmrWV
 
     self.HITRAN = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
       'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OH', 'HF', 'HCL', 'HBR', \
@@ -309,7 +315,7 @@ class makeABSCO():
     os.chdir(self.topDir)
   # end runLNFL()
 
-  def lblT5(self, mol, vmrWV=1e-2):
+  def lblT5(self, mol):
     """
     For a given molecule, make a TAPE5 for every temperature and band 
     that can be used as input into an LBLRTM run
@@ -317,8 +323,6 @@ class makeABSCO():
     see lblrtm_instructions.html for doc on each TAPE5 record
 
     mol -- string, molecule name from preproc.readConfig.allowed
-    vmrWV -- float, [true] water vapor mixing ratio to be used in 
-      H2O, CO2, and N2 profiles [NOT ppmv!]
     """
 
     pLevArr = np.array(self.pLev)
@@ -430,7 +434,7 @@ class makeABSCO():
           # fill in the VMR for the given mol
           if not doXS:
             lblAll[self.iMol] = float(levVMR)
-            if mol in self.molH2O: lblAll[0] = vmrWV
+            if mol in self.molH2O: lblAll[0] = self.vmrWV
           # endif no XS
 
           # start building the string for record 3.6
@@ -579,7 +583,7 @@ class makeABSCO():
 
       # chose the first 22 levels for testing because that's when the
       # number of temperatures started to change
-      pLevs = self.pLev[:22] if self.debug else list(self.pLev)
+      pLevs = self.pLev[:2] if self.debug else list(self.pLev)
 
       # initialize output for given pressure
       # (which are dim [nT x nWN] and [nT])
@@ -599,9 +603,11 @@ class makeABSCO():
         for iT, tLev in enumerate(self.tLev[iP]):
 
           # find LBL TAPE5s corresponding to band
-          searchStr = '%s/%s/%s/%s/TAPE5_%s_P%09.4f_T%05.1fK_%s*' % \
+          searchStr = '%s/%s/%s/%s/TAPE5_%s_P%09.4f_T%05.1fK_%s' % \
             (self.topDir, self.runDirLBL, self.dirT5, mol, mol, \
              pLev, tLev, band)
+          if mol in self.molH2O:
+            searchStr += '_vmrWV%5.3f' % (self.vmrWV)
           molT5 = sorted(glob.glob(searchStr))
 
           # should be one LBL TAPE5 per allowed T on a given P level
@@ -672,7 +678,6 @@ class makeABSCO():
           abscoCoarse[0], abscoCoarse[-1] = \
             abscoFine[0], abscoFine[-1]
           tempABSCO.append(abscoFine[coarseRes])
-          print(pLev, tLev, coarseRes.size)
 
           # have to do 2nd conditional in case the first couple of 
           # runs did not extend the entire spectral range
@@ -904,9 +909,6 @@ if __name__ == '__main__':
   for iniName in ini.molnames:
     if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
 
-  # ABSCO object instantiation
-  absco = makeABSCO(ini, debug=args.debug)
-
   if args.run_lnfl or args.end_to_end:
     for mol in ini.molnames: absco.lnflT5(mol)
     absco.runLNFL()
@@ -919,14 +921,19 @@ if __name__ == '__main__':
         # differently (they will have an extra dimension in their 
         # output arrays)
         vmrObjList = []
-        for vmr in ini.wv_vmr:
-          absco.lblT5(mol, vmrWV=vmr/1e6)
+        for ppm in ini.wv_vmr:
+          absco = makeABSCO(ini, debug=args.debug, vmrWV=ppm/1e6)
+          #absco.lblT5(mol)
           absco.calcABSCO(mol)
           absco.arrABSCO()
-          absco.makeNC(mol)
+          #absco.makeNC(mol)
           vmrObjList.append(absco)
+          print(np.nanmin(absco.ABSCO), np.nanmax(absco.ABSCO))
         # end VMR loop
+        
+        sys.exit('DEBUG')
       else:
+        absco = makeABSCO(ini, debug=args.debug)
         absco.lblT5(mol)
         absco.calcABSCO(mol)
         absco.arrABSCO()
