@@ -208,11 +208,6 @@ class makeABSCO():
     self.topDir = os.getcwd()
 
     self.debug = bool(debug)
-
-    # chose the first 22 levels for testing because that's when the
-    # number of temperatures started to change
-    if debug: self.pLev = self.pLev[:22]
-
   # end constructor()
 
   def lnflT5(self, mol):
@@ -588,6 +583,10 @@ class makeABSCO():
       # given band
       bandWN = None
 
+      # chose the first 22 levels for testing because that's when the
+      # number of temperatures started to change
+      pLevs = self.pLev[:22] if self.debug else list(self.pLev)
+
       # initialize output for given pressure
       # (which are dim [nT x nWN] and [nT])
       # the dictionary fields will be level pressures -- since each 
@@ -596,7 +595,7 @@ class makeABSCO():
       # "pLayP": layer pressure (P) associated with level pressure (p)
       levP = []
       pABSCO, pLayP = {}, {}
-      for iP, pLev in enumerate(self.pLev):
+      for iP, pLev in enumerate(pLevs):
         levP.append(pLev)
 
         # do not expect anything for surface level
