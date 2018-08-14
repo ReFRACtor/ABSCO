@@ -809,8 +809,8 @@ class makeABSCO():
     if os.path.exists(outNC): print('WARNING: overwriting %s' % outNC)
     outFP = nc.Dataset(outNC, 'w')
 
-    outFP.description = 'Absorption coefficients for %s ' % \
-      self.molName
+    pwvStr = 'PWV, '  if mol in self.molH2O else ''
+    outFP.description = 'Absorption coefficients for %s ' % mol
     outFP.description += 'as a function of pressure, temperature, '
     outFP.description += '%swavenumber, and band' % pwvStr
 
@@ -1002,7 +1002,6 @@ if __name__ == '__main__':
       absco.runLNFL()
     # end mol loop
   # end LNFL
-  sys.exit('DEBUG')
 
   if args.run_lbl or args.end_to_end:
     for mol in ini.molnames:
