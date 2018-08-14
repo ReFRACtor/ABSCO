@@ -780,10 +780,7 @@ class makeABSCO():
           nWN = len(inArr[iT])
           if nWN < nBandWN:
             nMiss = nBandWN - nWN
-
-            # TO DO: verify that np.stack works like np.hstack (am i 
-            # using the correct axis?)
-            inArr[iT] = np.stack( \
+            inArr[iT] = np.hstack( \
               (inArr[iT], np.repeat(np.nan, nMiss) ))
           # endif nWN
           bandArr[iP, iMatchT, :] = inArr[iT]
@@ -818,6 +815,14 @@ class makeABSCO():
        self.bands['wn2'][-1], self.version, self.runDesc)
     if os.path.exists(outNC): print('WARNING: overwriting %s' % outNC)
     outFP = nc.Dataset(outNC, 'w')
+
+    outFP.description = 'Absorption coefficients for %s ' % \
+      self.molName
+    outFP.description += 'as a function of pressure, temperature, '
+    outFP.description += '%swavenumber, and band' % pwvStr
+
+    # metadata attribute -- line parameter source
+    outFP.source = 'HITRAN'
 
     # extract dimensions from data
     inDims = self.ABSCO.shape
