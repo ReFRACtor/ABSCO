@@ -705,9 +705,6 @@ class makeABSCO():
 
     os.chdir(self.topDir)
 
-    if self.debug:
-      np.savez('%s/temp.npz' % self.topDir, absco=outList)
-
     self.ABSCO = list(outList)
 
     return self
@@ -725,11 +722,7 @@ class makeABSCO():
     dimensions
     """
 
-    if self.debug:
-      inABSCO = np.load('%s/temp.npz' % self.topDir)['absco']
-    else:
-      inABSCO = list(self.ABSCO)
-    # endif debug
+    inABSCO = list(self.ABSCO)
 
     # construct the array, filling in NaNs with pABSCO
     arrABSCO, wnAll = [], []
@@ -988,7 +981,7 @@ if __name__ == '__main__':
     'post-processing (rather than entering all of the keywords ' + \
     'separately).')
   parser.add_argument('-db', '--debug', action='store_true', \
-    help='Use for testing (creates temp.npz and only iterates ' + \
+    help='Use for testing (only iterates ' + \
     'over a few pressure levels.)')
   args = parser.parse_args()
 
