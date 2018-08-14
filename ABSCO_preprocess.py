@@ -51,7 +51,7 @@ class configure():
     self.xsLines = ['CF4', 'SO2', 'NO2', 'HNO3']
 
     # these guys have continua that are affected by WV amount
-    self.molH2O = ['CO2', 'N2']
+    self.molH2O = ['CO2', 'N2', 'O2']
 
     # and these guys are neither HITRAN or XS molecules
     self.dunno = ['HDO', 'BRO']
@@ -104,6 +104,7 @@ class configure():
         channels = {}
         for cItem in cItems:
           split = cItem[1].split()
+
           if len(split) == 0:
             # CONSIDER DEFAULTS
             chanErrMsg = 'No bands specified in %s, returning' % \
@@ -111,7 +112,12 @@ class configure():
             sys.exit(chanErrMsg)
           # endif split
 
-          channels[cItem[0]] = np.array(split).astype(float)
+          # should only be one unit, but there can be many channels
+          if cItem[0] == 'units':
+            units = str(split[0])
+          else:
+            channels[cItem[0]] = np.array(split).astype(float)
+          # endif units
         # end item loop
 
         # these keys are required
@@ -121,6 +127,15 @@ class configure():
             sys.exit('Could not find %s, returning' % req)
           # endif required
         # end required loop
+
+        # is "units" defined?
+        errMsg = 'Please define "units" field ("cm-1" or "um")'
+        if 'units' in locals():
+          if units not in ['cm-1', 'um']: sys.exit(errMsg)
+          setattr(self, 'spectral_units', units)
+        else:
+          sys.exit(errMsg)
+        # endif units
 
         # there should be an equal number of starting and ending 
         # wavenumbers and associated spectral resolutions
@@ -357,7 +372,6 @@ class configure():
     regions['HDO'] = [[1100, 1800], [2500, 3000], [3300, 4300], \
       [4800, 5400], [7000, 7500]]
     regions['BRO'] = [[25927, 34919]]
-    regions['O2-O2'] = [[16644, 29785]]
 
     # find active species inside specified bands
     # any mol that is active in ANY user-specified band is returned

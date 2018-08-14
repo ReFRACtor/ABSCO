@@ -46,10 +46,11 @@ class makeABSCO():
   wavenumber, pressure, temperature, and band) for specified molecule
   """
 
-  def __init__(self, inObj, debug=False, vmrWV=None):
+  def __init__(self, inObj, mol, debug=False, vmrWV=None):
 
     """
     Inputs
+      mol -- string, name of molecule to process
       inObj -- preproc.configure instance
 
     Keywords
@@ -142,7 +143,7 @@ class makeABSCO():
 
     # set class attributes
     # state, etc. atts
-    self.headerOD = inObj.header
+    self.headerOD = str(inObj.header)
     self.cntnmScale = float(inObj.scale)
     self.pLev = np.array(inP)
     self.nP = inP.size
@@ -155,6 +156,7 @@ class makeABSCO():
     self.molNames = list(inObj.molnames)
     self.doBand = dict(inObj.doBand)
     self.degradeKern = list(inObj.kernel)
+    self.spectralUnits = str(inObj.spectral_units)
 
     # grab the profiles
     self.vmrProf = dict(userProf)
@@ -176,7 +178,7 @@ class makeABSCO():
     self.doXS = dict(inObj.doXS)
     self.molH2O = list(inObj.molH2O)
     self.molMaxLBL = 47
-    self.vmrWV = vmrWV
+    self.vmrWV = float(vmrWV) if mol in self.molH2O else None
 
     self.HITRAN = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
       'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OH', 'HF', 'HCL', 'HBR', \
@@ -515,7 +517,7 @@ class makeABSCO():
 
           # throw the water vapor records into the appropriate spot
           if mol in self.molH2O:
-            outFile = '%s_vmrWV%5.3f' % (outFile, vmrWV)
+            outFile = '%s_vmrWV%5.3f' % (outFile, self.vmrWV)
           # endif h2o
 
           outFP = open(outFile, 'w')
@@ -542,15 +544,6 @@ class makeABSCO():
     which should specify a different lbl_run_dir)
     """
 
-    workSubDir = '%s/%s' % (self.topDir, self.runDirLBL)
-    os.chdir(workSubDir)
-
-    # aliases for symlinks; should correspond to lblFiles
-    # these are identical for all LBL runs for this task
-    targets = ['lblrtm', 'xs', 'FSCDXS']
-    sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
-    makeSymLinks(sources, targets)
-
     # set up working subdirectory
     # find TAPE3s and their associated TAPE5s (for every TAPE3, 
     # there is a TAPE5 for every pressure and every temperature)
@@ -560,6 +553,15 @@ class makeABSCO():
       print('Found no TAPE3 files for %s' % mol)
       return False
     # endif nT3
+
+    workSubDir = '%s/%s' % (self.topDir, self.runDirLBL)
+    os.chdir(workSubDir)
+
+    # aliases for symlinks; should correspond to lblFiles
+    # these are identical for all LBL runs for this task
+    targets = ['lblrtm', 'xs', 'FSCDXS']
+    sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
+    makeSymLinks(sources, targets)
 
     # outList is going to be an nBand-element list of dictionaries 
     # that contain nLay x nT x nWN arrays of ABSCOs ('ABSCO' field)
@@ -777,8 +779,11 @@ class makeABSCO():
           # append fill values to the end of the array
           nWN = len(inArr[iT])
           if nWN < nBandWN:
-            nMiss = nBandWN - nWN  
-            inArr[iT] = np.hstack( \
+            nMiss = nBandWN - nWN
+
+            # TO DO: verify that np.stack works like np.hstack (am i 
+            # using the correct axis?)
+            inArr[iT] = np.stack( \
               (inArr[iT], np.repeat(np.nan, nMiss) ))
           # endif nWN
           bandArr[iP, iMatchT, :] = inArr[iT]
@@ -790,7 +795,9 @@ class makeABSCO():
     # end band loop
 
     # replace the ABSCO dictionary with the array we'll use in output
-    self.ABSCO = np.array(arrABSCO)
+    # ABSCO axes need to be (nfreq, nranges, ntemp, npress, nvmr)
+    outAx = (3, 1, 2, 0)
+    self.ABSCO = np.transpose(np.array(arrABSCO), axes=outAx)
     self.layerP = np.array(layPArr)
     self.freq = np.array(wnAll)
     self.levelT = np.array(levelT)
@@ -814,61 +821,140 @@ class makeABSCO():
 
     # extract dimensions from data
     inDims = self.ABSCO.shape
-    nFreq = inDims[3]
+    nFreq = inDims[0]
 
     if self.debug:
-      nLay = inDims[1]
+      nLay = inDims[3]
       nTemp = inDims[2]
-      nRange = inDims[0]
+      nRange = inDims[1]
     else:
-      nLay = inDims[1] # should == self.nLev-1
+      nLay = inDims[3] # should == self.nLev-1
       nTemp = inDims[2] # should == self.nT
-      nRange = inDims[0] # should = self.nBands
+      nRange = inDims[1] # should = self.nBands
     # end debug
 
     nRangeVal = 2
-    strLen = 5
     nLev = nLay + 1
 
-    outDimNames = ['nfreq', 'nlev', 'nlay', 'ntemp', 'nranges', \
-      'nranges_vals', 'string_length']
-    outDimVals = [nFreq, nLev, nLay, nTemp, \
-      nRange, nRangeVal, strLen]
+    outDimNames = \
+      ['nfreq', 'nlev', 'nlay', 'ntemp', 'nranges', 'nranges_vals']
+    outDimVals = [nFreq, nLev, nLay, nTemp, nRange, nRangeVal]
+
+    if mol in self.molH2O:
+      outDimNames.append('nvmr')
+      outDimVals.append(self.vmrWV.size)
+      abscoDim = ('nfreq', 'nranges', 'ntemp', 'nlay', 'nvmr')
+    else:
+      abscoDim = ('nfreq', 'nranges', 'ntemp', 'nlay')
+    # endif WV mol
+
+    units = 'cm-1' if self.spectralUnits == 'cm-1' else 'microns'
 
     for name, val in zip(outDimNames, outDimVals):
       outFP.createDimension(name, val)
 
-    # now onto the variables
+    # now onto the variables; TO DO: VERIFY RANGES!
     outVar = outFP.createVariable('P_level', float, \
       ('nlev'), zlib=True, complevel=self.compress)
     outVar[:] = self.levelP
     outVar.units = 'mbar'
+    outVar.long_name = 'Pressure Levels'
+    outVar.valid_range = (0, 1050)
+    outVar.description = 'User-provided layer boundary pressures'
 
     outVar = outFP.createVariable('P_layer', float, \
       ('nlay', 'ntemp'), zlib=True, complevel=self.compress)
     outVar[:] = self.layerP
     outVar.units = 'mbar'
+    outVar.long_name = 'Layer Pressures'
+    outVar.valid_range = (0, 1050)
+    outVar.description = 'LBLRTM-calculated layer pressures'
 
-    outVar = outFP.createVariable('absco', float, \
-      ('nfreq', 'nranges', 'ntemp', 'nlay'), zlib=True, \
-      complevel=self.compress)
+    outVar = outFP.createVariable('absco', float, abscoDim, \
+      zlib=True, complevel=self.compress)
     outVar[:] = self.ABSCO
     outVar.units = 'cm2/molecule'
+    outVar.long_name = 'Absorption Coefficients'
+    outVar.valid_range = (0, 1)
+    outVar.description = 'Absorption coefficients (K) calculated ' + \
+      'from LBLRTM optical depths.'
 
     outVar = outFP.createVariable('Spectral_Grid', float, \
       ('nfreq'), zlib=True, complevel=self.compress)
     outVar[:] = self.freq
-    outVar.units = 'cm-1, microns, wavelength...'
+    outVar.units = units
+    outVar.long_name = 'Frequencies'
+    outVar.valid_range = (0, 1)
+    outVar.description = 'Spectral points corresponding to ' + \
+      'ABSCOs in a single layer for a single temperature and in ' + \
+      'a given spectral range.'
 
     outVar = outFP.createVariable('Temperature', float, \
       ('nlev', 'ntemp'), zlib=True, complevel=self.compress)
     outVar[:] = self.levelT
     outVar.units = 'K'
+    outVar.long_name = 'Temperature Levels'
+    outVar.valid_range = (180, 320)
+    outVar.description = 'Applicable temperatures associated ' + \
+      'with each layer boundary pressure'
+
+    outVar = outFP.createVariable('Extent_Ranges', float, \
+      ('nranges', 'nranges_vals'), zlib=True, complevel=self.compress)
+    outVar[:] = [self.bands['wn1'], self.bands['wn2']]
+    outVar.units = units
+    outVar.long_name = 'Spectral Ranges'
+    outVar.valid_range = (180, 320)
+    outVar.description = 'Starting and ending spectral points ' + \
+      'for each input channel.'
+
+    if mol in self.molH2O:
+      outVar = outFP.createVariable('H2O_VMR', float, \
+        ('nvmr'), zlib=True, complevel=self.compress)
+      outVar[:] = self.vmrWV
+      outVar.units = 'ppmv'
+      outVar.long_name = 'Water Vapor Mixing Ratio'
+      outVar.valid_range = (0, 100000)
+      outVar.description = 'Water vapor amount that influences ' + \
+        'the continua of %s molecules.' % self.molH2O
+    # end if WV mol
 
     outFP.close()
 
   # end makeNC()
 # end makeABSCO()
+
+def combineWV(inList):
+  """
+  Combine attributes (ABSCO and vmrWV) from two makeABSCO objects 
+  generated with different water vapor VMRs
+
+  Input
+    inList -- list of makeABSCO objects with ABSCO arrays (with same
+      dimensions!) and single-value vmrWV attributes. this should 
+      only be a 2-element list, but the function is flexible enough 
+      to handle more
+
+  Output
+    outObj -- modified makeABSCO object with new ABSCO and vmrWV 
+      arrays
+  """
+
+  abscoList, vmrList = [], []
+  for obj in inList:
+    abscoList.append(obj.ABSCO)
+    vmrList.append(obj.vmrWV)
+  # end object loop
+
+  # the rest of the makeABSCO objects should be the same, so just 
+  # replace vmrWV and ABSCO; make the VMR dimension the last one 
+  # in the outAxes and convert vmr to ppmv
+  outAxes = (1, 2, 3, 4, 0)
+  outObj = inList[0]
+  outObj.ABSCO = np.transpose(np.array(abscoList), axes=outAxes)
+  outObj.vmrWV = np.array(vmrList) * 1e6
+
+  return outObj
+# end combineWV()
 
 if __name__ == '__main__':
 
@@ -910,27 +996,35 @@ if __name__ == '__main__':
     if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
 
   if args.run_lnfl or args.end_to_end:
-    for mol in ini.molnames: absco.lnflT5(mol)
-    absco.runLNFL()
+    # don't need to save these objects because runLNFL() will do all 
+    # we need (i.e., TAPE3s for LBL run); also VMR is not needed yet
+    for mol in ini.molnames: 
+      absco = makeABSCO(ini, mol, vmrWV=np.nan)
+      absco.lnflT5(mol)
+      absco.runLNFL()
+    # end mol loop
   # end LNFL
+  sys.exit('DEBUG')
 
   if args.run_lbl or args.end_to_end:
     for mol in ini.molnames:
       if mol in ini.molH2O:
         # we have to handle water vapor-effected molecules a little
         # differently (they will have an extra dimension in their 
-        # output arrays)
+        # output ABSCO arrays)
         vmrObjList = []
         for ppm in ini.wv_vmr:
-          absco = makeABSCO(ini, debug=args.debug, vmrWV=ppm/1e6)
+          absco = makeABSCO(ini, mol, debug=args.debug, vmrWV=ppm/1e6)
           absco.lblT5(mol)
           absco.calcABSCO(mol)
           absco.arrABSCO()
-          absco.makeNC(mol)
           vmrObjList.append(absco)
         # end VMR loop
+
+        absco = combineWV(vmrObjList)
+        absco.makeNC(mol)
       else:
-        absco = makeABSCO(ini, debug=args.debug)
+        absco = makeABSCO(ini, mol, debug=args.debug)
         absco.lblT5(mol)
         absco.calcABSCO(mol)
         absco.arrABSCO()
