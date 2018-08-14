@@ -786,7 +786,7 @@ class makeABSCO():
 
     # replace the ABSCO dictionary with the array we'll use in output
     # ABSCO axes need to be (nfreq, nranges, ntemp, npress, nvmr)
-    outAx = (3, 1, 2, 0)
+    outAx = (3, 0, 2, 1)
     self.ABSCO = np.transpose(np.array(arrABSCO), axes=outAx)
     self.layerP = np.array(layPArr)
     self.freq = np.array(wnAll)
