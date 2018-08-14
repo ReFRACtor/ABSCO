@@ -923,15 +923,12 @@ if __name__ == '__main__':
         vmrObjList = []
         for ppm in ini.wv_vmr:
           absco = makeABSCO(ini, debug=args.debug, vmrWV=ppm/1e6)
-          #absco.lblT5(mol)
+          absco.lblT5(mol)
           absco.calcABSCO(mol)
           absco.arrABSCO()
-          #absco.makeNC(mol)
+          absco.makeNC(mol)
           vmrObjList.append(absco)
-          print(np.nanmin(absco.ABSCO), np.nanmax(absco.ABSCO))
         # end VMR loop
-        
-        sys.exit('DEBUG')
       else:
         absco = makeABSCO(ini, debug=args.debug)
         absco.lblT5(mol)
