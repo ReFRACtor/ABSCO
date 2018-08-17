@@ -140,7 +140,8 @@ class submodules():
           for old, new in zip(self.pathStr, modStr):
             if (old in line):
               split = line.split('=')
-              line = line.replace(split[1], ' %s' % new)
+              line = line.replace(split[1], \
+                ' %s/%s' % (self.modelDir, new) )
             # endif LNFL
           # end path loop
         else:
@@ -180,7 +181,7 @@ if __name__ == '__main__':
   subObj = submodules(vars(args), lines=True)
   subObj.configFile()
   if args.only_lines:
-    sys.exit('Only replaced lines paths in %s' % args.config)
+    sys.exit('Only replaced lines paths in %s' % args.config_file)
 
   # now do LNFL -- line file paths will not change
   subObj = submodules(vars(args), lnfl=True)
