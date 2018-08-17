@@ -4,11 +4,23 @@ import os, sys, glob, argparse
 import subprocess as sub
 from distutils.spawn import find_executable as which
 
+import numpy as np
+
 sys.path.append('common')
 import utils
 
 class submodules():
-  def __init__(self, inArgs, lnfl=False, lbl=False):
+  def __init__(self, inArgs, lnfl=False, lbl=False, lines=False):
+    """
+    Build models as needed (one at a time) and replace paths in 
+    ABSCO_tables.py configuration file if specified
+    """
+
+    errOne = 'Please specify one of lnfl, lbl, or lines'
+    modBool = np.array([lnfl, lbl, lines])
+    if np.all(modBool): sys.exit(errOne)
+    if np.where(modBool)[0].size > 1: sys.exit(errOne)
+
     # preprocessing
     compiler = inArgs['compiler']
     compiler = compiler.lower()
@@ -24,8 +36,12 @@ class submodules():
     if lbl:
       lblDir = args.lblrtm_path; utils.file_check(lblDir)
 
+    if lines:
+      linesDir = args.lines_path; utils.file_check(linesDir)
+
     self.compiler = str(compiler)
-    self.iniFile = str(iniFile)
+    self.iniFile = None if iniFile is None else str(iniFile)
+    self.lines = False
 
     # LNFL: always single precision, LBLRTM: always double
     if lnfl:
@@ -42,12 +58,21 @@ class submodules():
       self.precision = 'dbl'
       self.makeStr = 'make_lblrtm'
       self.pathStr = 'lbl_path'
+    elif lines:
+      self.modelDir = str(linesDir)
+      self.pathStr = ['tape1_path', 'tape2_path', 'extra_params', \
+        'xs_path', 'fscdxs']
+      self.lines = True
     else:
       sys.exit('No model build chosen')
     # endif model
   # end constructor
 
   def build(self):
+    """
+    Build LBLRTM or LNFL
+    """
+
     # OS determination
     # https://docs.python.org/2/library/sys.html#sys.platform
     compPath = which(self.compiler)
@@ -85,22 +110,45 @@ class submodules():
   # end build()
 
   def configFile(self):
-    if self.iniFile is not None:
+    """
+    Replace paths in ABSCO_tables.py configuration file with the paths
+    established in this class
+    """
+
+    if self.iniFile is None:
+      sys.exit('No configuration file specified, returning')
+    else:
       iniDat = open(self.iniFile).read().splitlines()
       outFP = open(self.iniFile, 'w')
       print('Replacing %s in %s' % (self.pathStr, self.iniFile))
 
-      # make_lnfl and make_lblrtm -o arguments
-      modStr = '%s/%s_*_%s_%s_%s' % \
-        (self.modelDir, self.modelStr.lower(), \
-         self.opSys, self.compStr.lower(), self.precision)
-      modExe = glob.glob(modStr)[0]
+      if self.lines:
+        # making some assumptions about directory structure here...
+        modStr = ['line_file/aer_v_3.6', 'line_file/lncpl_lines', \
+          'extra_brd_params', \
+          'xs_files_v3.6/xs', 'xs_files_v3.6/FSCDXS']
+      else:
+        # make_lnfl and make_lblrtm -o arguments
+        modStr = '%s/%s_*_%s_%s_%s' % \
+          (self.modelDir, self.modelStr.lower(), \
+           self.opSys, self.compStr.lower(), self.precision)
+        modExe = glob.glob(modStr)[0]
+      # endif lines
 
       for line in iniDat:
-        if (self.pathStr in line):
-          split = line.split('=')
-          line = line.replace(split[1], ' %s' % modExe)
-        # endif LNFL
+        if self.lines:
+          for old, new in zip(self.pathStr, modStr):
+            if (old in line):
+              split = line.split('=')
+              line = line.replace(split[1], ' %s' % new)
+            # endif LNFL
+          # end path loop
+        else:
+          if (self.pathStr in line):
+            split = line.split('=')
+            line = line.replace(split[1], ' %s' % modExe)
+          # endif LNFL
+        # endif lines
         outFP.write('%s\n' % line)
       # end dat loop
       outFP.close()
@@ -121,8 +169,20 @@ if __name__ == '__main__':
     help='Path of LNFL submodule directory (top level).')
   parser.add_argument('-lbl', '--lblrtm_path', default='LBLRTM', \
     help='Path of LBLRTM submodule directory (top level).')
+  parser.add_argument('-lines', '--lines_path', \
+    default='AER_Line_File', help='Top-level path of AER line file.')
+  parser.add_argument('--only_lines', action='store_true', \
+    help='If set, only the line file paths are changed in the ' + \
+    'configuration file and no model builds are done.')
   args = parser.parse_args()
 
+  # first replace line file paths
+  subObj = submodules(vars(args), lines=True)
+  subObj.configFile()
+  if args.only_lines:
+    sys.exit('Only replaced lines paths in %s' % args.config)
+
+  # now do LNFL -- line file paths will not change
   subObj = submodules(vars(args), lnfl=True)
   subObj.build()
   subObj.configFile()

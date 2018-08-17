@@ -34,7 +34,7 @@ class configure():
 
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \
-      self.broadfile, self.extra_params, self.lnfl_path, \
+      self.extra_params, self.lnfl_path, \
       self.lbl_path, self.xs_path, self.fscdxs, self.xs_lines]
     self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
       self.tape3_dir, self.tape5_dir, self.outdir]
@@ -265,7 +265,7 @@ class configure():
 
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
-    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'broadfile', 'channels', \
+    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', \
       'molnames', 'scale', 'lnfl_run_dir', 'lnfl_path', \
       'tape1_path', 'tape3_dir', 'extra_params', 'tape5_dir', \
       'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', 'outdir']
@@ -310,19 +310,6 @@ class configure():
     pErrMsg = 'Inconsistent pressure inputs.  Check %s and %s' % \
       (self.pfile, self.vmrfile) 
     if nP != datVMR.size: sys.exit(pErrMsg)
-
-    # doesn't work yet because of different precisions
-    #for p1, p2 in zip(datVMR, inP): print(np.isclose(p1, p2))
-
-    # the only real check we can do with the standard_atm_profiles.py
-    # outputs (vmrfile and broadfile) are if they are nLevel and 
-    # nLayer in size, but this is not very extensive
-    # there is no P array in the broadener file, but any species will
-    # work
-    datBroad = pd.read_csv(self.broadfile)['H2O']
-    pErrMsg = 'Inconsistent pressure inputs.\nCheck %s and %s' % \
-      (self.pfile, self.broadfile)
-    if datBroad.size != nP-1: sys.exit(pErrMsg)
 
     return self
   # end processP()
