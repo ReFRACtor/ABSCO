@@ -1,3 +1,9 @@
 [submodule "common"]
 	path = common
 	url = git@github.com:pernak18/common.git
+[submodule "LBLRTM"]
+	path = LBLRTM
+	url = git@github.com:pernak18/LBLRTM.git
+[submodule "LNFL"]
+	path = LNFL
+	url = git@github.com:pernak18/LNFL.git

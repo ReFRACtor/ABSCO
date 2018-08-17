@@ -806,6 +806,7 @@ class makeABSCO():
     outNC = '%s/%s_%05d-%05d_v%s_%s.nc' % \
       (self.outDir, mol, self.bands['wn1'][0], \
        self.bands['wn2'][-1], self.version, self.runDesc)
+    print('Building %s' % outNC)
     if os.path.exists(outNC): print('WARNING: overwriting %s' % outNC)
     outFP = nc.Dataset(outNC, 'w')
 
@@ -835,7 +836,7 @@ class makeABSCO():
     nLev = nLay + 1
 
     outDimNames = \
-      ['nfreq', 'nlev', 'nlay', 'ntemp', 'nranges', 'nranges_vals']
+      ['nfreq', 'nlev', 'nlay', 'ntemp', 'nranges', 'nranges_lims']
     outDimVals = [nFreq, nLev, nLay, nTemp, nRange, nRangeVal]
 
     if mol in self.molH2O:
@@ -897,7 +898,7 @@ class makeABSCO():
       'with each layer boundary pressure'
 
     outVar = outFP.createVariable('Extent_Ranges', float, \
-      ('nranges', 'nranges_vals'), zlib=True, complevel=self.compress)
+      ('nranges', 'nranges_lims'), zlib=True, complevel=self.compress)
     outVar[:] = [self.bands['wn1'], self.bands['wn2']]
     outVar.units = units
     outVar.long_name = 'Spectral Ranges'
@@ -918,7 +919,22 @@ class makeABSCO():
 
     outFP.close()
 
+    print('Wrote %s' % outNC)
   # end makeNC()
+
+  def makeNCX(self):
+    """
+    Alternative to makeNC() that utilizes xarray library routines 
+    instead of netCDF4 (but netCDF4 is needed for xarray)
+    """
+
+    import xarray as xr
+
+    # generate an xarray dataset that will mirrors corresponding 
+    # netCDF dataset
+    dsDict = {}
+    dataSet = xr.Dataset()
+  # end makeNCX()
 # end makeABSCO()
 
 def combineWV(inList):
@@ -985,6 +1001,8 @@ if __name__ == '__main__':
     'over a few pressure levels.)')
   args = parser.parse_args()
 
+  import time
+
   iniFile = args.config_file; utils.file_check(iniFile)
 
   # configuration object instantiation
@@ -1025,7 +1043,9 @@ if __name__ == '__main__':
         absco.lblT5(mol)
         absco.calcABSCO(mol)
         absco.arrABSCO()
+        t1 = time.clock()
         absco.makeNC(mol)
+        print(time.clock() - t1)
       # endif H2O
     # end mol loop
   # end LBL
