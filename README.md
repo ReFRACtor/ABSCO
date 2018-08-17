@@ -14,7 +14,15 @@ Note the `--recursive` keyword -- it will force the clone to copy the necessary 
 
 # Dependencies
 
-In `common` subroutine directory. Some dependencies are Python modules, others are FORTRAN source code that will need to be built by the user (note to Rick: do a quick Makefile). NOTE: only Linux executables built with the PGI compiler have been tested with the software in this repository.
+This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory.
+
+In addition to Python dependencies, source code for a couple of AER models (LNFL and LBLRTM) as well as the line parameter database are required. LNFL and LBLRTM code is available underneath the `LNFL` and `LBLRTM` subdirectories, respectively, and the AER line parameter database is distributed as a set of ASCII text files in the `AER\_Line\_File` directory. Both models can be built with the `build_models.py` script:
+
+```
+% ./build_models.py -c gfortran -i ABSCO_config.ini
+```
+
+This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in ABSCO\_config.ini with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options.
 
 ## Python Packages
 

@@ -921,20 +921,6 @@ class makeABSCO():
 
     print('Wrote %s' % outNC)
   # end makeNC()
-
-  def makeNCX(self):
-    """
-    Alternative to makeNC() that utilizes xarray library routines 
-    instead of netCDF4 (but netCDF4 is needed for xarray)
-    """
-
-    import xarray as xr
-
-    # generate an xarray dataset that will mirrors corresponding 
-    # netCDF dataset
-    dsDict = {}
-    dataSet = xr.Dataset()
-  # end makeNCX()
 # end makeABSCO()
 
 def combineWV(inList):
