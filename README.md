@@ -10,34 +10,46 @@ Assuming the user has set the `user.name` and `user.email` Git configuration var
 git clone --recursive git@github.com:pernak18/ABSCO.git
 ```
 
-Note the `--recursive` keyword -- it will force the clone to copy the necessary subroutines.
+Note the `--recursive` keyword -- it will force the clone to copy the necessary subroutines. Otherwise, the user will have to do (assuming the repository is just checked out with the default `ABSCO` name in the working directory):
+
+```
+cd ABSCO
+git submodule init
+git submodule update
+```
 
 # Dependencies
 
-This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory.
+This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory, which is its own repository (<https://github.com/pernak18/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
 
-In addition to Python dependencies, source code for a couple of AER models (LNFL and LBLRTM) as well as the line parameter database are required. LNFL and LBLRTM code is available underneath the `LNFL` and `LBLRTM` subdirectories, respectively, and the AER line parameter database is distributed as a set of ASCII text files in the `AER\_Line\_File` directory. Both models can be built with the `build_models.py` script:
+## Python Packages
+
+The following libraries were installed with miniconda (<https://conda.io/docs/user-guide/install/index.html>) for Python 3.6.3:
+
+  - numpy (v1.13.3)
+  - scipy (v1.0.0)
+  - pandas (v0.23.0)
+  - netCDF4 (v1.3.1)
+
+All are used in this ABSCO library. The software is optimized for Python 3 usage -- Python 2 has not been tested and is not recommended.
+
+## LNFL, LBLRTM, and the AER Line File
+
+LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in its own repository (<https://github.com/pernak18/LNFL>). Because LNFL has been declared a submodule of the ABSCO library, using the `--recursive` keyword in the clone of this ABSCO repository will also clone the LNFL source code the is necessary. The source code is fetched and saved under the `LNFL` subdirectory.
+
+LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has its own Git repository (<https://github.com/pernak18/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
+
+The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory.
+
+Occasionally, the models and LPD will be updated periodically.
+
+Both models can be built with the `build_models.py` script:
 
 ```
 % ./build_models.py -c gfortran -i ABSCO_config.ini
 ```
 
 This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in ABSCO\_config.ini with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options.
-
-## Python Packages
-
-The following libraries were installed with miniconda for Python 3 (the software is also optimized for Python 3 usage -- Python 2 has not been tested):
-
-  - numpy
-  - scipy
-  - pandas
-  - netCDF4
-
-All are used in this ABSCO library.
-
-## LNFL
-
-## LBLRTM
 
 # Setup (Configuration File)
 
@@ -96,4 +108,3 @@ htMols = [os.path.basename(md).split('_')[1].upper() for \
   md in molDirs]
 print(htMols)
 ```
-
