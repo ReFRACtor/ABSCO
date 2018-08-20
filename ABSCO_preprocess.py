@@ -114,24 +114,27 @@ class configure():
 
           # should only be one unit, but there can be many channels
           if cItem[0] == 'units':
-            units = str(split[0])
+            units = str(split[0]).lower()
           else:
             channels[cItem[0]] = np.array(split).astype(float)
           # endif units
         # end item loop
 
+        # kernel width for degradation
+        channels['kernwidth'] = channels['outres']/channels['lblres']
+
         # these keys are required
         keys = list(channels.keys())
-        for req in ['wn1', 'wn2', 'res', 'degrade']:
+        for req in ['wn1', 'wn2', 'lblres', 'outres', 'kernwidth']:
           if req not in keys:
             sys.exit('Could not find %s, returning' % req)
           # endif required
         # end required loop
 
         # is "units" defined?
-        errMsg = 'Please define "units" field ("cm-1" or "um")'
+        errMsg = 'Please define "units" field ("cm-1", "um", "nm")'
         if 'units' in locals():
-          if units not in ['cm-1', 'um']: sys.exit(errMsg)
+          if units not in ['cm-1', 'um', 'nm']: sys.exit(errMsg)
           setattr(self, 'spectral_units', units)
         else:
           sys.exit(errMsg)
@@ -150,19 +153,33 @@ class configure():
         # end key loop
 
         # make sure degradation is an integer exponent of 2
-        if not np.all(np.log2(channels['degrade']) % 1 == 0):
-          errMsg = 'Please provide degradation factor that is an ' + \
-            'integer exponent of 2 (2, 4, 8, 16, etc.)'
+        if not np.all(np.log2(channels['kernwidth']) % 1 == 0):
+          errMsg = 'Please provide an outres/lblres ratio that ' + \
+            'is an integer exponent of 2 (2, 4, 8, 16, etc.)'
           sys.exit(errMsg)
         # endif degrade
 
         # LBLRTM can only handle 2000 cm-1 chunks at a time, so break
         # up any bands that are larger than this
-        # also make sure user provides correct WN order
+        # also make sure user provides correct WN order and convert 
+        # to cm-1 if necessary
         for iBand in range(len(channels['wn1'])):
           wn1, wn2, res, deg = \
             channels['wn1'][iBand], channels['wn2'][iBand], \
-            channels['res'][iBand], channels['degrade'][iBand]
+            channels['lblres'][iBand], channels['outres'][iBand]
+
+          if units in ['um', 'nm']:
+            wnConvert = 1e4 if units == 'um' else 1e7
+            channels['wn1'][iBand] = wnConvert / wn1
+            channels['wn2'][iBand] = wnConvert / wn2
+            #channels['lblres'][iBand] = wnConvert / res
+            print('Converting band ', end='')
+            print('%d (%.3f-%.3f) to cm-1 (%.3f-%.3f)' % \
+              (iBand+1, wn1, wn2, channels['wn1'][iBand], \
+               channels['wn2'][iBand]))
+            wn1 = wnConvert / wn1
+            wn2 = wnConvert / wn2
+          # endif um
 
           if wn2 < wn1:
             print('Swapping user-provided WN1 and WN2 for ' + \
@@ -198,7 +215,7 @@ class configure():
             subChanWN2.append(tempWN2)
 
             # remove the entire width > 2000 cm-1 band
-            for key in ['wn1', 'wn2', 'res', 'degrade']:
+            for key in ['wn1', 'wn2', 'lblres', 'outres']:
               channels[key] = np.delete(channels[key], iBand)
 
             # reassign channel limits
@@ -209,9 +226,9 @@ class configure():
 
             # now apply resolution and degradation from entire 
             # (width > 2000 cm-1) channel to the subchannels
-            channels['res'] = np.insert(channels['res'], iBand, \
-              np.repeat(res, len(subChanWN1)))
-            channels['degrade'] = np.insert(channels['degrade'], \
+            channels['lblres'] = np.insert(channels['lblres'], \
+              iBand, np.repeat(res, len(subChanWN1)))
+            channels['outres'] = np.insert(channels['outres'], \
               iBand, np.repeat(deg, len(subChanWN1)))
           # endif > 2000
         # end band loop
@@ -569,12 +586,12 @@ class configure():
     # degradation factor, so let's use a list instead of arrays
     # 1 kernel per band
     weights = []
-    for scale in self.channels['degrade']:
+    for kWidth in self.channels['kernwidth']:
       # number of kernel elements
-      nKernEl = scale + 1
+      nKernEl = kWidth + 1
 
       # denominator for weights
-      denom = 2**(np.log2(scale)-1) + 1
+      denom = 2**(np.log2(kWidth)-1) + 1
 
       # not sure what the mathematical term is, but we want to 
       # increase by 1 until a max, then reverse by 1 (e.g. 1 2 3 2 1)
@@ -583,7 +600,7 @@ class configure():
       middle = np.median(initKern)
       initKern[initKern > middle] = revKern[initKern > middle]
       weights.append(np.array(initKern)/denom**2)
-    # end scale loop
+    # end kWidth loop
 
     self.kernel = list(weights)
 

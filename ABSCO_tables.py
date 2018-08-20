@@ -152,7 +152,7 @@ class makeABSCO():
     self.nT = self.allT.size
     self.pressures = np.array(inP)
     self.bands = dict(inObj.channels)
-    self.nBands = len(inObj.channels['res'])
+    self.nBands = len(inObj.channels['lblres'])
     self.molNames = list(inObj.molnames)
     self.doBand = dict(inObj.doBand)
     self.degradeKern = list(inObj.kernel)
@@ -393,10 +393,9 @@ class makeABSCO():
       # DPTMIN, and DPTFAC params
       record13 += ''.join(['%10.3e' % 0 for i in range(6)])
 
-      # line rejection not recorded and 1e-4 output OD spectral
-      # resolution
+      # line rejection not recorded and output OD spectral resolution
       record13 += '%4s%1d%5s%10.3e' % \
-        (' ', 0, ' ', self.bands['res'][0])
+        (' ', 0, ' ', self.bands['lblres'][0])
 
       outDirT5 = '%s/%s/%s' % (self.runDirLBL, self.dirT5, mol)
       if not os.path.exists(outDirT5):
@@ -561,6 +560,7 @@ class makeABSCO():
     # these are identical for all LBL runs for this task
     targets = ['lblrtm', 'xs', 'FSCDXS']
     sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
+    sources = ['%s/%s' % (self.topDir, src) for src in sources]
     makeSymLinks(sources, targets)
 
     # outList is going to be an nBand-element list of dictionaries 
@@ -960,21 +960,15 @@ if __name__ == '__main__':
 
   parser = argparse.ArgumentParser(\
     description='Generate ABSCO tables for user-specified molecules.')
-  parser.add_argument('--config_file', type=str, \
+  parser.add_argument('-i', '--config_file', type=str, \
     default='ABSCO_config.ini', \
     help='Configuration file that contains the file and ' + \
     'directory names necessary for the makeABSCO class.')
 
   # argument switches (booleans, no assignments)
-  parser.add_argument('-lft5', '--lnfl_tape5', action='store_true', \
-    help='Make the LBLRTM TAPE5 files for each species, channel, ' + \
-    'pressure, and temperature.')
   parser.add_argument('-lnfl', '--run_lnfl', action='store_true', \
     help='Run LBLRTM for each of the TAPE5s generated and saved ' + \
     'in lblT5().')
-  parser.add_argument('-lblt5', '--lbl_tape5', action='store_true', \
-    help='Make the LBLRTM TAPE5 files for each species, channel, ' + \
-    'pressure, and temperature.')
   parser.add_argument('-lbl', '--run_lbl', action='store_true', \
     help='Run LBLRTM for each of the TAPE5s generated and saved ' + \
     'in lblT5().')
