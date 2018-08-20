@@ -41,31 +41,68 @@ LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has its own Git
 
 The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory.
 
-Occasionally, the models and LPD will be updated periodically.
+Periodically, the models and LPD will be updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. For reference, the model and LPD version numbers associated with the initial release of the ABSCO software are:
 
-Both models can be built with the `build_models.py` script:
+| Model | Version |
+| :---: | :---: |
+| LNFL | v3.1 |
+| LBLRTM | v12.9 |
+| LPD | v3.6 |
+---
+
+Currently, there are no plans on updating these three repositories. In the future, we may set up a separate AER account that will contain model code for the public rather than hosting in my personal account.
+
+LNFL and LBLRTM can be built with the `build_models.py` script:
 
 ```
 % ./build_models.py -c gfortran -i ABSCO_config.ini
 ```
 
-This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in ABSCO\_config.ini with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options.
+This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in `ABSCO_config.ini` with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options. Path replacement also occurs with the line file-associated paths (`tape1_path`, `tape2_path`, `extra_params`, `xs_path`, and `fscdxs`). If `-i` is not set, no path replacement occurs even though the executable are compiled. The two executables follow the naming convention `model_version_os_compiler_precision`, e.g., `lblrtm_v12.9_linux_intel_dbl`.
 
 # Setup (Configuration File)
 
-`ABSCO_config.ini` contains all of the inputs expected from the user.
+With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be utilized, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
+
+| Field | Notes |
+| :---: | :--- |
+| header | 80-character header that is written to LBL optical depth files but is otherwise not used|
+| pfile | text file with 1 pressure layer \[mbar\] per line. these will be the pressures on which the ABSCOs are calculated. this is a *relative* path with respect to the working directory |
+---
+
+`ABSCO_config.ini` can be named something else, but that will have to be specified at the command line (otherwise it's assumed that `ABSCO_config.ini` is the configuration file to use):
+
+```
+ABSCO_tables.py -i your_ini_file
+```
 
 ## FSCDXS
 
-Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the ABSCO\_preprocess.py module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, non-version controlled script.  Currently, there is only one molecule (in one band) where the line parameters are recommended over the XS coefficients (CH<sub>3</sub>CN), and it is not a molecule that ABSCO_tables.py processes.
+Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, non-version controlled script.
 
-# Binary Line Files
+# Binary Line Files (TAPE3 files)
 
-Running LNFL
+Line file need to be generated for every molecule and spectral range. Depending on the range and the number of lines for a given species in the range, this can be a time consuming process. However, the TAPE3 files likely only need to be generated once and can be saved to disk, which can be done by setting the `-lnfl` keyword:
 
-# Optical Depth Files
+```
+ABSCO_tables.py -lnfl
+```
 
-Running LBLRTM
+In the call, we assume `ABSCO_config.ini` to be the configuration file, which contains the molecule name, spectral range, and output TAPE3 subdirectory, all of which are incorporated into the file naming convention of the TAPE3 files: `working_dir/TAPE3_dir/molecule/TAPE3_wn1-wn2`.
+
+LNFL runs are performed inside an `LNFL_Runs` directory (also in `ABSCO_config.ini`). Links to the LNFL executable and necessary input files (line coupling TAPE2, broadening parameters, full ASCII TAPE1 line file), and TAPE5 files that direct LNFL on what to do are also automatically generated and saved in the `LNFL_Runs/TAPE5_dir` subdirectory by default.
+
+# Optical Depth Files (ODint_001)
+
+```
+ABSCO_tables.py -lbl
+```
+
+# End-to-end Run
+
+```
+ABSCO_tables.py -e2e
+```
 
 # Defaults
 
