@@ -96,11 +96,8 @@ class makeABSCO():
     # end P loop
 
     # grab the user provided VMR profile for the species of interest
-    # and handle the broadening density, which will differ depending 
-    # on the molecule
     inUserProf = pd.read_csv(inObj.vmrfile)
-    inBroadProf = pd.read_csv(inObj.broadfile)
-    userProf, broadProf = {}, {}
+    userProf = {}
     userProf['P'] = inUserProf['P'].values
     userProf['T'] = inUserProf['T'].values
     userProf['ALT'] = inUserProf['ALT'].values
@@ -128,18 +125,7 @@ class makeABSCO():
       # this is the only special case so far: allowed molecule that 
       # has an LBLRTM alias that is not the allowed string
       if mol == 'F22': userProf[mol] = inUserProf['CHCLF2'].values
-
-      # extract broadening density associated with each specified 
-      # molecule (no need to worry about hiMol here, because 
-      # broadener CSV makes no distinction)
-      if mol in inBroadProf.keys().values:
-        broadProf[mol] = inBroadProf[mol]
-
-      # all XS molecules have the same broadening density
-      if mol in inObj.xsNames: broadProf[mol] = inBroadProf['XS']
     # end mol loop
-
-    userProf['BRD'] = dict(broadProf)
 
     # set class attributes
     # state, etc. atts
@@ -768,7 +754,7 @@ class makeABSCO():
         for iT in range(len(inArr)):
           # FILL IN EMPTY SPECTRA
           # here, we assume that if the LBL run did not extend the 
-          # entire spectral range, that it stopped early and we 
+          # entire spectral range, then it stopped early and we 
           # append fill values to the end of the array
           nWN = len(inArr[iT])
           if nWN < nBandWN:
@@ -789,9 +775,11 @@ class makeABSCO():
     outAx = (3, 0, 2, 1)
     self.ABSCO = np.transpose(np.array(arrABSCO), axes=outAx)
     self.layerP = np.array(layPArr)
-    self.freq = np.array(wnAll)
     self.levelT = np.array(levelT)
     self.levelP = bandABSCO['levelP']
+
+    # spectral grid is a bit a posteriori...(finish this thought)
+    self.freq = np.array(wnAll)
 
     return self
   # end arrABSCO()
@@ -809,8 +797,9 @@ class makeABSCO():
     print('Building %s' % outNC)
     if os.path.exists(outNC): print('WARNING: overwriting %s' % outNC)
     outFP = nc.Dataset(outNC, 'w')
+    outFP.set_fill_on()
 
-    pwvStr = 'PWV, '  if mol in self.molH2O else ''
+    pwvStr = 'H2O VMR, '  if mol in self.molH2O else ''
     outFP.description = 'Absorption coefficients for %s ' % mol
     outFP.description += 'as a function of pressure, temperature, '
     outFP.description += '%swavenumber, and band' % pwvStr
@@ -847,14 +836,12 @@ class makeABSCO():
       abscoDim = ('nfreq', 'nranges', 'ntemp', 'nlay')
     # endif WV mol
 
-    units = 'cm-1' if self.spectralUnits == 'cm-1' else 'microns'
-
     for name, val in zip(outDimNames, outDimVals):
       outFP.createDimension(name, val)
 
     # now onto the variables; TO DO: VERIFY RANGES!
     outVar = outFP.createVariable('P_level', float, \
-      ('nlev'), zlib=True, complevel=self.compress)
+      ('nlev'), zlib=True, complevel=self.compress, fill_value=np.nan)
     outVar[:] = self.levelP
     outVar.units = 'mbar'
     outVar.long_name = 'Pressure Levels'
@@ -862,16 +849,17 @@ class makeABSCO():
     outVar.description = 'User-provided layer boundary pressures'
 
     outVar = outFP.createVariable('P_layer', float, \
-      ('nlay', 'ntemp'), zlib=True, complevel=self.compress)
-    outVar[:] = self.layerP
+      ('nlay', 'ntemp'), zlib=True, complevel=self.compress, \
+      fill_value=np.nan)
+    outVar[:] = np.ma.array(self.layerP, mask=np.isnan(self.layerP))
     outVar.units = 'mbar'
     outVar.long_name = 'Layer Pressures'
     outVar.valid_range = (0, 1050)
     outVar.description = 'LBLRTM-calculated layer pressures'
 
-    outVar = outFP.createVariable('absco', float, abscoDim, \
-      zlib=True, complevel=self.compress)
-    outVar[:] = self.ABSCO
+    outVar = outFP.createVariable('Cross_Section', float, abscoDim, \
+      zlib=True, complevel=self.compress, fill_value=np.nan)
+    outVar[:] = np.ma.array(self.ABSCO, mask=np.isnan(self.ABSCO))
     outVar.units = 'cm2/molecule'
     outVar.long_name = 'Absorption Coefficients'
     outVar.valid_range = (0, 1)
@@ -879,18 +867,20 @@ class makeABSCO():
       'from LBLRTM optical depths.'
 
     outVar = outFP.createVariable('Spectral_Grid', float, \
-      ('nfreq'), zlib=True, complevel=self.compress)
+      ('nfreq'), zlib=True, complevel=self.compress, \
+      fill_value=np.nan)
     outVar[:] = self.freq
-    outVar.units = units
-    outVar.long_name = 'Frequencies'
-    outVar.valid_range = (0, 1)
+    outVar.units = self.spectralUnits
+    outVar.long_name = 'Spectral Points'
+    outVar.valid_range = (0, 50000)
     outVar.description = 'Spectral points corresponding to ' + \
       'ABSCOs in a single layer for a single temperature and in ' + \
-      'a given spectral range.'
+      'a given spectral range (wavenumbers, microns, or nanometers).'
 
     outVar = outFP.createVariable('Temperature', float, \
-      ('nlev', 'ntemp'), zlib=True, complevel=self.compress)
-    outVar[:] = self.levelT
+      ('nlev', 'ntemp'), zlib=True, complevel=self.compress, \
+      fill_value=np.nan)
+    outVar[:] = np.ma.array(self.levelT, mask=np.isnan(self.levelT))
     outVar.units = 'K'
     outVar.long_name = 'Temperature Levels'
     outVar.valid_range = (180, 320)
@@ -898,9 +888,10 @@ class makeABSCO():
       'with each layer boundary pressure'
 
     outVar = outFP.createVariable('Extent_Ranges', float, \
-      ('nranges', 'nranges_lims'), zlib=True, complevel=self.compress)
+      ('nranges', 'nranges_lims'), zlib=True, \
+      complevel=self.compress, fill_value=np.nan)
     outVar[:] = [self.bands['wn1'], self.bands['wn2']]
-    outVar.units = units
+    outVar.units = self.spectralUnits
     outVar.long_name = 'Spectral Ranges'
     outVar.valid_range = (180, 320)
     outVar.description = 'Starting and ending spectral points ' + \
@@ -908,7 +899,8 @@ class makeABSCO():
 
     if mol in self.molH2O:
       outVar = outFP.createVariable('H2O_VMR', float, \
-        ('nvmr'), zlib=True, complevel=self.compress)
+        ('nvmr'), zlib=True, complevel=self.compress, \
+        fill_value=np.nan)
       outVar[:] = self.vmrWV
       outVar.units = 'ppmv'
       outVar.long_name = 'Water Vapor Mixing Ratio'

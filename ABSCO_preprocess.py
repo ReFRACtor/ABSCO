@@ -298,12 +298,10 @@ class configure():
 
   def processP(self):
     """
-    Read in user pressures, standard atmosphere pressures (associated
-    with VMRs), and broadener pressures and perform quality control --
-    user-specified pressure grid should be identical to standard 
-    atmosphere pressures, standard atmosphere pressures should 
-    correspond (levels) to broadener pressures (layers), and we should
-    make the pressures used in ABSCO_tables.py monotonically 
+    Read in user and standard atmosphere pressures (associated
+    with VMRs) and perform quality control -- user-specified pressure 
+    grid should be identical to standard atmosphere pressures, and we 
+    should make the pressures used in ABSCO_tables.py monotonically 
     decreasing
     """
 
