@@ -159,13 +159,16 @@ class submodules():
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(\
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter, \
     description='Build LBLRTM and LNFL executables for usage in ' + \
     'ABSCO_config.ini and ABSCO_tables.py.')
   parser.add_argument('-c', '--compiler', default='ifort', \
     help='Name of compiler with which user intends to build ' + \
     '([ifort, gfortran, pgf90] are supported). Case-insensitive')
   parser.add_argument('-ini', '--config_file', \
-    help='Name of configuration file in which to add exe paths.')
+    help='Name of configuration file in which to add exe paths.  ' + \
+    'If this is not set, only the models are built and no ' + \
+    'configuration file is altered.')
   parser.add_argument('-lnfl', '--lnfl_path', default='LNFL', \
     help='Path of LNFL submodule directory (top level).')
   parser.add_argument('-lbl', '--lblrtm_path', default='LBLRTM', \
