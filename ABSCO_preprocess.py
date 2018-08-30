@@ -68,6 +68,9 @@ class configure():
 
     # spectral degradation weight calculation
     self.degradeWeighting()
+
+    # was the line parameter source HITRAN or AER Line Parameter Data?
+    self.determineSources()
   # end constructor
 
   def readConfig(self):
@@ -604,5 +607,25 @@ class configure():
 
     return self
   # end degradeWeighting()
+
+  def determineSources(self):
+    """
+    Determine the source for each band, then combine into a single 
+    string for output netCDF
+    """
+
+    sources = {}
+    for mol in self.molnames:
+      molXS = list(self.doXS[mol])
+      molSrc = []
+      for iBand, doXS in enumerate(molXS):
+        src = 'HITRAN2012' if doXS else 'AER v3.6'
+        molSrc.append('Band %d: %s' % (iBand+1, src))
+      # end band loop
+      sources[mol] = '; '.join(molSrc)
+    # end mol loop
+
+    self.sources = dict(sources)
+  # end determineSources()
 # end configure()
 

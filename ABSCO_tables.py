@@ -143,6 +143,7 @@ class makeABSCO():
     self.doBand = dict(inObj.doBand)
     self.degradeKern = list(inObj.kernel)
     self.spectralUnits = str(inObj.spectral_units)
+    self.dataSource = dict(inObj.sources)
 
     # grab the profiles
     self.vmrProf = dict(userProf)
@@ -767,7 +768,7 @@ class makeABSCO():
             inArr[iT] = np.hstack( \
               (inArr[iT], np.repeat(np.nan, nMiss) ))
           # endif nWN
-          bandArr[iP, iMatchT, :] = inArr[iT]
+          bandArr[iP, iMatchT[iT], :] = np.array(inArr[iT])
         # end T loop
       # end pLev loop
 
@@ -802,7 +803,7 @@ class makeABSCO():
     self.ABSCO = np.transpose(np.array(arrABSCO), axes=outAx)
     self.layerP = np.array(layPArr)
     self.levelT = np.array(levelT)
-    self.levelP = bandABSCO['levelP']
+    self.levelP = np.array(bandABSCO['levelP'])
 
     return self
   # end arrABSCO()
@@ -828,26 +829,10 @@ class makeABSCO():
     outFP.description += '%swavenumber, and band' % pwvStr
 
     # metadata attribute -- line parameter source
-    outFP.source = 'HITRAN'
+    outFP.source = str(self.dataSource[mol])
 
     # extract dimensions from data
     inDims = self.ABSCO.shape
-
-    # quality control
-    """
-    dimNames = ['Bands', 'T', 'P']
-    validDims = [self.nBands, self.nT, self.nP-1]
-    for iDim, dimStr in enumerate(dimNames):
-      expected = validDims[iDim]
-      actual = inDims[iDim+1]
-      if expected != actual:
-        print('Expected/actual dimensions of %s' % dimStr, end=' ')
-        print('do not match (%d vs. %d), returning' % \
-          (expected, actual))
-        sys.exit(1)
-      # endif dims
-    # end dim loop
-    """
 
     if mol in self.molH2O:
       nFreq, nTemp, nLay, nVMR = inDims
@@ -872,7 +857,7 @@ class makeABSCO():
     for name, val in zip(outDimNames, outDimVals):
       outFP.createDimension(name, val)
 
-    # now onto the variables; TO DO: VERIFY RANGES!
+    # now onto the variables
     outVar = outFP.createVariable('P_level', float, \
       ('nlev'), zlib=True, complevel=self.compress, fill_value=np.nan)
     outVar[:] = self.levelP
