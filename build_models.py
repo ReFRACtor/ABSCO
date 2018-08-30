@@ -43,6 +43,8 @@ class submodules():
     self.iniFile = None if iniFile is None else str(iniFile)
     self.lines = False
 
+    self.topDir = str(inArgs['top_dir'])
+
     # LNFL: always single precision, LBLRTM: always double
     if lnfl:
       self.modelDir = str(lnflDir)
@@ -125,8 +127,7 @@ class submodules():
       if self.lines:
         # making some assumptions about directory structure here...
         modStr = ['line_file/aer_v_3.6', 'line_file/lncpl_lines', \
-          'extra_brd_params', \
-          'xs_files_v3.6/xs', 'xs_files_v3.6/FSCDXS']
+          'extra_brd_params', 'xs_files/xs', 'xs_files/FSCDXS']
       else:
         # make_lnfl and make_lblrtm -o arguments
         modStr = '%s/%s_*_%s_%s_%s' % \
@@ -141,13 +142,14 @@ class submodules():
             if (old in line):
               split = line.split('=')
               line = line.replace(split[1], \
-                ' %s/%s' % (self.modelDir, new) )
+                ' %s/%s/%s' % (self.topDir, self.modelDir, new) )
             # endif LNFL
           # end path loop
         else:
           if (self.pathStr in line):
             split = line.split('=')
-            line = line.replace(split[1], ' %s' % modExe)
+            line = line.replace(split[1], ' %s/%s' % \
+              (self.topDir, modExe) )
           # endif LNFL
         # endif lines
         outFP.write('%s\n' % line)
@@ -175,15 +177,20 @@ if __name__ == '__main__':
     help='Path of LBLRTM submodule directory (top level).')
   parser.add_argument('-lines', '--lines_path', \
     default='AER_Line_File', help='Top-level path of AER line file.')
-  parser.add_argument('--only_lines', action='store_true', \
+  parser.add_argument('-no', '--no_build', action='store_true', \
     help='If set, only the line file paths are changed in the ' + \
     'configuration file and no model builds are done.')
+  parser.add_argument('-t', '--top_dir', type=str, \
+    default=os.getcwd(), \
+    help='Full path to top-level directory under which model ' + \
+    'directories reside (since .ini file for ABSCO_tables.py ' + \
+    'requires absolute paths).')
   args = parser.parse_args()
 
   # first replace line file paths
   subObj = submodules(vars(args), lines=True)
   subObj.configFile()
-  if args.only_lines:
+  if args.no_build:
     sys.exit('Only replaced lines paths in %s' % args.config_file)
 
   # now do LNFL -- line file paths will not change
