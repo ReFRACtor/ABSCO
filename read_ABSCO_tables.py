@@ -20,6 +20,7 @@ class testABSCO():
     - print absorption coefficient at user-specified array coordinate
     """
 
+    utils.file_check(inArgs['ncFile'])
     self.ncFile = str(inArgs['ncFile'])
     self.userP = float(inArgs['in_pressure'])
     self.userT = float(inArgs['in_temp'])
@@ -69,15 +70,6 @@ class testABSCO():
     if idxP == ncP.size-1:
       sys.exit('Please specify a level P that is not at the TOA')
     
-    # is there more than 1 band? if there is, we need to convert the 
-    # 1-D idxWN to its equivalent in N-D
-    nDim = len(ncWN.shape) > 1
-    if nDim:
-      idxBand, idxWN = np.unravel_index(idxWN, ncWN.shape)
-    else:
-      idxBand = 0
-    # endif nDim
-
     if self.h2o: idxH2O = np.nanargmin(np.abs(ncH2O-self.userH2O))
 
     # are the closest values close to what the user wants?
@@ -109,7 +101,6 @@ class testABSCO():
     # save for later usage
     self.iP = int(idxP)
     self.iT = int(idxT)
-    self.iBand = int(idxBand)
     self.iWN  = int(idxWN)
 
     if self.h2o: self.iH2O = int(idxH2O)
@@ -125,15 +116,14 @@ class testABSCO():
     # huge efficiency improvement
     print('Reading %s' % self.ncFile)
     with xa.open_dataset(self.ncFile) as xaObj:
-      absco = np.array(xaObj.variables['absco'])
-      #absco = np.array(xaObj.variables['Cross_Section'])
+      absco = np.array(xaObj.variables['Cross_Section'])
 
     if self.h2o:
-      coord = (self.iWN, self.iBand, self.iT, self.iP, self.iH2O)
-      out = absco[self.iWN, self.iBand, self.iT, self.iP, self.iH2O]
+      coord = (self.iWN, self.iT, self.iP, self.iH2O)
+      out = absco[self.iWN, self.iT, self.iP, self.iH2O]
     else:
-      coord = (self.iWN, self.iBand, self.iT, self.iP)
-      out = absco[self.iWN, self.iBand, self.iT, self.iP]
+      coord = (self.iWN, self.iT, self.iP)
+      out = absco[self.iWN, self.iT, self.iP]
     # endif h2o
 
     print("Cross_Section indices: %s" % (coord, ))
