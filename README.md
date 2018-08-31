@@ -63,12 +63,36 @@ This script call specifies a `gfortran` compiler (`-c`) and replaces the paths t
 
 # Setup (Configuration File)
 
-With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be utilized, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
+With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be run, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
 
 | Field | Notes |
 | :---: | :--- |
 | header | 80-character header that is written to LBL optical depth files but is otherwise not used|
-| pfile | text file with 1 pressure layer \[mbar\] per line. these will be the pressures on which the ABSCOs are calculated. this is a *relative* path with respect to the working directory |
+| pfile | text file with 1 pressure layer in millibars per line. these will be the pressures on which the ABSCOs are calculated. this can be a *relative* path with respect to the working directory or an absolute path|
+| ptfile | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures|
+| vmrfile | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated VMRs for entire user-specified profile (can be relative to working directory) |
+| xs_lines | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN |
+| wn1, wn2 | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
+| lblres, outres | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
+| units | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
+| wv_vmr | water vapor (in ppmv) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts) |
+| molnames | HITRAN molecule names, space delimited, case-insensitive. really should only be one molecule per run |
+| scale | multiplicative factors used for the continuum scaling |
+| tape5_dir | Directory underneath both lnfl_run_dir and lbl_run_dir to which TAPE5 files will be written (should just be a single string) |
+| lnfl_run_dir | Path to directory where LNFL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. can be full or relative path. assignment can be automated with build_models.py |
+| tape1_path | Full path to the full TAPE1 ASCII line file that should be used in LNFL runs. assignment can be automated with build_models.py |
+| tape2_path | Full path to the full TAPE2 ASCII line coupling file that should be used in LNFL runs with O<sub>2</sub>, CO<sub>2</sub>, and CH<sub>4</sub>. assignment can be automated with build_models.py |
+| lnfl_path | Full path to LNFL executable to be run. assignment can be automated with build_models.py |
+| extra_params | directory with CO<sub>2</sub>-CO<sub>2</sub>, CO<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-O<sub>2</sub>, and H<sub>2</sub>O-CO<sub>2</sub> broadening parameter specifications. assignment can be automated with build_models.py |
+| tape3_dir | directory relative to the working directory to which LNFL output (binary line files)  will be written|
+| lbl_path | Full path to LBLRTM executable to be run. assignment can be automated with build_models.py |
+| xs_path | Full path to LBLRTM cross section file directories. assignment can be automated with build_models.py |
+| fscdxs | Full path to cross section "lookup" file used with xs_path. assignment can be automated with build_models.py |
+| lbl_run_dir | Path to directory where LBL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. Can be a relative path with respect to working directory |
+| outdir | directory where the netCDFs will be written. can be relative to working directory |
+| sw_ver | used in the output netCDF file to specify the software version number |
+| out_file_desc | used in the output netCDF file. allows use to document run more specifically |
+| nc_compress | compression level for netCDF output |
 ---
 
 `ABSCO_config.ini` can be named something else, but that will have to be specified at the command line (otherwise it's assumed that `ABSCO_config.ini` is the configuration file to use):
@@ -77,9 +101,9 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 run_LBLRTM_ABSCO.py -i your_ini_file
 ```
 
-## FSCDXS
+## HITRAN Cross Section Usage
 
-Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, non-version controlled script.
+Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, non-version controlled script. For now, if there is any overlap of the user-specified region and a HITRAN-recommended XS region, the XS parameters are used.
 
 # Binary Line Files (TAPE3 files)
 
