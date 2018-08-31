@@ -71,6 +71,8 @@ class configure():
 
     # was the line parameter source HITRAN or AER Line Parameter Data?
     self.determineSources()
+
+    self.calcRAM()
   # end constructor
 
   def readConfig(self):
@@ -627,5 +629,52 @@ class configure():
 
     self.sources = dict(sources)
   # end determineSources()
+
+  def calcRAM(self):
+    """
+    Determine the approximate amount of RAM needed for the entirety 
+    of the ABSCO computation
+
+    This calculation is simply 8 bytes (np.float64.itemsize) x 
+    2 (wavenumber and absco) x number of output wavenumbers (degraded
+    spectrum) for all bands combined x number of temperatures x 
+    number of layers
+
+    Less HD space is needed because of netCDF compression
+
+    If multiple molecules are provided in the .ini file, they will be
+    handled in series
+    """
+
+    # how many total spectral points?
+    nOutWN = (self.channels['wn2']-self.channels['wn1'])
+    nOutWN /= self.channels['outres']
+    nOutWN = nOutWN.sum()
+
+    estimate = 16 * 2 * nOutWN * 15 * self.pressures.size
+    estimateGB = estimate/1e9
+
+    print()
+    print('RAM per molecule:')
+    print()
+
+    totEst = 0
+    for mol in self.molnames:
+      # another factor of two to account for 2 H2O VMRs
+      scale = 2 if mol in self.molH2O else 1
+      est = scale * estimateGB
+      totEst += est
+      print('\t%s, %.3f GB' % (mol, est))
+    # end mol loop
+
+    prompt = 'Full ABSCO table netCDF generation expected to ' + \
+      'consume up to %.3f GB of RAM, continue? ' % totEst
+
+    status = input(prompt)
+    status = status.upper()
+
+    if status == 'N': sys.exit('Exited without proceeding')
+
+  # end calcRAM()
 # end configure()
 
