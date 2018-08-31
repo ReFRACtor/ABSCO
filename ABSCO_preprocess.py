@@ -15,7 +15,8 @@ class configure():
   def __init__(self, inFile, molActiveCheck=True):
     """
     Parse the input .ini file (inFile) and return as an object for 
-    use in makeABSCO class.  Also do some error checking
+    use in makeABSCO class.  Also do some error checking and other 
+    processes that are not directly related to running LNFL and LBLRTM
 
     Inputs
       inFile -- string, full path to .ini file that specifies paths 
@@ -643,7 +644,8 @@ class configure():
     Less HD space is needed because of netCDF compression
 
     If multiple molecules are provided in the .ini file, they will be
-    handled in series
+    handled in series, so the by-molecule RAM usage is of greater 
+    importance unless the code is run in parallel
     """
 
     # how many total spectral points?
