@@ -101,11 +101,36 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 run_LBLRTM_ABSCO.py -i your_ini_file
 ```
 
-## HITRAN Cross Section Usage
+# HITRAN Cross Section Usage
 
 Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, script not in version control. For now, if there is any overlap of the user-specified region and a HITRAN-recommended XS region, the XS parameters are used.
 
-# Binary Line Files (TAPE3 files)
+# Running the `run_LBLRTM_ABSCO.py` Driver Script 
+
+## Defaults
+
+The user must provide a spectral range in the configuration file. If multiple bands are provided, each band must have assigned to it an associated starting value, ending value, LBLRTM resolution, and output (netCDF) resolution.
+
+Species specification is optional, but nothing is done if not molecule is provided. If `molnames` is not assigned anything, the code will check to see what molecules are radiatively active in the given band, then provide them to the user in a standard output prompt.
+
+### Pressure levels
+
+In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini`.
+
+### Allowed Molecules
+
+While LBLRTM handles a number of molecules via line parameters and cross sections, the allowed molecules for ABSCO processing is more limited. From `ABSCO_preprocess.py`, where we verify that the user-provided molecule can be processed:
+
+```
+allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
+  'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OCS', 'H2CO', 'N2', \
+  'HCN', 'C2H2', 'HCOOH', 'C2H4', 'CH3OH', 'CCL4', 'CF4', \
+  'F11', 'F12', 'F22', 'ISOP', 'PAN', 'HDO', 'BRO', 'O2-O2']
+```
+
+The molecule names match those in the HITRAN database and are case-insensitive.
+
+## Binary Line Files (TAPE3)
 
 Line files need to be generated for every molecule and spectral range. Depending on the range and the number of lines for a given species in the range, this can be a time consuming process. However, the TAPE3 files likely only need to be generated once and can be saved to disk, which can be done by setting the `-lnfl` keyword:
 
@@ -117,7 +142,7 @@ In the call, we assume `ABSCO_config.ini` to be the configuration file, which co
 
 LNFL runs are performed inside an `LNFL_Runs` directory (also defined in `ABSCO_config.ini`). Links to the LNFL executable and necessary input files (line coupling TAPE2, broadening parameters, full ASCII TAPE1 line file), and TAPE5 files that direct LNFL on what to do are also automatically generated and saved in the `LNFL_Runs/TAPE5_dir` subdirectory by default.
 
-# Optical Depth and Absorption Coefficient Calculation
+## Optical Depth and Absorption Coefficient Calculation
 
 For the absorption coefficient calculation, LBLRTM must be run to compute a) optical depths, and b) layer amounts (done with the LBLATM subroutine). Once TAPE3 files are generated for the specified molecule and bands, LBLRTM TAPE5s (LBLRTM input file with state specifications and radiative transfer parameters) are written for every specified pressure level, temperature, and band combination. In each iteration, the optical depth spectrum is converted to absorption coefficients (*k* values) by dividing them by the layer amount for the given molecule. This *k* spectrum is then degraded to lessen the amount of RAM and hard drive space needed for the output.
 
@@ -131,7 +156,7 @@ run_LBLRTM_ABSCO.py -lbl
 
 The process is repeated over both water vapor VMRs for species whose continua are affected by water vapor (CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub>). Separate objects for each VMR are instantiated, then their ABSCO arrays are combined.
 
-# End-to-end Run
+## End-to-end Run
 
 Initially, it may be best to just run LNFL and LBLRTM in series, i.e., the end-to-end run. This can be done in the driver with the `e2e` keyord:
 
@@ -141,51 +166,136 @@ run_LBLRTM_ABSCO.py -e2e
 
 Separating the LNFL and LBL runs may be useful after the user has generated all of the TAPE3 files that they need, but it will not be detrimental to run the end-to-end mode everytime. The only bottlenecks are the LNFL runs and the loop over all LBL cases. The latter will happen whenever ABSCOs are computed, and the former will not take a noticeable amount of time because LNFL will not be run if the expected TAPE3 exists.
 
-# Defaults
-
-User must provide a spectral range. Species specification is optional -- if `molnames` is not assigned anything, the code will check to see what molecules are radiatively active in the given band.
-
-# User Options
-
-can be set in .ini file that follows ABSCO_config.ini convention.
-
-## Pressure levels
-
-In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini`.
-
-For whatever atmosphere is used, one must also calculate the broadening density at each pressure layer for each molecule (i.e., when all of the other molecules are zeroed out in the TAPE5). This can also be done with the `standard_atm_profiles.py` module using the `--broad` keyword. This should be done whenever a new profile is calculated. The corresponding output file should be entered into the `broadfile` field in `ABSCO_config.ini` as well.
-
-## Allowed Molecules
-
-While LBLRTM handles a number of molecules via line parameters and cross sections, the allowed molecules for ABSCO processing is more limited.
-
-```
-allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
-  'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OCS', 'H2CO', 'N2', \
-  'HCN', 'C2H2', 'HCOOH', 'C2H4', 'CH3OH', 'CCL4', 'CF4', \
-  'F11', 'F12', 'F22', 'ISOP', 'PAN', 'HDO', 'BRO', 'O2-O2']
-```
-
-water vapor is treated as a number of particles, depending on the number of PWV values provided. in `run_LBLRTM_ABSCO.py`, LBLRTM TAPE5 files are generated in a loop over PWV, and separate TAPE5s are generated for the self and foreign continua.
-
-all HITRAN molecule names (these are the molecules for which we have line parameters)
-
-```
-# might be useful later...list the HITRAN molecule names
-lfMolDir = '/nas/project/rc_static/models/' + \
-  'aer_line_parameters/AER_line_files/aer_v_3.6/' + \
-  'line_files_By_Molecule/*'
-molDirs = sorted(glob.glob(lfMolDir))
-
-# the upper() takes care of the Br problem
-htMols = [os.path.basename(md).split('_')[1].upper() for \
-  md in molDirs]
-print(htMols)
-```
-
 # Output netCDF
 
-Template stuff
+```
+% ncdump -h nc_ABSCO/O2_00000-00150_v0.0_init.nc 
+netcdf O2_00000-00150_v0.0_init {
+dimensions:
+	nfreq = 375001 ;
+	nlev = 3 ;
+	nlay = 2 ;
+	ntemp = 15 ;
+	nranges = 1 ;
+	nranges_lims = 2 ;
+	nvmr = 2 ;
+variables:
+	double P_level(nlev) ;
+		P_level:_FillValue = NaN ;
+		P_level:units = "mbar" ;
+		P_level:long_name = "Pressure Levels" ;
+		P_level:valid_range = 0., 1050. ;
+		P_level:description = "User-provided layer boundary pressures" ;
+	double P_layer(nlay, ntemp) ;
+		P_layer:_FillValue = NaN ;
+		P_layer:units = "mbar" ;
+		P_layer:long_name = "Layer Pressures" ;
+		P_layer:valid_range = 0., 1050. ;
+		P_layer:description = "LBLRTM-calculated layer pressures" ;
+	double Cross_Section(nfreq, ntemp, nlay, nvmr) ;
+		Cross_Section:_FillValue = NaN ;
+		Cross_Section:units = "cm2/molecule" ;
+		Cross_Section:long_name = "Absorption Coefficients" ;
+		Cross_Section:valid_range = 0., 1.e-20 ;
+		Cross_Section:description = "Absorption coefficients (K) calculated from LBLRTM optical depths and layer amounts." ;
+	double Spectral_Grid(nfreq) ;
+		Spectral_Grid:_FillValue = NaN ;
+		Spectral_Grid:units = "cm-1" ;
+		Spectral_Grid:long_name = "Spectral Points" ;
+		Spectral_Grid:valid_range = 0., 50000. ;
+		Spectral_Grid:description = "Spectral points corresponding to ABSCOs in a single layer for a single temperature and in a given spectral range (wavenumbers, microns, or nanometers)." ;
+	double Temperature(nlev, ntemp) ;
+		Temperature:_FillValue = NaN ;
+		Temperature:units = "K" ;
+		Temperature:long_name = "Temperature Levels" ;
+		Temperature:valid_range = 180., 320. ;
+		Temperature:description = "Applicable temperatures associated with each layer boundary pressure" ;
+	double Extent_Ranges(nranges, nranges_lims) ;
+		Extent_Ranges:_FillValue = NaN ;
+		Extent_Ranges:units = "cm-1" ;
+		Extent_Ranges:long_name = "Spectral Ranges" ;
+		Extent_Ranges:valid_range = 0., 50000. ;
+		Extent_Ranges:description = "Starting and ending spectral points for each input channel." ;
+	int64 Extent_Indices(nranges, nranges_lims) ;
+		Extent_Indices:_FillValue = 9223372036854775807L ;
+		Extent_Indices:units = "N/A" ;
+		Extent_Indices:long_name = "Spectral Ranges Reference Indices" ;
+		Extent_Indices:valid_range = 0L, 9223372036854775807L ;
+		Extent_Indices:description = "Pairs of indices defining the start and end indices of the Cross_Secion frequency dimension for non-continuous calculation regions." ;
+	double H2O_VMR(nvmr) ;
+		H2O_VMR:_FillValue = NaN ;
+		H2O_VMR:units = "ppmv" ;
+		H2O_VMR:long_name = "Water Vapor Mixing Ratio" ;
+		H2O_VMR:valid_range = 0., 50000. ;
+		H2O_VMR:description = "Water vapor amount that influences the continua of [CO2 N2 O2] molecules." ;
+
+// global attributes:
+		:_NCProperties = "version=1|netcdflibversion=4.4.1.1|hdf5libversion=1.10.1" ;
+		:description = "Absorption coefficients for O2 as a function of pressure, temperature, H2O VMR, wavenumber, and band" ;
+		:source = "Band 1: AER v3.6" ;
+}
+```
+
+```
+% ncdump -h nc_ABSCO/O3_00500-00600_v0.0_init.nc 
+netcdf O3_00500-00600_v0.0_init {
+dimensions:
+	nfreq = 250001 ;
+	nlev = 3 ;
+	nlay = 2 ;
+	ntemp = 15 ;
+	nranges = 1 ;
+	nranges_lims = 2 ;
+variables:
+	double P_level(nlev) ;
+		P_level:_FillValue = NaN ;
+		P_level:units = "mbar" ;
+		P_level:long_name = "Pressure Levels" ;
+		P_level:valid_range = 0., 1050. ;
+		P_level:description = "User-provided layer boundary pressures" ;
+	double P_layer(nlay, ntemp) ;
+		P_layer:_FillValue = NaN ;
+		P_layer:units = "mbar" ;
+		P_layer:long_name = "Layer Pressures" ;
+		P_layer:valid_range = 0., 1050. ;
+		P_layer:description = "LBLRTM-calculated layer pressures" ;
+	double Cross_Section(nfreq, ntemp, nlay) ;
+		Cross_Section:_FillValue = NaN ;
+		Cross_Section:units = "cm2/molecule" ;
+		Cross_Section:long_name = "Absorption Coefficients" ;
+		Cross_Section:valid_range = 0., 1.e-20 ;
+		Cross_Section:description = "Absorption coefficients (K) calculated from LBLRTM optical depths and layer amounts." ;
+	double Spectral_Grid(nfreq) ;
+		Spectral_Grid:_FillValue = NaN ;
+		Spectral_Grid:units = "cm-1" ;
+		Spectral_Grid:long_name = "Spectral Points" ;
+		Spectral_Grid:valid_range = 0., 50000. ;
+		Spectral_Grid:description = "Spectral points corresponding to ABSCOs in a single layer for a single temperature and in a given spectral range (wavenumbers, microns, or nanometers)." ;
+	double Temperature(nlev, ntemp) ;
+		Temperature:_FillValue = NaN ;
+		Temperature:units = "K" ;
+		Temperature:long_name = "Temperature Levels" ;
+		Temperature:valid_range = 180., 320. ;
+		Temperature:description = "Applicable temperatures associated with each layer boundary pressure" ;
+	double Extent_Ranges(nranges, nranges_lims) ;
+		Extent_Ranges:_FillValue = NaN ;
+		Extent_Ranges:units = "cm-1" ;
+		Extent_Ranges:long_name = "Spectral Ranges" ;
+		Extent_Ranges:valid_range = 0., 50000. ;
+		Extent_Ranges:description = "Starting and ending spectral points for each input channel." ;
+	int64 Extent_Indices(nranges, nranges_lims) ;
+		Extent_Indices:_FillValue = 9223372036854775807L ;
+		Extent_Indices:units = "N/A" ;
+		Extent_Indices:long_name = "Spectral Ranges Reference Indices" ;
+		Extent_Indices:valid_range = 0L, 9223372036854775807L ;
+		Extent_Indices:description = "Pairs of indices defining the start and end indices of the Cross_Secion frequency dimension for non-continuous calculation regions." ;
+
+// global attributes:
+		:_NCProperties = "version=1|netcdflibversion=4.4.1.1|hdf5libversion=1.10.1" ;
+		:description = "Absorption coefficients for O3 as a function of pressure, temperature, wavenumber, and band" ;
+		:source = "Band 1: AER v3.6" ;
+}
+```
 
 # Reading the Output
 
