@@ -32,7 +32,7 @@ The following libraries were installed with miniconda (<https://conda.io/docs/us
   - netCDF4 (v1.3.1)
   - xarray (v0.10.8)
 
-All are used in this ABSCO library. The software is optimized for Python 3 usage -- Python 2 has not been tested and is not recommended.
+All are used in this ABSCO library. **The software is optimized for Python 3 usage -- Python 2 has not been tested and is not recommended.**
 
 ## LNFL, LBLRTM, and the AER Line File
 
@@ -68,16 +68,16 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 | Field | Notes |
 | :---: | :--- |
 | header | 80-character header that is written to LBL optical depth files but is otherwise not used|
-| pfile | text file with 1 pressure layer in millibars per line. these will be the pressures on which the ABSCOs are calculated. this can be a *relative* path with respect to the working directory or an absolute path|
+| pfile | text file with 1 pressure level in millibars per line. these will be the pressures on which the ABSCOs are calculated. this can be a *relative* path with respect to the working directory or an absolute path|
 | ptfile | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures|
-| vmrfile | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated VMRs for entire user-specified profile (can be relative to working directory) |
+| vmrfile | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated volume mixing ratios (VMRs) for entire user-specified profile (can be relative to working directory) |
 | xs_lines | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN |
 | wn1, wn2 | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
 | lblres, outres | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
 | units | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
-| wv_vmr | water vapor (in ppmv) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts) |
+| wv_vmr | water vapor VMR (in **ppmv**) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts) |
 | molnames | HITRAN molecule names, space delimited, case-insensitive. really should only be one molecule per run |
-| scale | multiplicative factors used for the continuum scaling |
+| scale | multiplicative factors used for continuum or extinction scaling (separate factors for H<sub>2</sub>O self continuum, H<sub>2</sub>O foreign continuum, CO<sub>2</sub> continuum, O<sub>3</sub> continuum, O<sub>2</sub> continuum, N<sub>2</sub> continuum, and Rayleigh extinction) |
 | tape5_dir | Directory underneath both lnfl_run_dir and lbl_run_dir to which TAPE5 files will be written (should just be a single string) |
 | lnfl_run_dir | Path to directory where LNFL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. can be full or relative path. assignment can be automated with build_models.py |
 | tape1_path | Full path to the full TAPE1 ASCII line file that should be used in LNFL runs. assignment can be automated with build_models.py |
@@ -103,31 +103,43 @@ run_LBLRTM_ABSCO.py -i your_ini_file
 
 ## HITRAN Cross Section Usage
 
-Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, non-version controlled script. For now, if there is any overlap of the user-specified region and a HITRAN-recommended XS region, the XS parameters are used.
+Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, script not in version control. For now, if there is any overlap of the user-specified region and a HITRAN-recommended XS region, the XS parameters are used.
 
 # Binary Line Files (TAPE3 files)
 
-Line file need to be generated for every molecule and spectral range. Depending on the range and the number of lines for a given species in the range, this can be a time consuming process. However, the TAPE3 files likely only need to be generated once and can be saved to disk, which can be done by setting the `-lnfl` keyword:
+Line files need to be generated for every molecule and spectral range. Depending on the range and the number of lines for a given species in the range, this can be a time consuming process. However, the TAPE3 files likely only need to be generated once and can be saved to disk, which can be done by setting the `-lnfl` keyword:
 
 ```
 run_LBLRTM_ABSCO.py -lnfl
 ```
 
-In the call, we assume `ABSCO_config.ini` to be the configuration file, which contains the molecule name, spectral range, and output TAPE3 subdirectory, all of which are incorporated into the file naming convention of the TAPE3 files: `working_dir/TAPE3_dir/molecule/TAPE3_wn1-wn2`.
+In the call, we assume `ABSCO_config.ini` to be the configuration file, which contains the molecule name, spectral range, and output TAPE3 subdirectory, all of which are incorporated into the file naming convention of the TAPE3 files: `working_dir/TAPE3_dir/molecule/TAPE3_wn1-wn2`. In the examples that follow, We will assume `ABSCO_config.ini` is populated with its default values (i.e., is unchanged from its original checkout).
 
-LNFL runs are performed inside an `LNFL_Runs` directory (also in `ABSCO_config.ini`). Links to the LNFL executable and necessary input files (line coupling TAPE2, broadening parameters, full ASCII TAPE1 line file), and TAPE5 files that direct LNFL on what to do are also automatically generated and saved in the `LNFL_Runs/TAPE5_dir` subdirectory by default.
+LNFL runs are performed inside an `LNFL_Runs` directory (also defined in `ABSCO_config.ini`). Links to the LNFL executable and necessary input files (line coupling TAPE2, broadening parameters, full ASCII TAPE1 line file), and TAPE5 files that direct LNFL on what to do are also automatically generated and saved in the `LNFL_Runs/TAPE5_dir` subdirectory by default.
 
-# Optical Depth Files (ODint_001)
+# Optical Depth and Absorption Coefficient Calculation
+
+For the absorption coefficient calculation, LBLRTM must be run to compute a) optical depths, and b) layer amounts (done with the LBLATM subroutine). Once TAPE3 files are generated for the specified molecule and bands, LBLRTM TAPE5s (LBLRTM input file with state specifications and radiative transfer parameters) are written for every specified pressure level, temperature, and band combination. In each iteration, the optical depth spectrum is converted to absorption coefficients (*k* values) by dividing them by the layer amount for the given molecule. This *k* spectrum is then degraded to lessen the amount of RAM and hard drive space needed for the output.
+
+The LBLRTM runs are followed by array manipulation (i.e., tranposing arrays to the dimensions that were agreed upon, adding fill values, etc.) and writing the necessary arrays to an output netCDF for the given species.
+
+To run this LBLRTM process, use the driver script with the `-lbl` keyword.
 
 ```
 run_LBLRTM_ABSCO.py -lbl
 ```
 
+The process is repeated over both water vapor VMRs for species whose continua are affected by water vapor (CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub>). Separate objects for each VMR are instantiated, then their ABSCO arrays are combined.
+
 # End-to-end Run
+
+Initially, it may be best to just run LNFL and LBLRTM in series, i.e., the end-to-end run. This can be done in the driver with the `e2e` keyord:
 
 ```
 run_LBLRTM_ABSCO.py -e2e
 ```
+
+Separating the LNFL and LBL runs may be useful after the user has generated all of the TAPE3 files that they need, but it will not be detrimental to run the end-to-end mode everytime. The only bottlenecks are the LNFL runs and the loop over all LBL cases. The latter will happen whenever ABSCOs are computed, and the former will not take a noticeable amount of time because LNFL will not be run if the expected TAPE3 exists.
 
 # Defaults
 
@@ -170,6 +182,10 @@ htMols = [os.path.basename(md).split('_')[1].upper() for \
   md in molDirs]
 print(htMols)
 ```
+
+# Output netCDF
+
+Template stuff
 
 # Reading the Output
 
