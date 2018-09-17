@@ -178,6 +178,10 @@ Separating the LNFL and LBL runs may be useful after the user has generated all 
 
 # Output netCDF <a name="output"></a>
 
+Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation.
+
+Cross section array dimensions are also dependent on the molecule, because species whose continuum is dependent on water vapor amount contain an extra dimension for the water vapor VMR. Absorption coefficients are calculated at two different H<sub>2</sub>O VMRs at all applicable pressures and temperatures, so another dimension is necessary to store all of the calculations. netCDF headers for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub> will follow the convention of this example:
+
 ```
 % ncdump -h nc_ABSCO/O2_00000-00150_v0.0_init.nc 
 netcdf O2_00000-00150_v0.0_init {
@@ -246,6 +250,8 @@ variables:
 }
 ```
 
+All other allowed molecules will conform to a similar convention, only without the H<sub>2</sub>O VMR dimension:
+
 ```
 % ncdump -h nc_ABSCO/O3_00500-00600_v0.0_init.nc 
 netcdf O3_00500-00600_v0.0_init {
@@ -307,7 +313,11 @@ variables:
 }
 ```
 
-# Reading the Output
+In the global attributes, there is a "source" field. There are only two sources -- HITRAN 2012 and AER LPD v3.6 -- and they can vary by band. The code accounts for the by-band differences in source.
+
+## Reading the Output
+
+We also designed a module to read the `ABSCO_compute.py` output. The following script reads in a file like the ones in the [Output](#output) section and prints out the cross section value at a given coordinate (it also prints out the array coordinates -- i.e., zero-offset coordinates -- of the absorption coefficient):
 
 ```
 % read_ABSCO_tables.py -h
