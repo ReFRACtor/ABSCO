@@ -1,6 +1,16 @@
 # ABSoprtion COefficient (ABSCO) Table Generation
 
-NOTE: this README will be updated more thoroughly and accurately once the software is completed.
+---
+**Contents**
+
+1. [Introduction](#intro)
+2. [Dependencies](#dependencies)
+3. [Setup](#setup)
+4. [HITRAN Cross Sections](#xs)
+5. [Driver Script](#driver)
+6. [Output](#output)
+
+# Introduction <a name="intro"></a>
 
 Software that can generate a set of ABSCO tables that span the thermal IR to UV spectral range.
 
@@ -18,13 +28,13 @@ git submodule init
 git submodule update
 ```
 
-# Dependencies
+# Dependencies <a name="dependencies"></a>
 
-This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory, which is its own repository (<https://github.com/pernak18/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
+This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory, which is [its own repository] (<https://github.com/pernak18/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
 
 ## Python Packages
 
-The following libraries were installed with miniconda (<https://conda.io/docs/user-guide/install/index.html>) for Python 3.6.3:
+The following libraries were [installed with miniconda] (<https://conda.io/docs/user-guide/install/index.html>) for Python 3.6.3:
 
   - numpy (v1.13.3)
   - scipy (v1.0.0)
@@ -36,11 +46,11 @@ All are used in this ABSCO library. **The software is optimized for Python 3 usa
 
 ## LNFL, LBLRTM, and the AER Line File
 
-LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in its own repository (<https://github.com/pernak18/LNFL>). Because LNFL has been declared a submodule of the ABSCO library, using the `--recursive` keyword in the clone of this ABSCO repository will also clone the LNFL source code the is necessary. The source code is fetched and saved under the `LNFL` subdirectory.
+LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in [its own repository] (<https://github.com/pernak18/LNFL>). Because LNFL has been declared a submodule of the ABSCO library, using the `--recursive` keyword in the clone of this ABSCO repository will also clone the LNFL source code the is necessary. The source code is fetched and saved under the `LNFL` subdirectory.
 
-LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has its own Git repository (<https://github.com/pernak18/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
+LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Git repository] (<https://github.com/pernak18/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
 
-The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory.
+The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory. Currently, it is available on the AER external Git server and is linked as a submodule of this ABSCO repository (so a `--recursive` clone will take care of this dependency as well). End users will need to contact Rick Pernak or Karen Cady-Pereira so that they can be granted access to the LPD repo.
 
 Periodically, the models and LPD will be updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. For reference, the model and LPD version numbers associated with the initial release of the ABSCO software are:
 
@@ -61,7 +71,7 @@ LNFL and LBLRTM can be built with the `build_models.py` script:
 
 This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in `ABSCO_config.ini` with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options. Path replacement also occurs with the line file-associated paths (`tape1_path`, `tape2_path`, `extra_params`, `xs_path`, and `fscdxs`). If `-i` is not set, no path replacement occurs even though the executable are compiled. The two executables follow the naming convention `model_version_os_compiler_precision`, e.g., `lblrtm_v12.9_linux_intel_dbl`.
 
-# Setup (Configuration File)
+# Setup (Configuration File) <a name="setup"></a>
 
 With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be run, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
 
@@ -75,7 +85,7 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 | wn1, wn2 | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
 | lblres, outres | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
 | units | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
-| wv_vmr | water vapor VMR (in **ppmv**) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts) |
+| wv_vmr | water vapor VMR (in **ppmv**) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts |
 | molnames | HITRAN molecule names, space delimited, case-insensitive. really should only be one molecule per run |
 | scale | multiplicative factors used for continuum or extinction scaling (separate factors for H<sub>2</sub>O self continuum, H<sub>2</sub>O foreign continuum, CO<sub>2</sub> continuum, O<sub>3</sub> continuum, O<sub>2</sub> continuum, N<sub>2</sub> continuum, and Rayleigh extinction) |
 | tape5_dir | Directory underneath both lnfl_run_dir and lbl_run_dir to which TAPE5 files will be written (should just be a single string) |
@@ -101,11 +111,11 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 run_LBLRTM_ABSCO.py -i your_ini_file
 ```
 
-# HITRAN Cross Section Usage
+# HITRAN Cross Section Usage <a name="xs"></a>
 
 Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, script not in version control. For now, if there is any overlap of the user-specified region and a HITRAN-recommended XS region, the XS parameters are used.
 
-# Running the `run_LBLRTM_ABSCO.py` Driver Script 
+# Running the `run_LBLRTM_ABSCO.py` Driver Script  <a name="driver"></a>
 
 ## Defaults
 
@@ -166,7 +176,7 @@ run_LBLRTM_ABSCO.py -e2e
 
 Separating the LNFL and LBL runs may be useful after the user has generated all of the TAPE3 files that they need, but it will not be detrimental to run the end-to-end mode everytime. The only bottlenecks are the LNFL runs and the loop over all LBL cases. The latter will happen whenever ABSCOs are computed, and the former will not take a noticeable amount of time because LNFL will not be run if the expected TAPE3 exists.
 
-# Output netCDF
+# Output netCDF <a name="output"></a>
 
 ```
 % ncdump -h nc_ABSCO/O2_00000-00150_v0.0_init.nc 
