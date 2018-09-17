@@ -317,7 +317,7 @@ In the global attributes, there is a "source" field. There are only two sources 
 
 ## Reading the Output
 
-We also designed a module to read the `ABSCO_compute.py` output. The following script reads in a file like the ones in the [Output](#output) section and prints out the cross section value at a given coordinate (it also prints out the array coordinates -- i.e., zero-offset coordinates -- of the absorption coefficient):
+We also designed a module to read the `ABSCO_compute.py` output. The following script reads in a file like the ones in the [Output netCDF](#output) section and prints out the cross section value at a given coordinate (it also prints out the array coordinates -- i.e., zero-offset coordinates -- of the absorption coefficient):
 
 ```
 % read_ABSCO_tables.py -h
