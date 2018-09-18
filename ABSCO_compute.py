@@ -923,7 +923,7 @@ class makeABSCO():
     outVar.long_name = 'Spectral Ranges Reference Indices'
     outVar.valid_range = (0, sys.maxsize)
     outVar.description = 'Pairs of indices defining the start ' + \
-      'and end indices of the Cross_Secion frequency dimension ' + \
+      'and end indices of the Cross_Section frequency dimension ' + \
       'for non-continuous calculation regions'
 
     if mol in self.molH2O:
