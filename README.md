@@ -30,11 +30,11 @@ git submodule update
 
 # Dependencies <a name="dependencies"></a>
 
-This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory, which is [its own repository] (<https://github.com/pernak18/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
+This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory, which is [its own repository](<https://github.com/pernak18/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
 
 ## Python Packages
 
-The following libraries were [installed with miniconda] (<https://conda.io/docs/user-guide/install/index.html>) for Python 3.6.3:
+The following libraries were [installed with miniconda](<https://conda.io/docs/user-guide/install/index.html>) for Python 3.6.3:
 
   - numpy (v1.13.3)
   - scipy (v1.0.0)
@@ -46,9 +46,9 @@ All are used in this ABSCO library. **The software is optimized for Python 3 usa
 
 ## LNFL, LBLRTM, and the AER Line File
 
-LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in [its own repository] (<https://github.com/pernak18/LNFL>). Because LNFL has been declared a submodule of the ABSCO library, using the `--recursive` keyword in the clone of this ABSCO repository will also clone the LNFL source code the is necessary. The source code is fetched and saved under the `LNFL` subdirectory.
+LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in [its own repository](<https://github.com/pernak18/LNFL>). Because LNFL has been declared a submodule of the ABSCO library, using the `--recursive` keyword in the clone of this ABSCO repository will also clone the LNFL source code the is necessary. The source code is fetched and saved under the `LNFL` subdirectory.
 
-LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Git repository] (<https://github.com/pernak18/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
+LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Git repository](<https://github.com/pernak18/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
 
 The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory. Currently, it is available on the AER external Git server and is linked as a submodule of this ABSCO repository (so a `--recursive` clone will take care of this dependency as well). End users will need to contact Rick Pernak or Karen Cady-Pereira so that they can be granted access to the LPD repo.
 
@@ -59,7 +59,7 @@ Periodically, the models and LPD will be updated to reflect new line parameters,
 | LNFL | v3.1 |
 | LBLRTM | v12.9 |
 | LPD | v3.6 |
----
+[AER-maintained models that are linked as ABSCO submodules][Table 1]
 
 Currently, there are no plans on updating these three repositories. In the future, we may set up a separate AER account that will contain model code for the public rather than hosting in my personal account.
 
@@ -69,41 +69,40 @@ LNFL and LBLRTM can be built with the `build_models.py` script:
 % ./build_models.py -c gfortran -i ABSCO_config.ini
 ```
 
-This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in `ABSCO_config.ini` with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options. Path replacement also occurs with the line file-associated paths (`tape1_path`, `tape2_path`, `extra_params`, `xs_path`, and `fscdxs`). If `-i` is not set, no path replacement occurs even though the executable are compiled. The two executables follow the naming convention `model_version_os_compiler_precision`, e.g., `lblrtm_v12.9_linux_intel_dbl`.
+This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in `ABSCO_config.ini` with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options. Path replacement also occurs with the line file-associated paths (`tape1_path`, `tape2_path`, `extra_params`, `xs_path`, and `fscdxs`). If `-i` is not set, no path replacement occurs even though the executable are compiled. The two executables follow the naming convention `model_version_os_compiler_precision`, e.g., `lblrtm_v12.9_linux_intel_dbl`. It is recommended that `build_models.py` with the `-i` option be run after the initial clone of this repository to minimize any path issues.
 
 # Setup (Configuration File) <a name="setup"></a>
 
 With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be run, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
 
-| Field | Notes |
-| :---: | :--- |
-| header | 80-character header that is written to LBL optical depth files but is otherwise not used|
-| pfile | text file with 1 pressure level in millibars per line. these will be the pressures on which the ABSCOs are calculated. this can be a *relative* path with respect to the working directory or an absolute path|
-| ptfile | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures|
-| vmrfile | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated volume mixing ratios (VMRs) for entire user-specified profile (can be relative to working directory) |
-| xs_lines | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN |
-| wn1, wn2 | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
-| lblres, outres | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
-| units | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
-| wv_vmr | water vapor VMR (in **ppmv**) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts |
-| molnames | HITRAN molecule names, space delimited, case-insensitive. really should only be one molecule per run |
-| scale | multiplicative factors used for continuum or extinction scaling (separate factors for H<sub>2</sub>O self continuum, H<sub>2</sub>O foreign continuum, CO<sub>2</sub> continuum, O<sub>3</sub> continuum, O<sub>2</sub> continuum, N<sub>2</sub> continuum, and Rayleigh extinction) |
-| tape5_dir | Directory underneath both lnfl_run_dir and lbl_run_dir to which TAPE5 files will be written (should just be a single string) |
-| lnfl_run_dir | Path to directory where LNFL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. can be full or relative path. assignment can be automated with build_models.py |
-| tape1_path | Full path to the full TAPE1 ASCII line file that should be used in LNFL runs. assignment can be automated with build_models.py |
-| tape2_path | Full path to the full TAPE2 ASCII line coupling file that should be used in LNFL runs with O<sub>2</sub>, CO<sub>2</sub>, and CH<sub>4</sub>. assignment can be automated with build_models.py |
-| lnfl_path | Full path to LNFL executable to be run. assignment can be automated with build_models.py |
-| extra_params | directory with CO<sub>2</sub>-CO<sub>2</sub>, CO<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-O<sub>2</sub>, and H<sub>2</sub>O-CO<sub>2</sub> broadening parameter specifications. assignment can be automated with build_models.py |
-| tape3_dir | directory relative to the working directory to which LNFL output (binary line files)  will be written|
-| lbl_path | Full path to LBLRTM executable to be run. assignment can be automated with build_models.py |
-| xs_path | Full path to LBLRTM cross section file directories. assignment can be automated with build_models.py |
-| fscdxs | Full path to cross section "lookup" file used with xs_path. assignment can be automated with build_models.py |
-| lbl_run_dir | Path to directory where LBL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. Can be a relative path with respect to working directory |
-| outdir | directory where the netCDFs will be written. can be relative to working directory |
-| sw_ver | used in the output netCDF file to specify the software version number |
-| out_file_desc | used in the output netCDF file. allows use to document run more specifically |
-| nc_compress | compression level for netCDF output |
----
+| Field | Parent Directory | Notes |
+| :---: | :---: | :--- |
+| pfile | PT_Grid | text file with 1 pressure level in millibars per line. these will be the pressures on which the ABSCOs are calculated. this can be a *relative* path with respect to the working directory or an absolute path|
+| ptfile | PT_Grid | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures|
+| vmrfile | PT_Grid | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated volume mixing ratios (VMRs) for entire user-specified profile (can be relative to working directory) |
+| xs_lines | AER_Line_File | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN |
+| wn1, wn2 | N/A | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
+| lblres, outres | N/A | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
+| units | N/A | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
+| wv_vmr | N/A | water vapor VMR (in **ppmv**) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts |
+| molnames | N/A | HITRAN molecule names, space delimited, case-insensitive. really should only be one molecule per run |
+| scale | N/A | multiplicative factors used for continuum or extinction scaling (separate factors for H<sub>2</sub>O self continuum, H<sub>2</sub>O foreign continuum, CO<sub>2</sub> continuum, O<sub>3</sub> continuum, O<sub>2</sub> continuum, N<sub>2</sub> continuum, and Rayleigh extinction) |
+| tape5_dir | LNFL_Runs and LBL_Runs | Directory underneath both lnfl_run_dir and lbl_run_dir to which TAPE5 files will be written (should just be a single string) |
+| lnfl_run_dir | working directory | Path to directory where LNFL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. can be full or relative path. assignment can be automated with build_models.py |
+| tape1_path | AER_Line_File/line_file | Full path to the full TAPE1 ASCII line file that should be used in LNFL runs. assignment can be automated with build_models.py (`aer_v_3.6`) |
+| tape2_path | AER_Line_File/line_file | Full path to the full TAPE2 ASCII line coupling file that should be used in LNFL runs with O<sub>2</sub>, CO<sub>2</sub>, and CH<sub>4</sub>. assignment can be automated with build_models.py |
+| lnfl_path | LNFL | Full path to LNFL executable to be run. assignment can be automated with build_models.py |
+| extra_params | AER_Line_File | directory with CO<sub>2</sub>-CO<sub>2</sub>, CO<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-O<sub>2</sub>, and H<sub>2</sub>O-CO<sub>2</sub> broadening parameter specifications. assignment can be automated with build_models.py |
+| tape3_dir | working directory | directory relative to the working directory to which LNFL output (binary line files)  will be written|
+| lbl_path | LBLRTM | Full path to LBLRTM executable to be run. assignment can be automated with build_models.py |
+| xs_path | AER_Line_File | Full path to LBLRTM cross section file directories. assignment can be automated with build_models.py |
+| fscdxs | AER_Line_File | Full path to cross section "lookup" file used with xs_path. assignment can be automated with build_models.py |
+| lbl_run_dir | working directory | Path to directory where LBL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. Can be a relative path with respect to working directory |
+| outdir | working directory | directory where the netCDFs will be written. can be relative to working directory |
+| sw_ver | N/A | used in the output netCDF file to specify the software version number |
+| out_file_desc | N/A | used in the output netCDF file. allows use to document run more specifically |
+| nc_compress | N/A | compression level for netCDF output |
+[ABSCO configuration file (`ABSCO_config.ini` by default) items][Table 2]
 
 `ABSCO_config.ini` can be named something else, but that will have to be specified at the command line (otherwise it's assumed that `ABSCO_config.ini` is the configuration file to use):
 
@@ -117,6 +116,33 @@ Some molecules have both line parameters and XS parameters.  HITRAN makes recomm
 
 # Running the `run_LBLRTM_ABSCO.py` Driver Script  <a name="driver"></a>
 
+Two modules exist in this library -- `ABSCO_preprocess.py` and `ABSCO_compute.py`. All that needs to be done to calculate cross sections for a given layer is an optical depth (OD) calculation, then the OD is divided by a layer amount (molecule number density), which amounts to an LNFL and LBLRTM run, both of which are done in `ABSCO_compute.py`. However, a number of things need to be determined before we get to the line file generation and subsequent OD computation:
+
+  1. Configuration file read
+  2. Verify existence of necessary paths
+  3. Channels check
+    - are channel inputs consistent (limits, input and output resolution have the same number of elements)?
+    - are units defined and valid (wavenumber, micron, or nanometer)?
+    - is the expected ratio of the output resolution to the LBLRTM resolution an integer exponent of 2?
+    - are band limits in the correct order?
+    - conversion to wavenumber fo use in LBLRTM
+    - is the band no larger than 2000 cm<sup>-1</sup>? Break up into separate bins if it is
+  4. Verify that input molecules are allowed
+  5. Ensure that only two H<sub>2</sub>O values are provided
+  6. Confirm that each of the remaining configuration attributes has only one value assigned to it
+  7. Verify all necessary attributes have been found in the configuration file
+  8. Check that the input pressures are monotonic, then force them to be in descending order (surface to TOA)
+  9. Ensure that the same number of pressures are in the arrays from the input VMR (`vmrfile`) and P (`pfile`) files (but here is no check that the pressures are equal)
+  10. Find the molecules that are radiatively active in the given spectral regions and ask user if they want to include omitted or extra species (this provision allows the `molnames` field in the configuration file to be empty, but if it is, all active molecules will be processed)
+  11. Determine when to use cross section parameters as opposed to the line parameter database (as specified by `FSCDXS_line_params.csv`)
+  12. Calculate the kernel and weights for spectral degradation
+  13. Ascertain the source (AER LPD v3.6 or HITRAN 2012) for each molecule and each band
+  14. Compute the amount of memory needed for the calculation and output file
+
+These items are part of a `configure` object that is required input for the `makeABSCO` class.
+
+Note that the objects contain the information for all user specified species. In the driver, we loop over each molecule so that a single netCDF output file is made for each molecule. This allows for parallelization of the processing (e.g., using a single core per molecule), but the code to facilitate it has not yet been written (partially because of concerns of the amount of HD space and RAM is needed for a single molecule).
+
 ## Defaults
 
 The user must provide a spectral range in the configuration file. If multiple bands are provided, each band must have assigned to it an associated starting value, ending value, LBLRTM resolution, and output (netCDF) resolution.
@@ -125,7 +151,9 @@ Species specification is optional, but nothing is done if not molecule is provid
 
 ### Pressure levels
 
-In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini`.
+In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini` (see [Table 2]).
+
+As documented in [Table 2], pressures are extracted from `pfile`, and each pressure has an associated range of acceptable temperature values listed in `ptfile`. Both of these files are underneath the `PT_Grid`. By default, the pressures that are used are based on the AIRS instrument (`PT_Grid/AIRS_P_air.txt`). `build_temp_array.txt` is the associated `ptfile`.
 
 ### Allowed Molecules
 
@@ -156,7 +184,7 @@ LNFL runs are performed inside an `LNFL_Runs` directory (also defined in `ABSCO_
 
 For the absorption coefficient calculation, LBLRTM must be run to compute a) optical depths, and b) layer amounts (done with the LBLATM subroutine). Once TAPE3 files are generated for the specified molecule and bands, LBLRTM TAPE5s (LBLRTM input file with state specifications and radiative transfer parameters) are written for every specified pressure level, temperature, and band combination. In each iteration, the optical depth spectrum is converted to absorption coefficients (*k* values) by dividing them by the layer amount for the given molecule. This *k* spectrum is then degraded to lessen the amount of RAM and hard drive space needed for the output.
 
-The LBLRTM runs are followed by array manipulation (i.e., tranposing arrays to the dimensions that were agreed upon, adding fill values, etc.) and writing the necessary arrays to an output netCDF for the given species.
+The LBLRTM runs are followed by array manipulation (i.e., tranposing arrays to the dimensions that were agreed upon, adding fill values, etc.) and writing the necessary arrays to an output netCDF for the given species. LBLRTM is run inside the directory specified by `lbl_run_dir` in [Table 2].
 
 To run this LBLRTM process, use the driver script with the `-lbl` keyword.
 
@@ -178,7 +206,7 @@ Separating the LNFL and LBL runs may be useful after the user has generated all 
 
 # Output netCDF <a name="output"></a>
 
-Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation.
+Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation. The output are stored in a netCDF in the `outdir` directory listed in [Table 2] (`nc_ABSCO` by default).
 
 Cross section array dimensions are also dependent on the molecule, because species whose continuum is dependent on water vapor amount contain an extra dimension for the water vapor VMR. Absorption coefficients are calculated at two different H<sub>2</sub>O VMRs at all applicable pressures and temperatures, so another dimension is necessary to store all of the calculations. netCDF headers for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub> will follow the convention of this example:
 
