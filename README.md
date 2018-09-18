@@ -121,7 +121,7 @@ run_LBLRTM_ABSCO.py -i your_ini_file
 
 # HITRAN Cross Section Usage <a name="xs"></a>
 
-Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate, script not in version control. For now, if there is any overlap of the user-specified region and a HITRAN-recommended XS region, the XS parameters are used.
+Some molecules have both line parameters and XS parameters.  HITRAN makes recommendations on the preferred parameters given the species and the band, and these are taken into account in the error checking that the `ABSCO_preprocess.py` module does.  Molecules where line parameters are recommended, the associated bands, and the flag (0: only XS exist, 1: both exist, use line params, 2: both exist, use XS) are recorded in `FSCDXS_line_params.csv`, which was generated with a separate script not in version control. For now, if there is any overlap of the user-specified region and a HITRAN-recommended XS region, the XS parameters are used.
 
 # Running the `run_LBLRTM_ABSCO.py` Driver Script  <a name="driver"></a>
 
