@@ -226,7 +226,7 @@ Cross section array dimensions are also dependent on the molecule, because speci
 
 Since their continua are dependent on water vapor content, netCDF variables for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub> will include all of the dimensions listed in [Table 3](#Table3). [Table 4](#Table4) contains the names, dimensions, units, valid ranges, and descriptions of variables for these four molecules.
 
-**Output Arrays for Water Vapor-affected Species** <a id="Table3"></a>
+**Output Arrays for Water Vapor-affected Species** <a id="Table4"></a>
 
 | Array Name | Dimensions | Units | Range | Description |
 | :---: | :---: | :---: | :---: | :---: |
