@@ -881,8 +881,8 @@ class makeABSCO():
     outVar.units = 'cm2/molecule'
     outVar.long_name = 'Absorption Coefficients'
     outVar.valid_range = (0, 1e-20)
-    outVar.description = 'Absorption coefficients (K) calculated ' + \
-      'from LBLRTM optical depths and layer amounts.'
+    outVar.description = 'Absorption coefficients (k) calculated ' + \
+      'from LBLRTM optical depths and layer amounts'
 
     outVar = outFP.createVariable('Spectral_Grid', float, \
       ('nfreq'), zlib=True, complevel=self.compress, \
@@ -893,7 +893,7 @@ class makeABSCO():
     outVar.valid_range = (0, 50000)
     outVar.description = 'Spectral points corresponding to ' + \
       'ABSCOs in a single layer for a single temperature and in ' + \
-      'a given spectral range (wavenumbers, microns, or nanometers).'
+      'a given spectral range'
 
     outVar = outFP.createVariable('Temperature', float, \
       ('nlev', 'ntemp'), zlib=True, complevel=self.compress, \
@@ -913,7 +913,7 @@ class makeABSCO():
     outVar.long_name = 'Spectral Ranges'
     outVar.valid_range = (0, 50000)
     outVar.description = 'Starting and ending spectral points ' + \
-      'for each input channel.'
+      'for each input channel'
 
     outVar = outFP.createVariable('Extent_Indices', int, \
       ('nranges', 'nranges_lims'), zlib=True, \
@@ -924,7 +924,7 @@ class makeABSCO():
     outVar.valid_range = (0, sys.maxsize)
     outVar.description = 'Pairs of indices defining the start ' + \
       'and end indices of the Cross_Secion frequency dimension ' + \
-      'for non-continuous calculation regions.'
+      'for non-continuous calculation regions'
 
     if mol in self.molH2O:
       outVar = outFP.createVariable('H2O_VMR', float, \
@@ -935,7 +935,7 @@ class makeABSCO():
       outVar.long_name = 'Water Vapor Mixing Ratio'
       outVar.valid_range = (0, 50000)
       outVar.description = 'Water vapor amount that influences ' + \
-        'the continua of [%s] molecules.' % (' '.join(self.molH2O))
+        'the continua of [%s] molecules' % (' '.join(self.molH2O))
     # end if WV mol
 
     outFP.close()

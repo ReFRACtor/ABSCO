@@ -120,26 +120,26 @@ Some molecules have both line parameters and XS parameters.  HITRAN makes recomm
 
 Two modules exist in this library -- `ABSCO_preprocess.py` and `ABSCO_compute.py`. All that needs to be done to calculate cross sections for a given layer is an optical depth (OD) calculation, then the OD is divided by a layer amount (molecule number density), which amounts to an LNFL and LBLRTM run, both of which are done in `ABSCO_compute.py`. However, a number of things need to be determined before we get to the line file generation and subsequent OD computation:
 
-  1. Configuration file read
-  2. Verify existence of necessary paths
-  3. Channels check
+  - Configuration file read
+  - Verify existence of necessary paths
+  - Channels check
     - are channel inputs consistent (limits, input and output resolution have the same number of elements)?
     - are units defined and valid (wavenumber, micron, or nanometer)?
     - is the expected ratio of the output resolution to the LBLRTM resolution an integer exponent of 2?
     - are band limits in the correct order?
     - conversion to wavenumber fo use in LBLRTM
     - is the band no larger than 2000 cm<sup>-1</sup>? Break up into separate bins if it is
-  4. Verify that input molecules are allowed
-  5. Ensure that only two H<sub>2</sub>O values are provided
-  6. Confirm that each of the remaining configuration attributes has only one value assigned to it
-  7. Verify all necessary attributes have been found in the configuration file
-  8. Check that the input pressures are monotonic, then force them to be in descending order (surface to TOA)
-  9. Ensure that the same number of pressures are in the arrays from the input VMR (`vmrfile`) and P (`pfile`) files (but here is no check that the pressures are equal)
-  10. Find the molecules that are radiatively active in the given spectral regions and ask user if they want to include omitted or extra species (this provision allows the `molnames` field in the configuration file to be empty, but if it is, all active molecules will be processed)
-  11. Determine when to use cross section parameters as opposed to the line parameter database (as specified by `FSCDXS_line_params.csv`)
-  12. Calculate the kernel and weights for spectral degradation
-  13. Ascertain the source (AER LPD v3.6 or HITRAN 2012) for each molecule and each band
-  14. Compute the amount of memory needed for the calculation and output file
+  - Verify that input molecules are allowed
+  - Ensure that only two H<sub>2</sub>O values are provided
+  - Confirm that each of the remaining configuration attributes has only one value assigned to it
+  - Verify all necessary attributes have been found in the configuration file
+  - Check that the input pressures are monotonic, then force them to be in descending order (surface to TOA)
+  - Ensure that the same number of pressures are in the arrays from the input VMR (`vmrfile`) and P (`pfile`) files (but here is no check that the pressures are equal)
+  - Find the molecules that are radiatively active in the given spectral regions and ask user if they want to include omitted or extra species (this provision allows the `molnames` field in the configuration file to be empty, but if it is, all active molecules will be processed)
+  - Determine when to use cross section parameters as opposed to the line parameter database (as specified by `FSCDXS_line_params.csv`)
+  - Calculate the kernel and weights for spectral degradation
+  - Ascertain the source (AER LPD v3.6 or HITRAN 2012) for each molecule and each band
+  - Compute the amount of memory needed for the calculation and output file
 
 These items are part of a `configure` object that is required input for the `makeABSCO` class.
 
@@ -208,142 +208,40 @@ Separating the LNFL and LBL runs may be useful after the user has generated all 
 
 # Output netCDF <a name="output"></a>
 
-Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation. The output are stored in a netCDF in the `outdir` directory listed in [Table 2](#Table2) (`nc_ABSCO` by default).
+Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation. The output are stored in a netCDF in the `outdir` directory listed in [Table 2](#Table2) (`nc_ABSCO` by default). A single netCDF is generated for each molecule.
 
-Cross section array dimensions are also dependent on the molecule, because species whose continuum is dependent on water vapor amount contain an extra dimension for the water vapor VMR. Absorption coefficients are calculated at two different H<sub>2</sub>O VMRs at all applicable pressures and temperatures, so another dimension is necessary to store all of the calculations. netCDF headers for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub> will follow the convention of this example:
+Cross section array dimensions are also dependent on the molecule, because species whose continuum is dependent on water vapor amount contain an extra dimension for the water vapor VMR. Absorption coefficients are calculated at two different H<sub>2</sub>O VMRs at all applicable pressures and temperatures, so another dimension is necessary to store all of the calculations. All possible dimensions are given in [Table 3](#Table3).
 
-```
-% ncdump -h nc_ABSCO/O2_00000-00150_v0.0_init.nc 
-netcdf O2_00000-00150_v0.0_init {
-dimensions:
-	nfreq = 375001 ;
-	nlev = 3 ;
-	nlay = 2 ;
-	ntemp = 15 ;
-	nranges = 1 ;
-	nranges_lims = 2 ;
-	nvmr = 2 ;
-variables:
-	double P_level(nlev) ;
-		P_level:_FillValue = NaN ;
-		P_level:units = "mbar" ;
-		P_level:long_name = "Pressure Levels" ;
-		P_level:valid_range = 0., 1050. ;
-		P_level:description = "User-provided layer boundary pressures" ;
-	double P_layer(nlay, ntemp) ;
-		P_layer:_FillValue = NaN ;
-		P_layer:units = "mbar" ;
-		P_layer:long_name = "Layer Pressures" ;
-		P_layer:valid_range = 0., 1050. ;
-		P_layer:description = "LBLRTM-calculated layer pressures" ;
-	double Cross_Section(nfreq, ntemp, nlay, nvmr) ;
-		Cross_Section:_FillValue = NaN ;
-		Cross_Section:units = "cm2/molecule" ;
-		Cross_Section:long_name = "Absorption Coefficients" ;
-		Cross_Section:valid_range = 0., 1.e-20 ;
-		Cross_Section:description = "Absorption coefficients (K) calculated from LBLRTM optical depths and layer amounts." ;
-	double Spectral_Grid(nfreq) ;
-		Spectral_Grid:_FillValue = NaN ;
-		Spectral_Grid:units = "cm-1" ;
-		Spectral_Grid:long_name = "Spectral Points" ;
-		Spectral_Grid:valid_range = 0., 50000. ;
-		Spectral_Grid:description = "Spectral points corresponding to ABSCOs in a single layer for a single temperature and in a given spectral range (wavenumbers, microns, or nanometers)." ;
-	double Temperature(nlev, ntemp) ;
-		Temperature:_FillValue = NaN ;
-		Temperature:units = "K" ;
-		Temperature:long_name = "Temperature Levels" ;
-		Temperature:valid_range = 180., 320. ;
-		Temperature:description = "Applicable temperatures associated with each layer boundary pressure" ;
-	double Extent_Ranges(nranges, nranges_lims) ;
-		Extent_Ranges:_FillValue = NaN ;
-		Extent_Ranges:units = "cm-1" ;
-		Extent_Ranges:long_name = "Spectral Ranges" ;
-		Extent_Ranges:valid_range = 0., 50000. ;
-		Extent_Ranges:description = "Starting and ending spectral points for each input channel." ;
-	int64 Extent_Indices(nranges, nranges_lims) ;
-		Extent_Indices:_FillValue = 9223372036854775807L ;
-		Extent_Indices:units = "N/A" ;
-		Extent_Indices:long_name = "Spectral Ranges Reference Indices" ;
-		Extent_Indices:valid_range = 0L, 9223372036854775807L ;
-		Extent_Indices:description = "Pairs of indices defining the start and end indices of the Cross_Secion frequency dimension for non-continuous calculation regions." ;
-	double H2O_VMR(nvmr) ;
-		H2O_VMR:_FillValue = NaN ;
-		H2O_VMR:units = "ppmv" ;
-		H2O_VMR:long_name = "Water Vapor Mixing Ratio" ;
-		H2O_VMR:valid_range = 0., 50000. ;
-		H2O_VMR:description = "Water vapor amount that influences the continua of [CO2 N2 O2] molecules." ;
+**netCDF Dimensions** <a id="Table3"></a>
 
-// global attributes:
-		:_NCProperties = "version=1|netcdflibversion=4.4.1.1|hdf5libversion=1.10.1" ;
-		:description = "Absorption coefficients for O2 as a function of pressure, temperature, H2O VMR, wavenumber, and band" ;
-		:source = "Band 1: AER v3.6" ;
-}
-```
+| Dimension Name | Description |
+| :---: | :---: |
+| nfreq | Number of spectral points (wavenumberse, microns, wavelengths) |
+| nlev | Number of pressure levels |
+| nlay | Number of pressure layers (nlev-1) |
+| ntemp | Number of temperatures. This is always 15, regardless of the input pressures; and any invalid temperature (for a given pressure) will just be populated with fill values for *k* |
+| nranges | Number of spectral ranges (AKA bands, channels)
+| nranges_lims | Number of limits for spectral ranges. This is always two because  there is a single minimum and single maximum spectral point associated with each range |
+| nvmr | Number of H<sub>2</sub>O VMR values. This will always be 2 |
 
-All other allowed molecules will conform to a similar convention, only without the H<sub>2</sub>O VMR dimension:
+Since their continua are dependent on water vapor content, netCDF variables for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub> will include all of the dimensions listed in [Table 3](#Table3). [Table 4](#Table4) contains the names, dimensions, units, valid ranges, and descriptions of variables for these four molecules.
 
-```
-% ncdump -h nc_ABSCO/O3_00500-00600_v0.0_init.nc 
-netcdf O3_00500-00600_v0.0_init {
-dimensions:
-	nfreq = 250001 ;
-	nlev = 3 ;
-	nlay = 2 ;
-	ntemp = 15 ;
-	nranges = 1 ;
-	nranges_lims = 2 ;
-variables:
-	double P_level(nlev) ;
-		P_level:_FillValue = NaN ;
-		P_level:units = "mbar" ;
-		P_level:long_name = "Pressure Levels" ;
-		P_level:valid_range = 0., 1050. ;
-		P_level:description = "User-provided layer boundary pressures" ;
-	double P_layer(nlay, ntemp) ;
-		P_layer:_FillValue = NaN ;
-		P_layer:units = "mbar" ;
-		P_layer:long_name = "Layer Pressures" ;
-		P_layer:valid_range = 0., 1050. ;
-		P_layer:description = "LBLRTM-calculated layer pressures" ;
-	double Cross_Section(nfreq, ntemp, nlay) ;
-		Cross_Section:_FillValue = NaN ;
-		Cross_Section:units = "cm2/molecule" ;
-		Cross_Section:long_name = "Absorption Coefficients" ;
-		Cross_Section:valid_range = 0., 1.e-20 ;
-		Cross_Section:description = "Absorption coefficients (K) calculated from LBLRTM optical depths and layer amounts." ;
-	double Spectral_Grid(nfreq) ;
-		Spectral_Grid:_FillValue = NaN ;
-		Spectral_Grid:units = "cm-1" ;
-		Spectral_Grid:long_name = "Spectral Points" ;
-		Spectral_Grid:valid_range = 0., 50000. ;
-		Spectral_Grid:description = "Spectral points corresponding to ABSCOs in a single layer for a single temperature and in a given spectral range (wavenumbers, microns, or nanometers)." ;
-	double Temperature(nlev, ntemp) ;
-		Temperature:_FillValue = NaN ;
-		Temperature:units = "K" ;
-		Temperature:long_name = "Temperature Levels" ;
-		Temperature:valid_range = 180., 320. ;
-		Temperature:description = "Applicable temperatures associated with each layer boundary pressure" ;
-	double Extent_Ranges(nranges, nranges_lims) ;
-		Extent_Ranges:_FillValue = NaN ;
-		Extent_Ranges:units = "cm-1" ;
-		Extent_Ranges:long_name = "Spectral Ranges" ;
-		Extent_Ranges:valid_range = 0., 50000. ;
-		Extent_Ranges:description = "Starting and ending spectral points for each input channel." ;
-	int64 Extent_Indices(nranges, nranges_lims) ;
-		Extent_Indices:_FillValue = 9223372036854775807L ;
-		Extent_Indices:units = "N/A" ;
-		Extent_Indices:long_name = "Spectral Ranges Reference Indices" ;
-		Extent_Indices:valid_range = 0L, 9223372036854775807L ;
-		Extent_Indices:description = "Pairs of indices defining the start and end indices of the Cross_Secion frequency dimension for non-continuous calculation regions." ;
+**Output Arrays for Water Vapor-affected Species** <a id="Table3"></a>
 
-// global attributes:
-		:_NCProperties = "version=1|netcdflibversion=4.4.1.1|hdf5libversion=1.10.1" ;
-		:description = "Absorption coefficients for O3 as a function of pressure, temperature, wavenumber, and band" ;
-		:source = "Band 1: AER v3.6" ;
-}
-```
+| Array Name | Dimensions | Units | Range | Description |
+| :---: | :---: | :---: | :---: | :---: |
+| P_level | (nlev) | mbar | [0, 1050] | User-provided layer boundary pressures |
+| P_layer | (nlay x ntemp) | mbar | [0, 1050] | LBLRTM-calculated layer pressures |
+| Cross_Section | (nfreq x ntemp x nlay x nvmr) | cm<sup>-2</sup> | [0, 10<sup>-21</sup>] | Absorption coefficients *k* calculated from LBLRTM optical depths and layer amounts |
+| Spectral_Grid | (nfreq) | cm<sup>-1</sup> | [0, 50000] | Spectral points corresponding to ABSCOs in a single layer for a single temperature and in a given spectral range |
+| Temperature | (nlev x ntemp) | K | [180, 320] | Applicable temperatures associated with each layer boundary pressure |
+| Extent_Ranges | (nranges x nranges_lims) | cm<sup>-1</sup> | [0, 50000] | Starting and ending spectral points for each input channel |
+| Extent_Indices | (nranges x nranges_lims) | unitless | [0, "infinity"] | Pairs of indices defining the start and end indices of the Cross_Secion frequency dimension for non-continuous calculation regions |
+| H2O_VMR | (nvmr) | ppmv | [0, 50000] | Water vapor volume mixing ratio |
 
-In the global attributes, there is a "source" field. There are only two sources -- HITRAN 2012 and AER LPD v3.6 -- and they can vary by band. The code accounts for the by-band differences in source.
+All other allowed molecules will conform to a similar convention as [Table 4](#Table4), only without the H<sub>2</sub>O VMR dimension. There is thus no `H2O_VMR` array for these species.
+
+In the global attributes, there is a "source" field. There are only two sources -- HITRAN 2012 and AER LPD v3.6 -- and they can vary by band. The code accounts for the by-band differences in source. All fill values in the netCDF files are NaN (not-a-number).
 
 ## Reading the Output
 
