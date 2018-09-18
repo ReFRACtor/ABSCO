@@ -54,7 +54,8 @@ The AER line parameter database (LPD) is distributed as a set of ASCII text file
 
 Periodically, the models and LPD will be updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. For reference, the model and LPD version numbers associated with the initial release of the ABSCO software are:
 
-**AER-maintained models that are linked as ABSCO submodules** <a href="Table1"></a>
+**AER-maintained models that are linked as ABSCO submodules** <a id="Table1"></a>
+
 | Model | Version |
 | :---: | :---: |
 | LNFL | v3.1 |
@@ -75,7 +76,7 @@ This script call specifies a `gfortran` compiler (`-c`) and replaces the paths t
 
 With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be run, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
 
-** ABSCO configuration file (`ABSCO_config.ini` by default) items** <a href="Table2"></a>
+**ABSCO configuration file (`ABSCO_config.ini` by default) items** <a id="Table2"></a>
 
 | Field | Parent Directory | Notes |
 | :---: | :---: | :--- |
