@@ -239,7 +239,7 @@ Since their continua are dependent on water vapor content, netCDF variables for 
 | :---: | :---: | :---: | :---: | :--- |
 | P_level | (nlev) | mbar | [0, 1050] | User-provided layer <br> boundary pressures |
 | P_layer | (nlay x ntemp) | mbar | [0, 1050] | LBLRTM-calculated <br> layer pressures |
-| Cross_Section | (nfreq x ntemp x nlay x nvmr) | cm<sup>-2</sup> | [0, 10<sup>-21</sup>] | Absorption coefficients *k* <br> calculated from <br> LBLRTM optical depths <br> and layer amounts |
+| Cross_Section | (nfreq x ntemp x nlay x nvmr) | cm<sup>-2</sup> | [0, 10<sup>-20</sup>] | Absorption coefficients *k* <br> calculated from <br> LBLRTM optical depths <br> and layer amounts |
 | Spectral_Grid | (nfreq) | cm<sup>-1</sup> | [0, 50000] | Spectral points corresponding to <br> ABSCOs in a single layer <br> for a single temperature <br> and in a given spectral range |
 | Temperature | (nlev x ntemp) | K | [180, 320] | Applicable temperatures <br> associated with each <br> layer boundary pressure |
 | Extent_Ranges | (nranges x nranges_lims) | cm<sup>-1</sup> | [0, 50000] | Starting and ending spectral points <br> for each input channel |
