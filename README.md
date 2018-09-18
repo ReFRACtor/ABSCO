@@ -52,7 +52,7 @@ LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Gi
 
 The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory. Currently, it is available on the AER external Git server and is linked as a submodule of this ABSCO repository (so a `--recursive` clone will take care of this dependency as well). End users will need to contact Rick Pernak or Karen Cady-Pereira so that they can be granted access to the LPD repo.
 
-Periodically, the models and LPD will be updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. For reference, the model and LPD version numbers associated with the initial release of the ABSCO software are:
+Periodically, the models and LPD will be updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. For reference, the model and LPD version numbers associated with the initial release of the ABSCO software are listed in [Table 1](#Table1).
 
 **AER-maintained models that are linked as ABSCO submodules** <a id="Table1"></a>
 
@@ -74,7 +74,7 @@ This script call specifies a `gfortran` compiler (`-c`) and replaces the paths t
 
 # Setup (Configuration File) <a name="setup"></a>
 
-With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be run, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
+With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be run, `ABSCO_config.ini` contains all of the inputs expected from the user. The parameters in [Table 2](#Table2) are expected in the file:
 
 **ABSCO configuration file (`ABSCO_config.ini` by default) items** <a id="Table2"></a>
 
