@@ -54,12 +54,12 @@ The AER line parameter database (LPD) is distributed as a set of ASCII text file
 
 Periodically, the models and LPD will be updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. For reference, the model and LPD version numbers associated with the initial release of the ABSCO software are:
 
+**AER-maintained models that are linked as ABSCO submodules**<a href="Table1"></a>
 | Model | Version |
 | :---: | :---: |
 | LNFL | v3.1 |
 | LBLRTM | v12.9 |
 | LPD | v3.6 |
-[AER-maintained models that are linked as ABSCO submodules][Table 1]
 
 Currently, there are no plans on updating these three repositories. In the future, we may set up a separate AER account that will contain model code for the public rather than hosting in my personal account.
 
@@ -74,6 +74,8 @@ This script call specifies a `gfortran` compiler (`-c`) and replaces the paths t
 # Setup (Configuration File) <a name="setup"></a>
 
 With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alternatively `-lnfl`, `-lbl`, or `-e2e`) keywords that dictate which executable will be run, `ABSCO_config.ini` contains all of the inputs expected from the user. All of the following parameters are expected in the file:
+
+** ABSCO configuration file (`ABSCO_config.ini` by default) items** <a href="Table2"><
 
 | Field | Parent Directory | Notes |
 | :---: | :---: | :--- |
@@ -102,7 +104,6 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 | sw_ver | N/A | used in the output netCDF file to specify the software version number |
 | out_file_desc | N/A | used in the output netCDF file. allows use to document run more specifically |
 | nc_compress | N/A | compression level for netCDF output |
-[ABSCO configuration file (`ABSCO_config.ini` by default) items][Table 2]
 
 `ABSCO_config.ini` can be named something else, but that will have to be specified at the command line (otherwise it's assumed that `ABSCO_config.ini` is the configuration file to use):
 
@@ -151,9 +152,9 @@ Species specification is optional, but nothing is done if not molecule is provid
 
 ### Pressure levels
 
-In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini` (see [Table 2]).
+In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini` (see [Table 2](#Table2)).
 
-As documented in [Table 2], pressures are extracted from `pfile`, and each pressure has an associated range of acceptable temperature values listed in `ptfile`. Both of these files are underneath the `PT_Grid`. By default, the pressures that are used are based on the AIRS instrument (`PT_Grid/AIRS_P_air.txt`). `build_temp_array.txt` is the associated `ptfile`.
+As documented in [Table 2](#Table2), pressures are extracted from `pfile`, and each pressure has an associated range of acceptable temperature values listed in `ptfile`. Both of these files are underneath the `PT_Grid`. By default, the pressures that are used are based on the AIRS instrument (`PT_Grid/AIRS_P_air.txt`). `build_temp_array.txt` is the associated `ptfile`.
 
 ### Allowed Molecules
 
@@ -184,7 +185,7 @@ LNFL runs are performed inside an `LNFL_Runs` directory (also defined in `ABSCO_
 
 For the absorption coefficient calculation, LBLRTM must be run to compute a) optical depths, and b) layer amounts (done with the LBLATM subroutine). Once TAPE3 files are generated for the specified molecule and bands, LBLRTM TAPE5s (LBLRTM input file with state specifications and radiative transfer parameters) are written for every specified pressure level, temperature, and band combination. In each iteration, the optical depth spectrum is converted to absorption coefficients (*k* values) by dividing them by the layer amount for the given molecule. This *k* spectrum is then degraded to lessen the amount of RAM and hard drive space needed for the output.
 
-The LBLRTM runs are followed by array manipulation (i.e., tranposing arrays to the dimensions that were agreed upon, adding fill values, etc.) and writing the necessary arrays to an output netCDF for the given species. LBLRTM is run inside the directory specified by `lbl_run_dir` in [Table 2].
+The LBLRTM runs are followed by array manipulation (i.e., tranposing arrays to the dimensions that were agreed upon, adding fill values, etc.) and writing the necessary arrays to an output netCDF for the given species. LBLRTM is run inside the directory specified by `lbl_run_dir` in [Table 2](#Table2).
 
 To run this LBLRTM process, use the driver script with the `-lbl` keyword.
 
@@ -206,7 +207,7 @@ Separating the LNFL and LBL runs may be useful after the user has generated all 
 
 # Output netCDF <a name="output"></a>
 
-Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation. The output are stored in a netCDF in the `outdir` directory listed in [Table 2] (`nc_ABSCO` by default).
+Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation. The output are stored in a netCDF in the `outdir` directory listed in [Table 2](#Table2) (`nc_ABSCO` by default).
 
 Cross section array dimensions are also dependent on the molecule, because species whose continuum is dependent on water vapor amount contain an extra dimension for the water vapor VMR. Absorption coefficients are calculated at two different H<sub>2</sub>O VMRs at all applicable pressures and temperatures, so another dimension is necessary to store all of the calculations. netCDF headers for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub> will follow the convention of this example:
 
