@@ -236,14 +236,14 @@ Since their continua are dependent on water vapor content, netCDF variables for 
 **Output Arrays for Water Vapor-affected Species** <a id="Table4"></a>
 
 | Array Name | Dimensions | Units | Range | Description |
-| :---: | :---: | :---: | :---: | :---: |
-| P_level | (nlev) | mbar | [0, 1050] | User-provided layer boundary pressures |
-| P_layer | (nlay x ntemp) | mbar | [0, 1050] | LBLRTM-calculated layer pressures |
-| Cross_Section | (nfreq x ntemp x nlay x nvmr) | cm<sup>-2</sup> | [0, 10<sup>-21</sup>] | Absorption coefficients *k* calculated from LBLRTM optical depths and layer amounts |
-| Spectral_Grid | (nfreq) | cm<sup>-1</sup> | [0, 50000] | Spectral points corresponding to ABSCOs in a single layer for a single temperature and in a given spectral range |
-| Temperature | (nlev x ntemp) | K | [180, 320] | Applicable temperatures associated with each layer boundary pressure |
-| Extent_Ranges | (nranges x nranges_lims) | cm<sup>-1</sup> | [0, 50000] | Starting and ending spectral points for each input channel |
-| Extent_Indices | (nranges x nranges_lims) | unitless | [0, "infinity"] | Pairs of indices defining the start and end indices of the Cross_Secion frequency dimension for non-continuous calculation regions |
+| :---: | :---: | :---: | :---: | :--- |
+| P_level | (nlev) | mbar | [0, 1050] | User-provided <br> layer boundary pressures |
+| P_layer | (nlay x ntemp) | mbar | [0, 1050] | LBLRTM-calculated <br> layer pressures |
+| Cross_Section | (nfreq x ntemp x nlay x nvmr) | cm<sup>-2</sup> | [0, 10<sup>-21</sup>] | Absorption coefficients *k* <br> calculated from <br> LBLRTM optical depths <br> and layer amounts |
+| Spectral_Grid | (nfreq) | cm<sup>-1</sup> | [0, 50000] | Spectral points corresponding to <br> ABSCOs in a single layer <br> for a single temperature <br> and in a given spectral range |
+| Temperature | (nlev x ntemp) | K | [180, 320] | Applicable temperatures <br> associated with each <br> layer boundary pressure |
+| Extent_Ranges | (nranges x nranges_lims) | cm<sup>-1</sup> | [0, 50000] | Starting and ending <br> spectral points for each <br> input channel |
+| Extent_Indices | (nranges x nranges_lims) | unitless | [0, "infinity"] | Pairs of indices <br> defining the start and end <br> indices of the <br> Cross_Secion frequency dimension <br> for non-continuous calculation regions |
 | H2O_VMR | (nvmr) | ppmv | [0, 50000] | Water vapor volume mixing ratio |
 
 All other allowed molecules will conform to a similar convention as [Table 4](#Table4), only without the H<sub>2</sub>O VMR dimension. There is thus no `H2O_VMR` array for these species.
