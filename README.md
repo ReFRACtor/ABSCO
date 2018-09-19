@@ -17,6 +17,14 @@
 [Output netCDF Dimensions](#Table3)<br>
 [Output netCDF Variables](#Table4)<br>
 
+# TL;DR
+
+Assuming the user has installed all [dependencies](#dependencies), is using the `gfortran` compiler, and edited the configuration file to their liking (or is OK with using the default settings), the steps for a complete, out-of-the-box run of this library are:
+
+1. `git clone --recursive git@github.com:pernak18/ABSCO.git; cd ABSCO`
+2. `./build_models.py -c gfortran -i ABSCO_config.ini`
+3. `run_LBLRTM_ABSCO.py -e2e`
+
 # Introduction <a name="intro"></a>
 
 Software that can generate a set of ABSCO tables that span the thermal IR to UV spectral range.
