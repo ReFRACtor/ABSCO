@@ -52,10 +52,10 @@ class configure():
     self.xsLines = ['CF4', 'SO2', 'NO2', 'HNO3']
 
     # these guys have continua that are affected by WV amount
-    self.molH2O = ['CO2', 'N2', 'O2']
+    self.molH2O = ['CO2', 'N2', 'O2', 'H2O']
 
     # and these guys are neither HITRAN or XS molecules
-    self.dunno = ['HDO', 'BRO']
+    self.dunno = ['HDO']
 
     # read in pressures and do some quality control
     self.processP()
