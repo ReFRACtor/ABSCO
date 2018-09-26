@@ -63,7 +63,7 @@ if args.run_lbl or args.end_to_end:
       vmrObjList = []
       for ppm in ini.wv_vmr:
         kObj = absco.makeABSCO(ini, mol, debug=args.debug, \
-          vmrWV=ppm/1e6)
+          vmrWV=ppm)
         kObj.lblT5(mol)
         kObj.calcABSCO(mol)
         kObj.arrABSCO()

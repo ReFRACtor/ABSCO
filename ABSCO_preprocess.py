@@ -296,7 +296,7 @@ class configure():
 
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
-    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', \
+    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', 'topdir', \
       'molnames', 'scale', 'lnfl_run_dir', 'lnfl_path', \
       'tape1_path', 'tape3_dir', 'extra_params', 'tape5_dir', \
       'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', 'outdir']

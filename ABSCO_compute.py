@@ -974,7 +974,7 @@ def combineWV(inList):
   outAxes = (1, 2, 3, 0)
   outObj = inList[0]
   outObj.ABSCO = np.transpose(np.array(abscoList), axes=outAxes)
-  outObj.vmrWV = np.array(vmrList) * 1e6
+  outObj.vmrWV = np.array(vmrList)
 
   return outObj
 # end combineWV()
