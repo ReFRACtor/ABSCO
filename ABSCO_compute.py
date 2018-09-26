@@ -418,6 +418,9 @@ class makeABSCO():
             levVMR = self.vmrProf[mol][iP]
           # endif doXS
 
+          # eventually decided to use VMR in ppmv
+          levVMR *= 1e6
+
           # record 3.6: provide VMR at a given level, but only for the 
           # given mol (VMR)
           lblAll = np.repeat(0.0, self.molMaxLBL)
