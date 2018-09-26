@@ -48,7 +48,7 @@ if args.run_lnfl or args.end_to_end:
   # don't need to save these objects because runLNFL() will do all 
   # we need (i.e., TAPE3s for LBL run); also VMR is not needed yet
   for mol in ini.molnames: 
-    kObj = absco.makeABSCO(ini, mol, vmrWV=np.nan)
+    kObj = absco.makeABSCO(ini, mol, vmrWV=np.nan, vmrO2=np.nan)
     kObj.lnflT5(mol)
     kObj.runLNFL()
   # end mol loop
@@ -57,20 +57,46 @@ if args.run_lnfl or args.end_to_end:
 if args.run_lbl or args.end_to_end:
   for mol in ini.molnames:
     if mol in ini.molH2O:
+
       # we have to handle water vapor-effected molecules a little
       # differently (they will have an extra dimension in their 
       # output ABSCO arrays)
-      vmrObjList = []
-      for ppm in ini.wv_vmr:
-        kObj = absco.makeABSCO(ini, mol, debug=args.debug, \
-          vmrWV=ppm)
-        kObj.lblT5(mol)
-        kObj.calcABSCO(mol)
-        kObj.arrABSCO()
-        vmrObjList.append(kObj)
-      # end VMR loop
+  
+      if mol == 'O2':
+        # oxygen is even weirder, because we have to implement its 
+        # own vmr dimension
+        # we do this by just repeating what we do with the objects
+        # for H2O, but running with each O2/H2O VMR pair
+        o2ObjList = []
+        for o2ppm in ini.o2_vmr:
+          wvObjList = []
+          for wvppm in ini.wv_vmr:
+            kObj = absco.makeABSCO(ini, mol, debug=args.debug, \
+              vmrWV=wvppm, vmrO2=o2ppm)
+            kObj.lblT5(mol)
+            kObj.calcABSCO(mol)
+            kObj.arrABSCO()
+            wvObjList.append(kObj)
+          # end H2O VMR loop
 
-      kObj = absco.combineWV(vmrObjList)
+          o2ObjList.append(absco.combineVMR(wvObjList))
+
+        # end O2 VMR loop
+
+        kObj = absco.combineVMR(o2ObjList)
+      else:
+        vmrObjList = []
+        for ppm in ini.wv_vmr:
+          kObj = absco.makeABSCO(ini,mol,debug=args.debug,vmrWV=ppm)
+          kObj.lblT5(mol)
+          kObj.calcABSCO(mol)
+          kObj.arrABSCO()
+          vmrObjList.append(kObj)
+        # end VMR loop
+
+        kObj = absco.combineVMR(vmrObjList)
+      # endif 
+
       kObj.makeNC(mol)
     else:
       kObj = absco.makeABSCO(ini, mol, debug=args.debug)
