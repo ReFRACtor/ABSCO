@@ -192,7 +192,7 @@ class makeABSCO():
     self.compress = int(inObj.nc_compress)
 
     # for cd'ing back into the cwd
-    self.topDir = os.getcwd()
+    self.topDir = str(inObj.topdir)
 
     self.debug = bool(debug)
   # end constructor()
@@ -540,7 +540,9 @@ class makeABSCO():
       searchStr = '%s/%s/%s/TAPE3_%s_%05d-%05d' % (\
         self.topDir, self.dirT3, mol, mol, wn1, wn2)
 
-      molT3 += sorted(glob.glob(searchStr))
+      # there should be only 1 match
+      pathT3 = sorted(glob.glob(searchStr))
+      if len(pathT3) == 1: molT3.append(pathT3[0])
     # end band loop
 
     if len(molT3) == 0:

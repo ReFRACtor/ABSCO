@@ -1,7 +1,7 @@
 # standard Python libraries
 # for Python 3 compatibility
 from __future__ import print_function
-import sys
+import os, sys
 
 # path to GIT common submodules
 sys.path.append('common')
@@ -268,8 +268,16 @@ class configure():
           param = cItem[0]
           val = cItem[1]
           if len(val.split()) > 1 and param != 'header':
-            sys.exit('%s should only have 1 value assigned to it' % \
-              param)
+            errMsg = '%s should only have 1 value assigned to it' % \
+              param
+            print(errMsg)
+            sys.exit(1)
+          # endif header
+
+          if param == 'topdir':
+            val = os.getcwd() if val == '.' else str(val)
+          # endif 
+
           setattr(self, param, val)
         # end item loop
       # endif cps
