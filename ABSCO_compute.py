@@ -46,7 +46,7 @@ class makeABSCO():
   wavenumber, pressure, temperature, and band) for specified molecule
   """
 
-  def __init__(self, inObj, mol, debug=False, vmrWV=None):
+  def __init__(self, inObj, mol, debug=False, vmrWV=None, vmrO2=None):
 
     """
     Inputs
@@ -57,8 +57,10 @@ class makeABSCO():
       debug -- boolean, only for testing purposes (probably a bit 
         obsolete as well, except that it does not do a loop over all 
         TAPE5s)
-      vmrWV -- float, [true] water vapor mixing ratio to be used in 
-        H2O, CO2, and N2 profiles [NOT ppmv!]
+      vmrWV -- float, water vapor mixing ratio [ppmv] to be used in 
+        H2O, CO2, and N2 profiles 
+      vmrO2 -- float, oxygen mixing ratio [ppmv] to be used in 
+        O2 profiles 
     """
 
     # make output directories
@@ -166,6 +168,12 @@ class makeABSCO():
     self.molH2O = list(inObj.molH2O)
     self.molMaxLBL = 47
     self.vmrWV = float(vmrWV) if mol in self.molH2O else None
+    self.vmrArrWV = np.array(inObj.wv_vmr)
+
+    # with O2, the VMR array is used with the netCDF; single O2 values
+    # are used with each ABSCO run
+    self.vmrArrO2 = np.array(inObj.vmrO2)
+    self.vmrO2 = float(vmrO2) if mol == 'O2' else None
 
     self.HITRAN = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
       'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OH', 'HF', 'HCL', 'HBR', \
@@ -508,9 +516,11 @@ class makeABSCO():
           finalRecs.insert(5, record33b)
 
           # throw the water vapor records into the appropriate spot
-          if mol in self.molH2O:
-            outFile = '%s_vmrWV%5.3f' % (outFile, self.vmrWV)
-          # endif h2o
+          if mol in self.molH2O: outFile = '%s_vmrWV%06.0f' % \
+            (outFile, self.vmrWV)
+
+          if mol == 'O2': outFile = '%s_vmrO2%06.0f' % \
+            (outFile, self.vmrO2)
 
           outFP = open(outFile, 'w')
           outFP.write('$ %s\n' % self.headerOD)
@@ -608,8 +618,12 @@ class makeABSCO():
           searchStr = '%s/%s/%s/%s/TAPE5_%s_P%09.4f_T%05.1fK_%s' % \
             (self.topDir, self.runDirLBL, self.dirT5, mol, mol, \
              pLev, tLev, band)
+
           if mol in self.molH2O:
-            searchStr += '_vmrWV%5.3f' % (self.vmrWV)
+            searchStr += '_vmrWV%06.0f' % (self.vmrWV)
+
+          if mol == 'O2': searchStr += '_vmrO2%06.0f' % (self.vmrO2)
+
           molT5 = sorted(glob.glob(searchStr))
 
           # should be one LBL TAPE5 per allowed T on a given P level
@@ -840,7 +854,11 @@ class makeABSCO():
     inDims = self.ABSCO.shape
 
     if mol in self.molH2O:
-      nFreq, nTemp, nLay, nVMR = inDims
+      if mol == 'O2':
+        nFreq, nTemp, nLay, nVMR, nVMR = inDims
+      else:
+        nFreq, nTemp, nLay, nVMR = inDims
+      # endif O2
     else:
       nFreq, nTemp, nLay = inDims
     # endif h2o
@@ -855,6 +873,8 @@ class makeABSCO():
       outDimNames.append('nvmr')
       outDimVals.append(nVMR)
       abscoDim = ('nfreq', 'ntemp', 'nlay', 'nvmr')
+      if mol == 'O2':
+        abscoDim = ('nfreq', 'ntemp', 'nlay', 'nvmr', 'nvmr')
     else:
       abscoDim = ('nfreq', 'ntemp', 'nlay')
     # endif WV mol
@@ -935,12 +955,24 @@ class makeABSCO():
       outVar = outFP.createVariable('H2O_VMR', float, \
         ('nvmr'), zlib=True, complevel=self.compress, \
         fill_value=np.nan)
-      outVar[:] = self.vmrWV
+      outVar[:] = self.vmrArrWV
       outVar.units = 'ppmv'
       outVar.long_name = 'Water Vapor Mixing Ratio'
       outVar.valid_range = (0, 50000)
       outVar.description = 'Water vapor amount that influences ' + \
         'the continua of [%s] molecules' % (' '.join(self.molH2O))
+    # end if WV mol
+
+    if mol == 'O2':
+      outVar = outFP.createVariable('O2_VMR', float, \
+        ('nvmr'), zlib=True, complevel=self.compress, \
+        fill_value=np.nan)
+      outVar[:] = self.vmrArrO2
+      outVar.units = 'ppmv'
+      outVar.long_name = 'Oxygen Mixing Ratio'
+      outVar.valid_range = (0, 250000)
+      outVar.description = 'Two fixed amounts of O2 [ppmv]. ' + \
+        'Used with O2 runs only'
     # end if WV mol
 
     outFP.close()
@@ -949,14 +981,14 @@ class makeABSCO():
   # end makeNC()
 # end makeABSCO()
 
-def combineWV(inList):
+def combineVMR(inList):
   """
-  Combine attributes (ABSCO and vmrWV) from two makeABSCO objects 
-  generated with different water vapor VMRs
+  Combine attributes (ABSCO, vmrWV, and vmrO2) from multiple makeABSCO 
+  objects generated with different water vapor or O2 VMRs
 
   Input
     inList -- list of makeABSCO objects with ABSCO arrays (with same
-      dimensions!) and single-value vmrWV attributes. this should 
+      dimensions!) and single-value vmr attributes. this should 
       only be a 2-element list, but the function is flexible enough 
       to handle more
 
@@ -968,17 +1000,20 @@ def combineWV(inList):
   abscoList, vmrList = [], []
   for obj in inList:
     abscoList.append(obj.ABSCO)
-    vmrList.append(obj.vmrWV)
   # end object loop
 
   # the rest of the makeABSCO objects should be the same, so just 
   # replace vmrWV and ABSCO; make the VMR dimension the last one 
   # in the outAxes and convert vmr to ppmv
   outAxes = (1, 2, 3, 0)
+
+  # another dimension if we're working with O2
+  if len(np.array(abscoList).shape) == 5: outAxes = (1, 2, 3, 4, 0)
+
   outObj = inList[0]
+
   outObj.ABSCO = np.transpose(np.array(abscoList), axes=outAxes)
-  outObj.vmrWV = np.array(vmrList)
 
   return outObj
-# end combineWV()
+# end combineVMR()
 

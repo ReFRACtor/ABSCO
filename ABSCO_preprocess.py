@@ -57,6 +57,9 @@ class configure():
     # and these guys are neither HITRAN or XS molecules
     self.dunno = ['HDO']
 
+    # O2 is a special case where we'll have to fix the VMR
+    self.vmrO2 = np.array([0.19, 0.23]) * 1e6
+
     # read in pressures and do some quality control
     self.processP()
 
@@ -257,12 +260,13 @@ class configure():
         # end mol loop
 
         setattr(self, 'molnames', split)
-      elif cps == 'water_vapor':
-        cItem = cItems[0]
-        wvArr = np.array(cItem[1].split()).astype(float)
-        if wvArr.size != 2:
-          sys.exit('Please provide 2 values for wv_vmr')
-        setattr(self, cItem[0], wvArr)
+      elif cps == 'vmr':
+        for cItem in cItems:
+          vmrArr = np.array(cItem[1].split()).astype(float)
+          if vmrArr.size != 2:
+            sys.exit('Please provide 2 values for %s' % cItem[0])
+          setattr(self, cItem[0], vmrArr)
+        # end cItem loop
       else:
         for cItem in cItems:
           param = cItem[0]
