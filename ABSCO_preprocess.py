@@ -33,6 +33,21 @@ class configure():
     self.readConfig()
     self.checkAtts()
 
+    # these intermediate subdirs should be underneath intdir, 
+    # which can be an another file system
+    self.lnfl_run_dir = '%s/%s' % (self.intdir, self.lnfl_run_dir)
+    self.lbl_run_dir = '%s/%s' % (self.intdir, self.lbl_run_dir)
+    self.tape3_dir = '%s/%s' % (self.intdir, self.tape3_dir)
+    self.outdir = '%s/%s' % (self.intdir, self.outdir)
+
+    # these guys should always be in the "source" directory -- the 
+    # directory into which the ABSCO repo is cloned, which is assumed
+    # to be the working dir
+    gitDir = os.getcwd()
+    self.pfile = '%s/%s' % (gitDir, self.pfile)
+    self.ptfile = '%s/%s' % (gitDir, self.ptfile)
+    self.vmrfile = '%s/%s' % (gitDir, self.vmrfile)
+
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \
       self.extra_params, self.lnfl_path, \
@@ -278,8 +293,9 @@ class configure():
             sys.exit(1)
           # endif header
 
-          if param == 'topdir':
+          if param == 'intdir':
             val = os.getcwd() if val == '.' else str(val)
+            if not os.path.exists(val): os.makedirs(val)
           # endif 
 
           setattr(self, param, val)
@@ -300,7 +316,7 @@ class configure():
 
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
-    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', 'topdir', \
+    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', 'intdir', \
       'molnames', 'scale', 'lnfl_run_dir', 'lnfl_path', \
       'tape1_path', 'tape3_dir', 'extra_params', 'tape5_dir', \
       'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', 'outdir']
@@ -308,7 +324,8 @@ class configure():
     # loop over all required attributes and do a check
     for req in reqAtt:
       if req not in dir(self):
-        errMsg = 'Could not find %s attribute, returning' % req
+        errMsg = 'Could not find %s attribute in %s, returning' % \
+          (req, self.configFile)
         sys.exit(errMsg)
       # endif req
     # end req loop

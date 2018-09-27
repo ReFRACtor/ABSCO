@@ -95,10 +95,10 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 
 | Field | Parent Directory | Notes |
 | :---: | :---: | :--- |
-| pfile | PT_Grid | text file with 1 pressure level in millibars per line. these will be the pressures on which the ABSCOs are calculated. this can be a *relative* path with respect to the working directory or an absolute path|
-| ptfile | PT_Grid | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures|
-| vmrfile | PT_Grid | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated volume mixing ratios (VMRs) for entire user-specified profile (can be relative to working directory) |
-| xs_lines | AER_Line_File | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN |
+| pfile | PT_Grid | text file with 1 pressure level in millibars per line. these will be the pressures on which the ABSCOs are calculated. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
+| ptfile | PT_Grid | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
+| vmrfile | PT_Grid | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated volume mixing ratios (VMRs) for entire user-specified profile. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
+| xs_lines | AER_Line_File | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN. this should be a full path and can be assigned in `build_models.py`|
 | wn1, wn2 | N/A | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
 | lblres, outres | N/A | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
 | units | N/A | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
@@ -106,17 +106,18 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 | molnames | N/A | HITRAN molecule names, space delimited, case-insensitive. really should only be one molecule per run |
 | scale | N/A | multiplicative factors used for continuum or extinction scaling (separate factors for H<sub>2</sub>O self continuum, H<sub>2</sub>O foreign continuum, CO<sub>2</sub> continuum, O<sub>3</sub> continuum, O<sub>2</sub> continuum, N<sub>2</sub> continuum, and Rayleigh extinction) |
 | tape5_dir | LNFL_Runs and LBL_Runs | Directory underneath both lnfl_run_dir and lbl_run_dir to which TAPE5 files will be written (should just be a single string) |
-| lnfl_run_dir | working directory | Path to directory where LNFL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. can be full or relative path. assignment can be automated with build_models.py |
+| lnfl_run_dir | `intdir` | Path to directory where LNFL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. this needs to be a *relative* path with respect to the directory in which this repo is cloned |
 | tape1_path | AER_Line_File/line_file | Full path to the full TAPE1 ASCII line file that should be used in LNFL runs. assignment can be automated with build_models.py (`aer_v_3.6`) |
 | tape2_path | AER_Line_File/line_file | Full path to the full TAPE2 ASCII line coupling file that should be used in LNFL runs with O<sub>2</sub>, CO<sub>2</sub>, and CH<sub>4</sub>. assignment can be automated with build_models.py |
 | lnfl_path | LNFL | Full path to LNFL executable to be run. assignment can be automated with build_models.py |
 | extra_params | AER_Line_File | directory with CO<sub>2</sub>-CO<sub>2</sub>, CO<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-H<sub>2</sub>O, O<sub>2</sub>-O<sub>2</sub>, and H<sub>2</sub>O-CO<sub>2</sub> broadening parameter specifications. assignment can be automated with build_models.py |
-| tape3_dir | working directory | directory relative to the working directory to which LNFL output (binary line files)  will be written|
+| tape3_dir | `intdir` | directory relative to the `intdir` to which LNFL output (binary line files) will be written |
 | lbl_path | LBLRTM | Full path to LBLRTM executable to be run. assignment can be automated with build_models.py |
 | xs_path | AER_Line_File | Full path to LBLRTM cross section file directories. assignment can be automated with build_models.py |
 | fscdxs | AER_Line_File | Full path to cross section "lookup" file used with xs_path. assignment can be automated with build_models.py |
-| lbl_run_dir | working directory | Path to directory where LBL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. Can be a relative path with respect to working directory |
-| outdir | working directory | directory where the netCDFs will be written. can be relative to working directory |
+| lbl_run_dir | `intdir` | Path to directory where LBL runs will occur. Additional subdirectories (one for each molecule) will be created underneath this directory. this needs to be a *relative* path with respect to the directory in which this repo is cloned |
+| intdir | N/A | Directory where intermediate and output directories (`lnfl_run_dir`, `lbl_run_dir`, `tape3_dir`, and `outdir`) will be written.|
+| outdir | `intdir` | directory relative to `intdir` where the netCDFs will be written. |
 | sw_ver | N/A | used in the output netCDF file to specify the software version number |
 | out_file_desc | N/A | used in the output netCDF file. allows use to document run more specifically |
 | nc_compress | N/A | compression level for netCDF output |
@@ -159,6 +160,8 @@ Two modules exist in this library -- `ABSCO_preprocess.py` and `ABSCO_compute.py
 These items are part of a `configure` object that is required input for the `makeABSCO` class.
 
 Note that the objects contain the information for all user specified species. In the driver, we loop over each molecule so that a single netCDF output file is made for each molecule. This allows for parallelization of the processing (e.g., using a single core per molecule), but the code to facilitate it has not yet been written (partially because of concerns of the amount of HD space and RAM is needed for a single molecule).
+
+Additionally, this driver handles H<sub>2</sub>O-affected molecules (CO<sub>2</sub>, N<sub>2</sub>, O<sub>2</sub>, H<sub>2</sub>O) and O<sub>2</sub> by looping over VMRs (in ppmv) for both species, and then generating ABSCO objects at these VMRs. The water vapor VMRs are provided in the configuration file, while the oxygen VMRs are hard set at 1.9 * 10<sup>5</sup and 2.3 * 10<sup>5</sup>. For this processing, the H<sub>2</sub> and O<sub>2</sub> profiles are held constant at a given VMR while others (N2 and CO2) follow the profiles given by `vmrfile` (see [Table 2](#Table2)).
 
 ## Defaults
 
@@ -253,6 +256,7 @@ Since their continua are dependent on water vapor content, netCDF variables for 
 | Extent_Ranges | (nranges x nranges_lims) | cm<sup>-1</sup> | [0, 50000] | Starting and ending spectral points <br> for each input channel |
 | Extent_Indices | (nranges x nranges_lims) | unitless | [0, "infinity"] | Pairs of indices defining the <br> start and end indices of the <br> Cross_Section frequency dimension <br> for non-continuous calculation regions |
 | H2O_VMR | (nvmr) | ppmv | [0, 50000] | Water vapor volume mixing ratio |
+| O2_VMR | (nvmr) | ppmv | [0, 250000] | Oxygen volume mixing ratio. Only added to oxygen *k* array|
 
 All other allowed molecules will conform to a similar convention as [Table 4](#Table4), only without the H<sub>2</sub>O VMR dimension. There is thus no `H2O_VMR` array for these species.
 

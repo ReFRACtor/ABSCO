@@ -77,6 +77,9 @@ class makeABSCO():
       # endif outDir
     # end outDir loop
 
+    # for cd'ing back into the directories with the Git repo
+    self.gitDir = os.getcwd()
+
     inP = np.array(inObj.pressures)
 
     # determine the temperature "levels" at each pressure boundary
@@ -199,9 +202,6 @@ class makeABSCO():
     self.outDir = str(inObj.outdir)
     self.compress = int(inObj.nc_compress)
 
-    # for cd'ing back into the cwd
-    self.topDir = str(inObj.topdir)
-
     self.debug = bool(debug)
   # end constructor()
 
@@ -288,7 +288,7 @@ class makeABSCO():
 
       inDirT5 = '%s/%s' % (self.dirT5, mol)
       inT5 = sorted(glob.glob('%s/TAPE5_*' % inDirT5))
-      outDirT3 = '%s/%s/%s' % (self.topDir, self.dirT3, mol)
+      outDirT3 = '%s/%s' % (self.dirT3, mol)
       if not os.path.exists(outDirT3): os.mkdir(outDirT3)
 
       if len(inT5) == 0:
@@ -312,7 +312,7 @@ class makeABSCO():
 
     # end mol loop
 
-    os.chdir(self.topDir)
+    os.chdir(self.gitDir)
   # end runLNFL()
 
   def lblT5(self, mol):
@@ -550,8 +550,8 @@ class makeABSCO():
     # there is a TAPE5 for every pressure and every temperature)
     molT3 = []
     for wn1, wn2 in zip(self.bands['wn1'], self.bands['wn2']):
-      searchStr = '%s/%s/%s/TAPE3_%s_%05d-%05d' % (\
-        self.topDir, self.dirT3, mol, mol, wn1, wn2)
+      searchStr = '%s/%s/TAPE3_%s_%05d-%05d' % (\
+        self.dirT3, mol, mol, wn1, wn2)
 
       # there should be only 1 match
       pathT3 = sorted(glob.glob(searchStr))
@@ -564,8 +564,7 @@ class makeABSCO():
     # endif nT3
 
     # set up working subdirectory
-    workSubDir = '%s/%s' % (self.topDir, self.runDirLBL)
-    os.chdir(workSubDir)
+    os.chdir(self.runDirLBL)
 
     # aliases for symlinks; should correspond to lblFiles
     # these are identical for all LBL runs for this task
@@ -615,9 +614,8 @@ class makeABSCO():
         for iT, tLev in enumerate(self.tLev[iP]):
 
           # find LBL TAPE5s corresponding to band
-          searchStr = '%s/%s/%s/%s/TAPE5_%s_P%09.4f_T%05.1fK_%s' % \
-            (self.topDir, self.runDirLBL, self.dirT5, mol, mol, \
-             pLev, tLev, band)
+          searchStr = '%s/%s/%s/TAPE5_%s_P%09.4f_T%05.1fK_%s' % \
+            (self.runDirLBL, self.dirT5, mol, mol, pLev, tLev, band)
 
           if mol in self.molH2O:
             searchStr += '_vmrWV%06.0f' % (self.vmrWV)
@@ -716,7 +714,7 @@ class makeABSCO():
       outList.append(bandDict)
     # end t3 (band) loop
 
-    os.chdir(self.topDir)
+    os.chdir(self.gitDir)
 
     self.ABSCO = list(outList)
 
@@ -726,7 +724,7 @@ class makeABSCO():
   def arrABSCO(self):
     """
     Organize an array from the complicated dictionary returned by 
-    calcABSCO(). This is where the (nBand x nP x nT x nWN) arrays 
+    calcABSCO(). This is where the (nWN x nP x nT) arrays 
     are generated.
 
     Not every LBL run produces spectra of the same size for a given 

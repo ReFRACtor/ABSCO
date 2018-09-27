@@ -70,7 +70,7 @@ if args.run_lbl or args.end_to_end:
         # we do this by just repeating what we do with the objects
         # for H2O, but running with each O2/H2O VMR pair
         o2ObjList = []
-        for o2ppm in ini.o2_vmr:
+        for o2ppm in ini.vmrO2:
           wvObjList = []
           for wvppm in ini.wv_vmr:
             kObj = absco.makeABSCO(ini, mol, debug=args.debug, \
