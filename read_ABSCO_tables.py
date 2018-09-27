@@ -25,8 +25,10 @@ class testABSCO():
     self.userP = float(inArgs['in_pressure'])
     self.userT = float(inArgs['in_temp'])
     self.userH2O = float(inArgs['in_h2o'])
+    self.userO2 = float(inArgs['in_o2'])
     self.molName = os.path.basename(self.ncFile).split('_')[0]
     self.h2o = True if self.molName in ['O2', 'CO2', 'N2'] else False
+    self.o2 = True if self.molName == 'O2' else False
 
     # ironically, this cannot be frequency
     freq = float(inArgs['in_spectral'][0])
@@ -57,6 +59,7 @@ class testABSCO():
       ncT = np.array(xaObj.variables['Temperature'])
       ncWN = np.array(xaObj.variables['Spectral_Grid'])
       if self.h2o: ncH2O = np.array(xaObj['H2O_VMR'])
+      if self.o2: ncO2 = np.array(xaObj['O2_VMR'])
     # endwith
 
     # find closest values for each coordinate
@@ -71,6 +74,7 @@ class testABSCO():
       sys.exit('Please specify a level P that is not at the TOA')
     
     if self.h2o: idxH2O = np.nanargmin(np.abs(ncH2O-self.userH2O))
+    if self.o2: idxO2 = np.nanargmin(np.abs(ncO2-self.userO2))
 
     # are the closest values close to what the user wants?
     pClose = np.isclose(self.userP, ncP[idxP], rtol=self.tol)
@@ -86,6 +90,13 @@ class testABSCO():
       paramList.append('H2O')
       valList.append(ncH2O[idxH2O])
     # endif h2o
+
+    if self.o2:
+      o2Close = np.isclose(self.userO2, ncO2[idxO2],rtol=self.tol)
+      closeList.append(o2Close)
+      paramList.append('O2')
+      valList.append(ncO2[idxO2])
+    # endif o2
 
     for iParam, close in enumerate(closeList):
       if not close:
@@ -104,6 +115,7 @@ class testABSCO():
     self.iWN  = int(idxWN)
 
     if self.h2o: self.iH2O = int(idxH2O)
+    if self.o2: self.iO2 = int(idxO2)
   # end valueLocate()
 
   def readABSCO(self):
@@ -118,7 +130,10 @@ class testABSCO():
     with xa.open_dataset(self.ncFile) as xaObj:
       absco = np.array(xaObj.variables['Cross_Section'])
 
-    if self.h2o:
+    if self.o2:
+      coord = (self.iWN, self.iT, self.iP, self.iH2O, self.iO2)
+      out = absco[self.iWN, self.iT, self.iP, self.iH2O, self.iO2]
+    elif self.h2o:
       coord = (self.iWN, self.iT, self.iP, self.iH2O)
       out = absco[self.iWN, self.iT, self.iP, self.iH2O]
     else:
@@ -154,9 +169,13 @@ if __name__ == '__main__':
     help='Reference spectral point AND units [cm-1, um, or nm] ' + \
     'for which k is retrieved.')
   parser.add_argument('-wv', '--in_h2o', type=float, \
-    default=10000.0, \
+    default=10.0, \
     help='Reference water vapor VMR (ppmv) for which k is ' + \
     'retrieved IF the specified molecule is H2O, CO2, O2, or N2.')
+  parser.add_argument('-o2', '--in_o2', type=float, \
+    default=190000.0, \
+    help='Reference oxygen VMR (ppmv) for which k is ' + \
+    'retrieved IF the specified molecule is O2.')
   parser.add_argument('-tol', '--tolerance', type=float, \
     help='Tolerance used when searching for floating point ' + \
     'matches in *each* of the dimensions. This should be a ' + \
