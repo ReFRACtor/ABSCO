@@ -32,9 +32,11 @@ parser.add_argument('-e2e', '--end_to_end', action='store_true', \
   'post-processing (rather than entering all of the keywords ' + \
   'separately).')
 parser.add_argument('-db', '--debug', action='store_true', \
-  help='Use for testing (only iterates ' + \
-  'over a few pressure levels.)')
+  help='Use for testing (only iterates over a few pressure levels.)')
 args = parser.parse_args()
+
+if not (args.run_lbl or args.run_lnfl or args.end_to_end):
+  sys.exit('Nothing done. Please set "-e2e", "-lbl", or "-lnfl"')
 
 iniFile = args.config_file; utils.file_check(iniFile)
 
@@ -106,5 +108,6 @@ if args.run_lbl or args.end_to_end:
       kObj.makeNC(mol)
     # endif H2O
   # end mol loop
+
 # end LBL
 
