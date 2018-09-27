@@ -161,7 +161,7 @@ These items are part of a `configure` object that is required input for the `mak
 
 Note that the objects contain the information for all user specified species. In the driver, we loop over each molecule so that a single netCDF output file is made for each molecule. This allows for parallelization of the processing (e.g., using a single core per molecule), but the code to facilitate it has not yet been written (partially because of concerns of the amount of HD space and RAM is needed for a single molecule).
 
-Additionally, this driver handles H<sub>2</sub>O-affected molecules (CO<sub>2</sub>, N<sub>2</sub>, O<sub>2</sub>, H<sub>2</sub>O) and O<sub>2</sub> by looping over VMRs (in ppmv) for both species, and then generating ABSCO objects at these VMRs. The water vapor VMRs are provided in the configuration file, while the oxygen VMRs are hard set at 1.9 * 10<sup>5</sup and 2.3 * 10<sup>5</sup>. For this processing, the H<sub>2</sub> and O<sub>2</sub> profiles are held constant at a given VMR while others (N2 and CO2) follow the profiles given by `vmrfile` (see [Table 2](#Table2)).
+Additionally, this driver handles H<sub>2</sub>O-affected molecules (CO<sub>2</sub>, N<sub>2</sub>, O<sub>2</sub>, H<sub>2</sub>O) and O<sub>2</sub> by looping over VMRs (in ppmv) for both species, and then generating ABSCO objects at these VMRs. The water vapor VMRs are provided in the configuration file, while the oxygen VMRs are hard set at 1.9 * 10<sup>5</sup> and 2.3 * 10<sup>5</sup>. For this processing, the H<sub>2</sub> and O<sub>2</sub> profiles are held constant at a given VMR while others (N2 and CO2) follow the profiles given by `vmrfile` (see [Table 2](#Table2)).
 
 ## Defaults
 
@@ -256,7 +256,7 @@ Since their continua are dependent on water vapor content, netCDF variables for 
 | Extent_Ranges | (nranges x nranges_lims) | cm<sup>-1</sup> | [0, 50000] | Starting and ending spectral points <br> for each input channel |
 | Extent_Indices | (nranges x nranges_lims) | unitless | [0, "infinity"] | Pairs of indices defining the <br> start and end indices of the <br> Cross_Section frequency dimension <br> for non-continuous calculation regions |
 | H2O_VMR | (nvmr) | ppmv | [0, 50000] | Water vapor volume mixing ratio |
-| O2_VMR | (nvmr) | ppmv | [0, 250000] | Oxygen volume mixing ratio. Only added to oxygen *k* array|
+| O2_VMR | (nvmr) | ppmv | [0, 250000] | Oxygen volume mixing ratio. <br>Only added to oxygen *k* array|
 
 All other allowed molecules will conform to a similar convention as [Table 4](#Table4), only without the H<sub>2</sub>O VMR dimension. There is thus no `H2O_VMR` array for these species.
 
@@ -297,6 +297,9 @@ optional arguments:
                         Reference water vapor VMR (ppmv) for which k is
                         retrieved IF the specified molecule is H2O, CO2, O2,
                         or N2. (default: 10000.0)
+  -o2 IN_O2, --in_o2 IN_O2
+                        Reference oxygen VMR (ppmv) for which k is retrieved
+                        IF the specified molecule is O2. (default: 190000.0)
   -tol TOLERANCE, --tolerance TOLERANCE
                         Tolerance used when searching for floating point
                         matches in *each* of the dimensions. This should be a
