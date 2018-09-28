@@ -229,8 +229,12 @@ class makeABSCO():
       # band specification	
       wvn1 = self.bands['wn1'][iBand]
       wvn2 = self.bands['wn2'][iBand]
+
+      # spectral range should go +/- 25 cm-1 to incorporate 
+      # non-negligible contributions from all "nearby" lines
+      # and LNFL is smart enough to work with wvn1 < 0
       record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
-      record2 = '%10.3f%10.3f' % (wvn1, wvn2)
+      record2 = '%10.3f%10.3f' % (wvn1-25, wvn2+25)
 
       # switch molecule "on" for LNFL; we still need a TAPE3 for LBL
       # with XS molecules even though they have no molecule number, 
@@ -491,7 +495,7 @@ class makeABSCO():
 
         # start writing the TAPE5s, 1 layer (2 levels) at a time
         for iP, pLev in enumerate(pLevArr):
-          # skip surface since we need to levels
+          # skip surface since we need two levels
           if iP == 0: continue
 
           # pressure levels might not span all temperatures
@@ -592,7 +596,7 @@ class makeABSCO():
       # given band
       bandWN = None
 
-      # chose the first 22 levels for testing because that's when the
+      # chose the first 2 levels for testing because that's when the
       # number of temperatures started to change
       pLevs = self.pLev[:3] if self.debug else list(self.pLev)
 
@@ -605,9 +609,21 @@ class makeABSCO():
       levP = []
       pABSCO, pLayP = {}, {}
       for iP, pLev in enumerate(pLevs):
+        # skip the TOA level because (from Karen):
+        # LBL is calculating the altitude of the observer level and 
+        # the profiles slightly differently, and coming up with an 
+        # observer height above the top of the profile
+        if iP == self.nP-1: continue
+
+        # this is a bit different than self.pLev -- it represents 
+        # what levels we processed rather than what we expected to use
+        # skipping the last level is the difference here
+        # but we count the first level because it is the lower bound
+        # of the first layer
         levP.append(pLev)
 
-        # do not expect anything for surface level
+        # do not expect anything for surface level since we skip it
+        # in lblT5() (we need 2 levels for 1 layer)
         if iP == 0: continue
 
         tempABSCO, tempLayP = [], []
