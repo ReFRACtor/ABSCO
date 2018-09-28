@@ -60,7 +60,7 @@ class configure():
 
     # cross section molecules will have to be handled differently
     # from HITRAN molecules
-    self.xsNames = ['CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN']
+    self.xsNames = ['CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN', 'BRO']
 
     # these also have line parameters, but HITRAN recommends to use 
     # their XS coefficients in certain bands (see xsCheck() method).
