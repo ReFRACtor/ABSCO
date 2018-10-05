@@ -514,9 +514,6 @@ class makeABSCO():
             (outDirT5, mol, pLev, constantT, \
              self.bands['wn1'][iBand], self.bands['wn2'][iBand])
 
-          if os.path.exists(outFile):
-            print('WARNING: Overwriting %s' % outFile)
-
           finalRecs.insert(5, record33b)
 
           # throw the water vapor records into the appropriate spot
@@ -525,6 +522,9 @@ class makeABSCO():
 
           if mol == 'O2': outFile = '%s_vmrO2%06.0f' % \
             (outFile, self.vmrO2)
+
+          if os.path.exists(outFile):
+            print('WARNING: Overwriting %s' % outFile)
 
           outFP = open(outFile, 'w')
           outFP.write('$ %s\n' % self.headerOD)
