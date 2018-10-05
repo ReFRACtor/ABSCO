@@ -46,7 +46,8 @@ class makeABSCO():
   wavenumber, pressure, temperature, and band) for specified molecule
   """
 
-  def __init__(self, inObj, mol, debug=False, vmrWV=None, vmrO2=None):
+  def __init__(self, inObj, inMol, debug=False, \
+    vmrWV=None, vmrO2=None):
 
     """
     Inputs
@@ -170,7 +171,7 @@ class makeABSCO():
     self.doXS = dict(inObj.doXS)
     self.molH2O = list(inObj.molH2O)
     self.molMaxLBL = 47
-    self.vmrWV = float(vmrWV) if mol in self.molH2O else None
+    self.vmrWV = float(vmrWV) if inMol in self.molH2O else None
     self.vmrArrWV = np.array(inObj.wv_vmr)
 
     # with O2, the VMR array is used with the netCDF; single O2 values
