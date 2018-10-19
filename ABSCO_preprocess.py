@@ -188,9 +188,10 @@ class configure():
         # also make sure user provides correct WN order and convert 
         # to cm-1 if necessary
         for iBand in range(len(channels['wn1'])):
-          wn1, wn2, res, deg = \
+          wn1, wn2, res, deg, kern = \
             channels['wn1'][iBand], channels['wn2'][iBand], \
-            channels['lblres'][iBand], channels['outres'][iBand]
+            channels['lblres'][iBand], channels['outres'][iBand], \
+            channels['kernwidth'][iBand]
 
           if units in ['um', 'nm']:
             wnConvert = 1e4 if units == 'um' else 1e7
@@ -239,7 +240,7 @@ class configure():
             subChanWN2.append(tempWN2)
 
             # remove the entire width > 2000 cm-1 band
-            for key in ['wn1', 'wn2', 'lblres', 'outres']:
+            for key in ['wn1', 'wn2', 'lblres', 'outres', 'kernwidth']:
               channels[key] = np.delete(channels[key], iBand)
 
             # reassign channel limits
@@ -254,6 +255,8 @@ class configure():
               iBand, np.repeat(res, len(subChanWN1)))
             channels['outres'] = np.insert(channels['outres'], \
               iBand, np.repeat(deg, len(subChanWN1)))
+            channels['kernwidth'] = np.insert(channels['kernwidth'], \
+              iBand, np.repeat(kern, len(subChanWN1)))
           # endif > 2000
         # end band loop
 
