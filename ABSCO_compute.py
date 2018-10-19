@@ -177,7 +177,7 @@ class makeABSCO():
     # with O2, the VMR array is used with the netCDF; single O2 values
     # are used with each ABSCO run
     self.vmrArrO2 = np.array(inObj.vmrO2)
-    self.vmrO2 = float(vmrO2) if mol == 'O2' else None
+    self.vmrO2 = float(vmrO2) if inMol == 'O2' else None
 
     self.HITRAN = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
       'NO', 'SO2', 'NO2', 'NH3', 'HNO3', 'OH', 'HF', 'HCL', 'HBR', \
