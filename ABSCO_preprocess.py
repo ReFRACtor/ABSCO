@@ -35,18 +35,19 @@ class configure():
 
     # these intermediate subdirs should be underneath intdir, 
     # which can be an another file system
-    self.lnfl_run_dir = '%s/%s' % (self.intdir, self.lnfl_run_dir)
-    self.lbl_run_dir = '%s/%s' % (self.intdir, self.lbl_run_dir)
-    self.tape3_dir = '%s/%s' % (self.intdir, self.tape3_dir)
-    self.outdir = '%s/%s' % (self.intdir, self.outdir)
+    self.lnfl_run_dir = os.path.join(self.intdir, self.lnfl_run_dir)
+    self.lbl_run_dir = os.path.join(self.intdir, self.lbl_run_dir)
+    self.tape3_dir = os.path.join(self.intdir, self.tape3_dir)
+    self.outdir = os.path.join(self.intdir, self.outdir)
 
     # these guys should always be in the "source" directory -- the 
     # directory into which the ABSCO repo is cloned, which is assumed
     # to be the working dir
-    gitDir = os.getcwd()
-    self.pfile = '%s/%s' % (gitDir, self.pfile)
-    self.ptfile = '%s/%s' % (gitDir, self.ptfile)
-    self.vmrfile = '%s/%s' % (gitDir, self.vmrfile)
+    gitDir = os.path.dirname(__file__)
+    self.pfile = os.path.join(gitDir, self.pfile)
+    self.ptfile = os.path.join(gitDir, self.ptfile)
+    self.vmrfile = os.path.join(gitDir, self.vmrfile)
+    self.xs_lines = os.path.join(gitDir, self.xs_lines)
 
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \

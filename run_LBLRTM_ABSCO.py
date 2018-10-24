@@ -6,7 +6,7 @@ import os, sys, argparse
 import numpy as np
 
 # Git submodules
-sys.path.append('common')
+sys.path.append(os.path.join(os.path.dirname(__file__), 'common'))
 import utils
 
 # local modules
