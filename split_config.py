@@ -109,6 +109,11 @@ class AbscoConfigSplitter(object):
 
             out_config['molecules']['molnames'] = " ".join(mol_names)
 
+            # Add a subdirectory to output path so that multiple runs 
+            # do not clobber each other
+            out_sub_dir = "{num:02}".format(num=idx+1)
+            out_config['output']['intdir'] = os.path.join(out_config['output']['intdir'], out_sub_dir)
+
             with open(output_filename, "w") as out_file:
                 out_config.write(out_file)
 
