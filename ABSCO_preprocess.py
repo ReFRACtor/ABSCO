@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 class configure():
-  def __init__(self, inFile, molActiveCheck=True):
+  def __init__(self, inFile, molActiveCheck=True, prompt_user=True):
     """
     Parse the input .ini file (inFile) and return as an object for 
     use in makeABSCO class.  Also do some error checking and other 
@@ -27,6 +27,8 @@ class configure():
         bands LNFL and LBLRTM should be run based on the user-input 
         ranges and whether the given molecules are active in the bands
     """
+    # Allow turning of interactive prompts for batch processing
+    self.prompt_user = prompt_user
 
     # extract everything from config (.ini) file (inFile)
     self.configFile = str(inFile)
@@ -454,11 +456,12 @@ class configure():
       print('No active molecules specified.')
       prompt = 'The following molecules are active in the ' + \
         'first input spectral range and can be processed, ' + \
-        '%s, proceed (y/n)? ' % molActive
-      status = input(prompt)
-      status = status.upper()
+        '%s ' % molActive
 
-      if status == 'N': sys.exit('Exited without proceeding')
+      if self.prompt_user:
+        prompt += ', proceed (y/n)? '
+        status = input(prompt).upper()
+        if status != 'Y': sys.exit('Exited without proceeding')
 
       molecules = list(molActive)
     else:
@@ -472,11 +475,13 @@ class configure():
         prompt = 'The following molecules are active in one ' + \
           'of the input spectral ranges and were not ' + \
           'included in the configuration file: ' + \
-          '%s, proceed (y/n)? ' % molMissed
-        status = input(prompt)
-        status = status.upper()
+          '%s ' % molMissed
 
-        if status == 'N': sys.exit('Exited without proceeding')
+        if self.prompt_user:
+          prompt += ', proceed (y/n)? '
+          status = input(prompt).upper()
+          if status != 'Y': sys.exit('Exited without proceeding')
+
       # endif molMissed
 
       # did the user include and non-active molecules?
@@ -489,11 +494,13 @@ class configure():
         prompt = 'The following molecules are not active in ' + \
           'any of the input spectral ranges and were ' + \
           'included in the configuration file: ' + \
-          '%s, proceed (y/n)? ' % molExtra
-        status = input(prompt)
-        status = status.upper()
+          '%s ' % molExtra
 
-        if status == 'N': sys.exit('Exited without proceeding')
+        if self.prompt_user:
+          prompt += ', proceed (y/n)? '
+          status = input(prompt).upper()
+          if status != 'Y': sys.exit('Exited without proceeding')
+
       # endif molExtra
 
       molecules = list(molUser)
@@ -703,12 +710,12 @@ class configure():
     # end mol loop
 
     prompt = 'Full ABSCO table netCDF generation expected to ' + \
-      'consume up to %.3f GB of RAM, continue? ' % totEst
+      'consume up to %.3f GB of RAM' % totEst
 
-    status = input(prompt)
-    status = status.upper()
-
-    if status == 'N': sys.exit('Exited without proceeding')
+    if self.prompt_user:
+      prompt += ', proceed (y/n)? '
+      status = input(prompt).upper()
+      if status != 'Y': sys.exit('Exited without proceeding')
 
   # end calcRAM()
 # end configure()
