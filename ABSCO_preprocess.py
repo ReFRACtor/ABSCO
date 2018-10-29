@@ -457,11 +457,7 @@ class configure():
       prompt = 'The following molecules are active in the ' + \
         'first input spectral range and can be processed, ' + \
         '%s ' % molActive
-
-      if self.prompt_user:
-        prompt += ', proceed (y/n)? '
-        status = input(prompt).upper()
-        if status != 'Y': sys.exit('Exited without proceeding')
+      self.show_prompt(prompt)
 
       molecules = list(molActive)
     else:
@@ -476,11 +472,7 @@ class configure():
           'of the input spectral ranges and were not ' + \
           'included in the configuration file: ' + \
           '%s ' % molMissed
-
-        if self.prompt_user:
-          prompt += ', proceed (y/n)? '
-          status = input(prompt).upper()
-          if status != 'Y': sys.exit('Exited without proceeding')
+        self.show_prompt(prompt)
 
       # endif molMissed
 
@@ -495,11 +487,7 @@ class configure():
           'any of the input spectral ranges and were ' + \
           'included in the configuration file: ' + \
           '%s ' % molExtra
-
-        if self.prompt_user:
-          prompt += ', proceed (y/n)? '
-          status = input(prompt).upper()
-          if status != 'Y': sys.exit('Exited without proceeding')
+        self.show_prompt(prompt)
 
       # endif molExtra
 
@@ -711,11 +699,15 @@ class configure():
 
     prompt = 'Full ABSCO table netCDF generation expected to ' + \
       'consume up to %.3f GB of RAM' % totEst
-
+    self.show_prompt(prompt)
+  
+  def show_prompt(self, message):
     if self.prompt_user:
-      prompt += ', proceed (y/n)? '
-      status = input(prompt).upper()
+      message += ', proceed (y/n)? '
+      status = input(message).upper()
       if status != 'Y': sys.exit('Exited without proceeding')
+    else:
+      print(message)
 
   # end calcRAM()
 # end configure()
