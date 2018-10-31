@@ -33,6 +33,8 @@ parser.add_argument('-e2e', '--end_to_end', action='store_true', \
   'separately).')
 parser.add_argument('-db', '--debug', action='store_true', \
   help='Use for testing (only iterates over a few pressure levels.)')
+parser.add_argument('-y', '--no_prompt', action='store_false', dest='prompt_user', default=True,
+  help='Do not prompt for continuation at warning messages.')
 args = parser.parse_args()
 
 if not (args.run_lbl or args.run_lnfl or args.end_to_end):
@@ -41,7 +43,7 @@ if not (args.run_lbl or args.run_lnfl or args.end_to_end):
 iniFile = args.config_file; utils.file_check(iniFile)
 
 # configuration object instantiation
-ini = preproc.configure(iniFile)
+ini = preproc.configure(iniFile, prompt_user=args.prompt_user)
 
 for iniName in ini.molnames:
   if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)

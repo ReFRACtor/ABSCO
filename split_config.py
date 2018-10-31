@@ -9,10 +9,6 @@ from argparse import ArgumentParser
 import numpy as np
 
 DEFAULT_MOLS_PER_FILE=1
-DEFAULT_CHUNK_SIZE = {
-    "cm-1": 2000.0,
-    "nm": 5000.0,
-}
 
 from configparser import ConfigParser
 
@@ -28,17 +24,7 @@ class AbscoConfigSplitter(object):
         self.config = ConfigParser()
         self.config.read(config_filename)
 
-        # Set default chunk size based on the units in the config file
-        if chunk_size is None:
-            chan_units = self.config['channels']['units']
-
-            if not chan_units in DEFAULT_CHUNK_SIZE:
-                raise Exception("Unit type {} does not have a default chunk size defined".format(chan_units))
-
-            self.chunk_size = DEFAULT_CHUNK_SIZE[chan_units]
-        else:
-            self.chunk_size = chunk_size
-
+        self.chunk_size = chunk_size
         self.mols_per_file = mols_per_file
 
     def channel_windows(self):
@@ -51,7 +37,10 @@ class AbscoConfigSplitter(object):
         out_beg_list = []
         out_end_list = []
         for beg, end, lblres, outres in zip(in_beg_list, in_end_list, lblres_list, outres_list):
-            num_chunks = int(np.round(abs(beg-end)/self.chunk_size))
+            if self.chunk_size is None or self.chunk_size == 0:
+                num_chunks = 1
+            else:
+                num_chunks = int(np.round(abs(beg-end)/self.chunk_size))
 
             # Existing window is small enough
             if num_chunks <= 1:
@@ -102,10 +91,10 @@ class AbscoConfigSplitter(object):
             out_config.read(self.in_filename)
 
             # Modify sections
-            out_config['channels']['wn1'] = "{:.2f}".format(chan_beg)
-            out_config['channels']['wn2'] = "{:.2f}".format(chan_end)
-            out_config['channels']['l1blres'] = "{:.2e}".format(lbl_res)
-            out_config['channels']['outres'] = "{:.2e}".format(out_res)
+            out_config['channels']['wn1'] = "{:f}".format(chan_beg)
+            out_config['channels']['wn2'] = "{:f}".format(chan_end)
+            out_config['channels']['lblres'] = "{:e}".format(lbl_res)
+            out_config['channels']['outres'] = "{:e}".format(out_res)
 
             out_config['molecules']['molnames'] = " ".join(mol_names)
 
