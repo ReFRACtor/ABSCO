@@ -14,7 +14,8 @@ DIMS_ENSURE_SAME = ("nlay", "nlev", "nranges_lims", "ntemp", "nvmr")
 VARIABLES_ENSURE_SAME = ("/H2O_VMR", "/P_layer", "/P_level", "/Temperature")
 
 # How many units of the cross section table to copy at a time to reduce memory overhead
-XSECT_CHUNK_SIZE = 10000
+# Number here ~ 4GB
+XSECT_CHUNK_SIZE = 180000 
 
 def copy_attrs(src_var, dst_var):
     for attr_k, attr_v in src_var.__dict__.items():
@@ -32,7 +33,8 @@ class AbscoFileJoiner(object):
             if not os.path.exists(fn):
                 raise Exception("Input ABSCO file not found:", fn)
 
-            self.inp_objects.append(netCDF4.Dataset(fn, "r"))
+            inp_nc_file = netCDF4.Dataset(fn, "r") 
+            self.inp_objects.append(inp_nc_file)
 
         self._sort_tables()
 
@@ -108,30 +110,38 @@ class AbscoFileJoiner(object):
             nranges_val += curr_fil.dimensions["nranges"].size
             nfreq_val += curr_fil.dimensions["nfreq"].size
 
-        logger.debug("Creating changed dimensions: nranges = {}, nfrea = {}".format(nranges_val, nfreq_val))
+        logger.debug("Creating changed dimensions: nranges = {}, nfreq = {}".format(nranges_val, nfreq_val))
         nranges_dim = output_fil.createDimension("nranges", nranges_val)
         nfreq_dim = output_fil.createDimension("nfreq", nfreq_val)
 
     def _write_common_variables(self, output_fil):
+        inp_file = self.inp_objects[0]
+        
+        # Turn off auto masking to avoid having issue when copying masked values
+        inp_file.set_auto_mask(False)
+
         # Copy common variables from the first object
         for var_name in VARIABLES_ENSURE_SAME:
             logger.debug("Copying unchanged variable: {}".format(var_name))
-            src_var = self.inp_objects[0][var_name]
-            dst_var = output_fil.createVariable(var_name, src_var.dtype, src_var.dimensions)
+            src_var = inp_file[var_name]
+            dst_var = output_fil.createVariable(var_name, src_var.dtype, src_var.dimensions, fill_value=src_var._FillValue)
+
             dst_var[:] = src_var[:]
 
             copy_attrs(src_var, dst_var)
+
+        inp_file.set_auto_mask(True)
 
     def _write_updated_variables(self, output_fil):
         # Create new extent and spectral grid information
         logger.debug("Creating updated variables: Spectral_Grid, Extent_Ranges, Extent_Indices, Cross_Section")
 
         dst_dtype = self.inp_objects[0]["Spectral_Grid"].dtype
-        dst_spec_grid = output_fil.createVariable("Spectral_Grid", dst_dtype, ("nfreq",))
+        dst_spec_grid = output_fil.createVariable("Spectral_Grid", dst_dtype, ("nfreq",), fill_value=np.nan)
         copy_attrs(self.inp_objects[0]["Spectral_Grid"], dst_spec_grid)
 
         dst_dtype = self.inp_objects[0]["Extent_Ranges"].dtype
-        dst_extent_ranges = output_fil.createVariable("Extent_Ranges", dst_dtype, ("nranges", "nranges_lims"))
+        dst_extent_ranges = output_fil.createVariable("Extent_Ranges", dst_dtype, ("nranges", "nranges_lims"), fill_value=np.nan)
         copy_attrs(self.inp_objects[0]["Extent_Ranges"], dst_extent_ranges)
 
         dst_dtype = self.inp_objects[0]["Extent_Indices"].dtype
@@ -139,13 +149,16 @@ class AbscoFileJoiner(object):
         copy_attrs(self.inp_objects[0]["Extent_Indices"], dst_extent_indicies)
 
         dst_dtype = self.inp_objects[0]["Cross_Section"].dtype
-        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, ("nfreq", "ntemp", "nlay", "nvmr"))
+        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, ("nfreq", "ntemp", "nlay", "nvmr"), fill_value=np.nan)
         copy_attrs(self.inp_objects[0]["Cross_Section"], dst_cross_section)
 
         logger.debug("Copying values for updated variables")
         dst_freq_beg = 0
         dst_ranges_beg = 0
         for curr_fil in self.inp_objects:
+            # Turn off auto masking to avoid having issue when copying masked values
+            curr_fil.set_auto_mask(False)
+
             logger.debug("Copying from {}".format(curr_fil.filepath()))
 
             src_nfreq = curr_fil.dimensions["nfreq"].size
@@ -175,10 +188,10 @@ class AbscoFileJoiner(object):
             src_chunk_beg = 0
             chunk_num = 1
             while dst_chunk_beg < (dst_freq_beg+src_nfreq):
-                logger.debug(".. Cross_Section #{}".format(chunk_num))
                 dst_chunk_end = min(dst_chunk_beg + XSECT_CHUNK_SIZE, dst_freq_beg+src_nfreq)
                 src_chunk_end = min(src_chunk_beg + XSECT_CHUNK_SIZE, src_nfreq)
 
+                logger.debug(".. Cross_Section #{} {}-{} -> {}-{}".format(chunk_num, src_chunk_beg, src_chunk_end, dst_chunk_beg, dst_chunk_end))
                 dst_cross_section[dst_chunk_beg:dst_chunk_end, :, :, :] = src_cross_section[src_chunk_beg:src_chunk_end , :, :, :]
 
                 dst_chunk_beg += XSECT_CHUNK_SIZE
@@ -187,6 +200,8 @@ class AbscoFileJoiner(object):
 
             dst_freq_beg += src_nfreq
             dst_ranges_beg += src_nranges
+
+            curr_fil.set_auto_mask(True)
 
 def main():
 
@@ -207,7 +222,6 @@ def main():
 
     joiner = AbscoFileJoiner(args.inp_filenames)
     joiner.check_properties()
-    print(joiner.total_extent())
     joiner.write(args.out_filename)
 
 if __name__ == "__main__":
