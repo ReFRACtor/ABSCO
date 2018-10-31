@@ -134,8 +134,7 @@ class configure():
 
           if len(split) == 0:
             # CONSIDER DEFAULTS
-            chanErrMsg = 'No bands specified in %s, returning' % \
-              inFile
+            chanErrMsg = 'No bands specified in %s, returning' % self.configFile 
             sys.exit(chanErrMsg)
           # endif split
 
@@ -174,7 +173,7 @@ class configure():
           if channels[key].size != channels[keys[0]].size:
             chanErrMsg = 'wn1, wn2, and res should have equal ' + \
               'number of elements, returning'
-            print('Error in %s' % inFile)
+            print('Error in %s' % self.configFile)
             sys.exit(chanErrMsg)
           # endif channels
         # end key loop
