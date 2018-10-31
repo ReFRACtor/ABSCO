@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import sys
 import logging
 from itertools import product
 from argparse import ArgumentParser
