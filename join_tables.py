@@ -65,6 +65,10 @@ class AbscoFileJoiner(object):
         for comp_obj in self.inp_objects[1:]:
             # Check dimensions
             for dim_name in DIMS_ENSURE_SAME:
+                # Some dimensions not present in all files, such as nvmr
+                if dim_name not in base_obj.dimensions and dim_name not in comp_obj.dimensions:
+                    continue
+
                 base_size = base_obj.dimensions[dim_name].size 
                 comp_size = comp_obj.dimensions[dim_name].size
                 if base_size != comp_size:
@@ -73,6 +77,10 @@ class AbscoFileJoiner(object):
 
             # Check variables using the masked array comparison routine
             for var_name in VARIABLES_ENSURE_SAME:
+                # H2O_VMR not in all files
+                if not var_name in base_obj.variables and not var_name in comp_obj.variables:
+                    continue
+
                 if not np.ma.allequal(base_obj[var_name], comp_obj[var_name], fill_value=True):
                     raise Exception("Dataset {var_name} is not the same between files {fn1} and {fn2}".format(
                         var_name=var_name, fn1=base_obj.filepath(), fn2=comp_obj.filepath()))
@@ -100,6 +108,9 @@ class AbscoFileJoiner(object):
         # Copy the dimensions and variables that are the same from the first file
         logger.debug("Copying unchanged dimensions")
         for dim_name in DIMS_ENSURE_SAME:
+            if dim_name not in self.inp_objects[0].dimensions:
+                continue
+
             dim_obj = self.inp_objects[0].dimensions[dim_name]
             output_fil.createDimension(dim_name, dim_obj.size)
 
@@ -122,6 +133,9 @@ class AbscoFileJoiner(object):
 
         # Copy common variables from the first object
         for var_name in VARIABLES_ENSURE_SAME:
+            if var_name not in inp_file.variables:
+                continue
+
             logger.debug("Copying unchanged variable: {}".format(var_name))
             src_var = inp_file[var_name]
             dst_var = output_fil.createVariable(var_name, src_var.dtype, src_var.dimensions, fill_value=src_var._FillValue)
@@ -149,7 +163,14 @@ class AbscoFileJoiner(object):
         copy_attrs(self.inp_objects[0]["Extent_Indices"], dst_extent_indicies)
 
         dst_dtype = self.inp_objects[0]["Cross_Section"].dtype
-        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, ("nfreq", "ntemp", "nlay", "nvmr"), fill_value=np.nan)
+
+        # Some files are not broadened by another gas
+        if "nvmr" in output_fil.dimensions:
+            cross_section_dims = ("nfreq", "ntemp", "nlay", "nvmr")
+        else:
+            cross_section_dims = ("nfreq", "ntemp", "nlay")
+
+        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, cross_section_dims, fill_value=np.nan)
         copy_attrs(self.inp_objects[0]["Cross_Section"], dst_cross_section)
 
         logger.debug("Copying values for updated variables")
@@ -192,7 +213,7 @@ class AbscoFileJoiner(object):
                 src_chunk_end = min(src_chunk_beg + XSECT_CHUNK_SIZE, src_nfreq)
 
                 logger.debug(".. Cross_Section #{} {}-{} -> {}-{}".format(chunk_num, src_chunk_beg, src_chunk_end, dst_chunk_beg, dst_chunk_end))
-                dst_cross_section[dst_chunk_beg:dst_chunk_end, :, :, :] = src_cross_section[src_chunk_beg:src_chunk_end , :, :, :]
+                dst_cross_section[dst_chunk_beg:dst_chunk_end, ...] = src_cross_section[src_chunk_beg:src_chunk_end , ...]
 
                 dst_chunk_beg += XSECT_CHUNK_SIZE
                 src_chunk_beg += XSECT_CHUNK_SIZE
