@@ -11,11 +11,14 @@ logger = logging.getLogger(__file__)
 
 # Datasets to check for consistency between files
 DIMS_ENSURE_SAME = ("nlay", "nlev", "nranges_lims", "ntemp", "nvmr")
-VARIABLES_ENSURE_SAME = ("/H2O_VMR", "/P_layer", "/P_level", "/Temperature")
+VARIABLES_ENSURE_SAME = ("H2O_VMR", "O2_VMR", "P_layer", "P_level", "Temperature")
 
 # How many units of the cross section table to copy at a time to reduce memory overhead
 # Number here ~ 4GB
 XSECT_CHUNK_SIZE = 180000 
+
+# Compression level
+COMP_LEVEL=4
 
 def copy_attrs(src_var, dst_var):
     for attr_k, attr_v in src_var.__dict__.items():
@@ -98,7 +101,7 @@ class AbscoFileJoiner(object):
 
         logger.debug("Creating joined ABSCO table file: {}".format(output_filename))
         
-        output_fil = netCDF4.Dataset(output_filename, "w", zlib=True, complevel=4)
+        output_fil = netCDF4.Dataset(output_filename, "w")
 
         self._write_dimensions(output_fil)
         self._write_common_variables(output_fil)
@@ -133,12 +136,12 @@ class AbscoFileJoiner(object):
 
         # Copy common variables from the first object
         for var_name in VARIABLES_ENSURE_SAME:
-            if var_name not in inp_file.variables:
+            if var_name not in inp_file.variables.keys():
                 continue
 
             logger.debug("Copying unchanged variable: {}".format(var_name))
             src_var = inp_file[var_name]
-            dst_var = output_fil.createVariable(var_name, src_var.dtype, src_var.dimensions, fill_value=src_var._FillValue)
+            dst_var = output_fil.createVariable(var_name, src_var.dtype, src_var.dimensions, fill_value=src_var._FillValue, zlib=True, complevel=COMP_LEVEL)
 
             dst_var[:] = src_var[:]
 
@@ -151,26 +154,21 @@ class AbscoFileJoiner(object):
         logger.debug("Creating updated variables: Spectral_Grid, Extent_Ranges, Extent_Indices, Cross_Section")
 
         dst_dtype = self.inp_objects[0]["Spectral_Grid"].dtype
-        dst_spec_grid = output_fil.createVariable("Spectral_Grid", dst_dtype, ("nfreq",), fill_value=np.nan)
+        dst_spec_grid = output_fil.createVariable("Spectral_Grid", dst_dtype, ("nfreq",), fill_value=np.nan, zlib=True, complevel=COMP_LEVEL)
         copy_attrs(self.inp_objects[0]["Spectral_Grid"], dst_spec_grid)
 
         dst_dtype = self.inp_objects[0]["Extent_Ranges"].dtype
-        dst_extent_ranges = output_fil.createVariable("Extent_Ranges", dst_dtype, ("nranges", "nranges_lims"), fill_value=np.nan)
+        dst_extent_ranges = output_fil.createVariable("Extent_Ranges", dst_dtype, ("nranges", "nranges_lims"), fill_value=np.nan, zlib=True, complevel=COMP_LEVEL)
         copy_attrs(self.inp_objects[0]["Extent_Ranges"], dst_extent_ranges)
 
         dst_dtype = self.inp_objects[0]["Extent_Indices"].dtype
-        dst_extent_indicies = output_fil.createVariable("Extent_Indices", dst_dtype, ("nranges", "nranges_lims"))
+        dst_extent_indicies = output_fil.createVariable("Extent_Indices", dst_dtype, ("nranges", "nranges_lims"), zlib=True, complevel=COMP_LEVEL)
         copy_attrs(self.inp_objects[0]["Extent_Indices"], dst_extent_indicies)
 
         dst_dtype = self.inp_objects[0]["Cross_Section"].dtype
+        cross_section_dims = self.inp_objects[0]["Cross_Section"].dimensions
 
-        # Some files are not broadened by another gas
-        if "nvmr" in output_fil.dimensions:
-            cross_section_dims = ("nfreq", "ntemp", "nlay", "nvmr")
-        else:
-            cross_section_dims = ("nfreq", "ntemp", "nlay")
-
-        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, cross_section_dims, fill_value=np.nan)
+        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, cross_section_dims, fill_value=np.nan, zlib=True, complevel=COMP_LEVEL)
         copy_attrs(self.inp_objects[0]["Cross_Section"], dst_cross_section)
 
         logger.debug("Copying values for updated variables")
@@ -213,7 +211,7 @@ class AbscoFileJoiner(object):
                 src_chunk_end = min(src_chunk_beg + XSECT_CHUNK_SIZE, src_nfreq)
 
                 logger.debug(".. Cross_Section #{} {}-{} -> {}-{}".format(chunk_num, src_chunk_beg, src_chunk_end, dst_chunk_beg, dst_chunk_end))
-                dst_cross_section[dst_chunk_beg:dst_chunk_end, ...] = src_cross_section[src_chunk_beg:src_chunk_end , ...]
+                dst_cross_section[dst_chunk_beg:dst_chunk_end, ...] = src_cross_section[src_chunk_beg:src_chunk_end, ...]
 
                 dst_chunk_beg += XSECT_CHUNK_SIZE
                 src_chunk_beg += XSECT_CHUNK_SIZE
