@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 class configure():
-  def __init__(self, inFile, molActiveCheck=True):
+  def __init__(self, inFile, molActiveCheck=True, prompt_user=True):
     """
     Parse the input .ini file (inFile) and return as an object for 
     use in makeABSCO class.  Also do some error checking and other 
@@ -27,6 +27,8 @@ class configure():
         bands LNFL and LBLRTM should be run based on the user-input 
         ranges and whether the given molecules are active in the bands
     """
+    # Allow turning of interactive prompts for batch processing
+    self.prompt_user = prompt_user
 
     # extract everything from config (.ini) file (inFile)
     self.configFile = str(inFile)
@@ -35,18 +37,19 @@ class configure():
 
     # these intermediate subdirs should be underneath intdir, 
     # which can be an another file system
-    self.lnfl_run_dir = '%s/%s' % (self.intdir, self.lnfl_run_dir)
-    self.lbl_run_dir = '%s/%s' % (self.intdir, self.lbl_run_dir)
-    self.tape3_dir = '%s/%s' % (self.intdir, self.tape3_dir)
-    self.outdir = '%s/%s' % (self.intdir, self.outdir)
+    self.lnfl_run_dir = os.path.join(self.intdir, self.lnfl_run_dir)
+    self.lbl_run_dir = os.path.join(self.intdir, self.lbl_run_dir)
+    self.tape3_dir = os.path.join(self.intdir, self.tape3_dir)
+    self.outdir = os.path.join(self.intdir, self.outdir)
 
     # these guys should always be in the "source" directory -- the 
     # directory into which the ABSCO repo is cloned, which is assumed
     # to be the working dir
-    gitDir = os.getcwd()
-    self.pfile = '%s/%s' % (gitDir, self.pfile)
-    self.ptfile = '%s/%s' % (gitDir, self.ptfile)
-    self.vmrfile = '%s/%s' % (gitDir, self.vmrfile)
+    gitDir = os.path.dirname(__file__)
+    self.pfile = os.path.join(gitDir, self.pfile)
+    self.ptfile = os.path.join(gitDir, self.ptfile)
+    self.vmrfile = os.path.join(gitDir, self.vmrfile)
+    self.xs_lines = os.path.join(gitDir, self.xs_lines)
 
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \
@@ -131,8 +134,7 @@ class configure():
 
           if len(split) == 0:
             # CONSIDER DEFAULTS
-            chanErrMsg = 'No bands specified in %s, returning' % \
-              inFile
+            chanErrMsg = 'No bands specified in %s, returning' % self.configFile 
             sys.exit(chanErrMsg)
           # endif split
 
@@ -171,7 +173,7 @@ class configure():
           if channels[key].size != channels[keys[0]].size:
             chanErrMsg = 'wn1, wn2, and res should have equal ' + \
               'number of elements, returning'
-            print('Error in %s' % inFile)
+            print('Error in %s' % self.configFile)
             sys.exit(chanErrMsg)
           # endif channels
         # end key loop
@@ -453,11 +455,8 @@ class configure():
       print('No active molecules specified.')
       prompt = 'The following molecules are active in the ' + \
         'first input spectral range and can be processed, ' + \
-        '%s, proceed (y/n)? ' % molActive
-      status = input(prompt)
-      status = status.upper()
-
-      if status == 'N': sys.exit('Exited without proceeding')
+        '%s ' % molActive
+      self.show_prompt(prompt)
 
       molecules = list(molActive)
     else:
@@ -471,11 +470,9 @@ class configure():
         prompt = 'The following molecules are active in one ' + \
           'of the input spectral ranges and were not ' + \
           'included in the configuration file: ' + \
-          '%s, proceed (y/n)? ' % molMissed
-        status = input(prompt)
-        status = status.upper()
+          '%s ' % molMissed
+        self.show_prompt(prompt)
 
-        if status == 'N': sys.exit('Exited without proceeding')
       # endif molMissed
 
       # did the user include and non-active molecules?
@@ -488,11 +485,9 @@ class configure():
         prompt = 'The following molecules are not active in ' + \
           'any of the input spectral ranges and were ' + \
           'included in the configuration file: ' + \
-          '%s, proceed (y/n)? ' % molExtra
-        status = input(prompt)
-        status = status.upper()
+          '%s ' % molExtra
+        self.show_prompt(prompt)
 
-        if status == 'N': sys.exit('Exited without proceeding')
       # endif molExtra
 
       molecules = list(molUser)
@@ -702,12 +697,16 @@ class configure():
     # end mol loop
 
     prompt = 'Full ABSCO table netCDF generation expected to ' + \
-      'consume up to %.3f GB of RAM, continue? ' % totEst
-
-    status = input(prompt)
-    status = status.upper()
-
-    if status == 'N': sys.exit('Exited without proceeding')
+      'consume up to %.3f GB of RAM' % totEst
+    self.show_prompt(prompt)
+  
+  def show_prompt(self, message):
+    if self.prompt_user:
+      message += ', proceed (y/n)? '
+      status = input(message).upper()
+      if status != 'Y': sys.exit('Exited without proceeding')
+    else:
+      print(message)
 
   # end calcRAM()
 # end configure()
