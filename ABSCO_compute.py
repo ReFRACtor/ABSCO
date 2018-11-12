@@ -202,6 +202,7 @@ class makeABSCO():
     self.runDesc = str(inObj.out_file_desc)
     self.outDir = str(inObj.outdir)
     self.compress = int(inObj.nc_compress)
+    self.freq_chunk = int(inObj.freq_chunk)
 
     self.debug = bool(debug)
   # end constructor()
@@ -915,8 +916,13 @@ class makeABSCO():
     outVar.valid_range = (0, 1050)
     outVar.description = 'LBLRTM-calculated layer pressures'
 
+    # Use minimum of the frequency dimension size versus the file configured chunk size
+    # All other dimension are small enough to chunk outright
+    chunksizes = list(inDims)
+    chunksizes[0] = min(inDims[0], self.freq_chunk)
+
     outVar = outFP.createVariable('Cross_Section', float, abscoDim, \
-      zlib=True, complevel=self.compress, fill_value=np.nan)
+      zlib=True, complevel=self.compress, chunksizes=chunksizes, fill_value=np.nan)
     outVar[:] = np.ma.array(self.ABSCO, mask=np.isnan(self.ABSCO))
     outVar.units = 'cm2/molecule'
     outVar.long_name = 'Absorption Coefficients'

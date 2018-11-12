@@ -168,7 +168,12 @@ class AbscoFileJoiner(object):
         dst_dtype = self.inp_objects[0]["Cross_Section"].dtype
         cross_section_dims = self.inp_objects[0]["Cross_Section"].dimensions
 
-        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, cross_section_dims, fill_value=np.nan, zlib=True, complevel=COMP_LEVEL)
+        chunksizes = None
+        chunking = self.inp_objects[0]["Cross_Section"].chunking()
+        if chunking != "contiguous":
+            chunksizes = chunking
+
+        dst_cross_section = output_fil.createVariable("Cross_Section", dst_dtype, cross_section_dims, fill_value=np.nan, zlib=True, complevel=COMP_LEVEL, chunksizes=chunksizes)
         copy_attrs(self.inp_objects[0]["Cross_Section"], dst_cross_section)
 
         logger.debug("Copying values for updated variables")
