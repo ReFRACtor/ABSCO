@@ -564,6 +564,9 @@ class makeABSCO():
       if len(pathT3) == 1: molT3.append(pathT3[0])
     # end band loop
 
+    if len(molT3) != len(self.bands['wn1']):
+        print('Did not find TAPE3 files for all bands, found %d files for %d bands' % (len(molT3), len(self.bands['wn1'])))
+
     if len(molT3) == 0:
       print('Found no TAPE3 files for %s' % mol)
       return False
@@ -881,9 +884,13 @@ class makeABSCO():
 
     nLev = nLay + 1
 
+    # Number of bands actually calculated, whereas self.nBands is the
+    # number of bands configured
+    numProcBands = self.indBands.shape[0]
+
     outDimNames = \
       ['nfreq', 'nlev', 'nlay', 'ntemp', 'nranges', 'nranges_lims']
-    outDimVals = [nFreq, nLev, nLay, nTemp, self.nBands, 2]
+    outDimVals = [nFreq, nLev, nLay, nTemp, numProcBands, 2]
 
     if mol in self.molH2O:
       outDimNames.append('nvmr')
@@ -954,7 +961,11 @@ class makeABSCO():
     outVar = outFP.createVariable('Extent_Ranges', float, \
       ('nranges', 'nranges_lims'), zlib=True, \
       complevel=self.compress, fill_value=np.nan)
-    outVar[:] = [self.bands['wn1'], self.bands['wn2']]
+    # Include only the ranges actually computed
+    for bIdx in range(numProcBands):
+        iStart = self.indBands[bIdx, 0]
+        iEnd = self.indBands[bIdx, 1]
+        outVar[bIdx, :] = [self.freq[iStart], self.freq[iEnd]]
     outVar.units = 'cm-1'
     outVar.long_name = 'Spectral Ranges'
     outVar.valid_range = (0, 50000)
@@ -964,7 +975,7 @@ class makeABSCO():
     outVar = outFP.createVariable('Extent_Indices', int, \
       ('nranges', 'nranges_lims'), zlib=True, \
       complevel=self.compress, fill_value=sys.maxsize)
-    outVar[:] = self.indBands
+    outVar[:] = self.indBands[:]
     outVar.units = 'N/A'
     outVar.long_name = 'Spectral Ranges Reference Indices'
     outVar.valid_range = (0, sys.maxsize)
