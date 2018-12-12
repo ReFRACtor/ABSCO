@@ -21,7 +21,7 @@
 
 Assuming the user has installed all [dependencies](#dependencies), is using the `gfortran` compiler, and edited the configuration file to their liking (or is OK with using the default settings), the steps for a complete, out-of-the-box run of this library are:
 
-1. `git clone --recursive git@github.com:pernak18/ABSCO.git; cd ABSCO`
+1. `git clone --recursive git@github.com:ReFRACtor/ABSCO.git; cd ABSCO`
 2. `./build_models.py -c gfortran -i ABSCO_config.ini`
 3. `run_LBLRTM_ABSCO.py -e2e`
 
@@ -32,7 +32,7 @@ Software that can generate a set of ABSCO tables that span the thermal IR to UV 
 Assuming the user has set the `user.name` and `user.email` Git configuration variables and has setup their Github account SSH keys, the repository can be cloned by using:
 
 ```
-git clone --recursive git@github.com:pernak18/ABSCO.git
+git clone --recursive git@github.com:ReFRACtor/ABSCO.git
 ```
 
 Note the `--recursive` keyword -- it will force the clone to copy the necessary subroutines. Otherwise, the user will have to do (assuming the repository is just checked out with the default `ABSCO` name in the working directory):
@@ -45,7 +45,7 @@ git submodule update
 
 # Dependencies <a name="dependencies"></a>
 
-This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the pernak18 account (`utils`, `RC_utils`, `lblTools`). The latter are located in the `common` subdirectory, which is [its own repository](<https://github.com/pernak18/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
+This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the AER-RC account (`utils`, `RC_utils`, `lblTools`). The latter modules are located in the `common` subdirectory, which is [its own repository](<https://github.com/AER-RC/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
 
 ## Python Packages
 
@@ -61,9 +61,9 @@ All are used in this ABSCO library. **The software is optimized for Python 3 usa
 
 ## LNFL, LBLRTM, and the AER Line File
 
-LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in [its own repository](<https://github.com/pernak18/LNFL>). Because LNFL has been declared a submodule of the ABSCO library, using the `--recursive` keyword in the clone of this ABSCO repository will also clone the LNFL source code the is necessary. The source code is fetched and saved under the `LNFL` subdirectory.
+LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in [its own repository](<https://github.com/AER-RC/LNFL>). Because LNFL has been declared a submodule of the ABSCO library, using the `--recursive` keyword in the clone of this ABSCO repository will also clone the LNFL source code the is necessary. The source code is fetched and saved under the `LNFL` subdirectory.
 
-LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Git repository](<https://github.com/pernak18/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
+LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Git repository](<https://github.com/AER-RC/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
 
 The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory. Currently, it is available on the AER external Git server and is linked as a submodule of this ABSCO repository (so a `--recursive` clone will take care of this dependency as well). End users will need to contact Rick Pernak or Karen Cady-Pereira so that they can be granted access to the LPD repo.
 
@@ -77,7 +77,7 @@ Periodically, the models and LPD will be updated to reflect new line parameters,
 | LBLRTM | v12.9 |
 | LPD | v3.6 |
 
-Currently, there are no plans on updating these three repositories. In the future, we may set up a separate AER account that will contain model code for the public rather than hosting in my personal account.
+Currently, there are no plans on updating these three repositories.
 
 LNFL and LBLRTM can be built with the `build_models.py` script:
 
@@ -98,7 +98,7 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 | pfile | PT_Grid | text file with 1 pressure level in millibars per line. these will be the pressures on which the ABSCOs are calculated. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
 | ptfile | PT_Grid | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
 | vmrfile | PT_Grid | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated volume mixing ratios (VMRs) for entire user-specified profile. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
-| xs_lines | AER_Line_File | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN. this should be a full path and can be assigned in `build_models.py`|
+| xs_lines | Repository top-level directory | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN. this should be a full path and can be assigned in `build_models.py`|
 | wn1, wn2 | N/A | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
 | lblres, outres | N/A | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
 | units | N/A | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
@@ -196,7 +196,7 @@ Line files need to be generated for every molecule and spectral range. Depending
 run_LBLRTM_ABSCO.py -lnfl
 ```
 
-In the call, we assume `ABSCO_config.ini` to be the configuration file, which contains the molecule name, spectral range, and output TAPE3 subdirectory, all of which are incorporated into the file naming convention of the TAPE3 files: `working_dir/TAPE3_dir/molecule/TAPE3_wn1-wn2`. In the examples that follow, We will assume `ABSCO_config.ini` is populated with its default values (i.e., is unchanged from its original checkout).
+In the call, we assume `ABSCO_config.ini` to be the configuration file, which contains the molecule name, spectral range, and output TAPE3 subdirectory, all of which are incorporated into the file naming convention of the TAPE3 files: `working_dir/TAPE3_dir/molecule/TAPE3_molname_wn1-wn2`. In the examples that follow, We will assume `ABSCO_config.ini` is populated with its default values (i.e., is unchanged from its original checkout).
 
 LNFL runs are performed inside an `LNFL_Runs` directory (also defined in `ABSCO_config.ini`). Links to the LNFL executable and necessary input files (line coupling TAPE2, broadening parameters, full ASCII TAPE1 line file), and TAPE5 files that direct LNFL on what to do are also automatically generated and saved in the `LNFL_Runs/TAPE5_dir` subdirectory by default.
 
@@ -234,7 +234,7 @@ Cross section array dimensions are also dependent on the molecule, because speci
 
 | Dimension Name | Description |
 | :---: | :---: |
-| nfreq | Number of spectral points (wavenumberse, microns, wavelengths) |
+| nfreq | Number of spectral points (wavenumbers, microns, nanometers) |
 | nlev | Number of pressure levels |
 | nlay | Number of pressure layers (nlev-1) |
 | ntemp | Number of temperatures. This is always 15, regardless of the input pressures; and any invalid temperature (for a given pressure) will just be populated with fill values for *k* |
