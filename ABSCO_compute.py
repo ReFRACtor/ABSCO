@@ -370,6 +370,7 @@ class makeABSCO():
       # OD=1, MG=1: optical depth computation, layer-by-layer
       record12 = ' HI=%1d F4=%1d CN=6 AE=0 EM=0 SC=0 FI=0 PL=0 ' % \
         (optHI, optF4) + 'TS=0 AM=1 MG=1 LA=0 OD=1 XS=%1d' % doXS
+      record12 += '%20s' % '1'
 
       # continuum scale factors
       if mol == 'H2O':
@@ -565,7 +566,9 @@ class makeABSCO():
     # end band loop
 
     if len(molT3) != len(self.bands['wn1']):
-        print('Did not find TAPE3 files for all bands, found %d files for %d bands' % (len(molT3), len(self.bands['wn1'])))
+        print('Did not find TAPE3 files for all bands, ' + \
+          'found %d files for %d bands' % \
+          (len(molT3), len(self.bands['wn1'])))
 
     if len(molT3) == 0:
       print('Found no TAPE3 files for %s' % mol)
@@ -611,8 +614,9 @@ class makeABSCO():
       # P has a different number of corresponding T values, we 
       # cannot simply make an nP x nT x nWN array
       # "pLayP": layer pressure (P) associated with level pressure (p)
+      # "TLayP": layer temperature (T) associated with p
       levP = []
-      pABSCO, pLayP = {}, {}
+      pABSCO, pLayP, pLayT = {}, {}, {}
       for iP, pLev in enumerate(pLevs):
         # skip the TOA level because (from Karen):
         # LBL is calculating the altitude of the observer level and 
@@ -631,7 +635,7 @@ class makeABSCO():
         # in lblT5() (we need 2 levels for 1 layer)
         if iP == 0: continue
 
-        tempABSCO, tempLayP = [], []
+        tempABSCO, tempLayP, tempLayT = [], [], []
         for iT, tLev in enumerate(self.tLev[iP]):
 
           # find LBL TAPE5s corresponding to band
@@ -655,6 +659,7 @@ class makeABSCO():
             # still should append to the lists associated with each
             # temperature
             tempLayP.append(np.nan)
+            tempLayT.append(np.nan)
             tempABSCO.append([np.nan])
             continue
           else:
@@ -695,6 +700,7 @@ class makeABSCO():
           t7Dict = RC.readTAPE7('TAPE7', \
             xsTAPE7=self.doXS[mol][iBand])
           tempLayP.append(t7Dict['p_lay'][0])
+          tempLayT.append(t7Dict['T_lay'][0])
           molDen = t7Dict['vmrXS'][0][0] if \
             self.doXS[mol][iBand] else t7Dict['vmr'][self.iMol][0]
 
@@ -723,6 +729,7 @@ class makeABSCO():
         # of the NaNs. we will fix this in arrABSCO()
         pABSCO[str(pLev)] = np.array(tempABSCO)
         pLayP[str(pLev)] = np.array(tempLayP)
+        pLayT[str(pLev)] = np.array(tempLayT)
       # end pressure loop
 
       # save the important parameters in outList
@@ -732,6 +739,7 @@ class makeABSCO():
       bandDict['ABSCO'] = dict(pABSCO)
       bandDict['layerP'] = dict(pLayP)
       bandDict['levelP'] = np.array(levP)
+      bandDict['layerT'] = dict(pLayT)
       outList.append(bandDict)
     # end t3 (band) loop
 
@@ -768,6 +776,7 @@ class makeABSCO():
       # only need to do this once because it's the same for all bands
       if iBand == 0:
         layPArr = np.ones((numP, self.nT)) * np.nan
+        layTArr = np.ones((numP, self.nT)) * np.nan
         levelT = np.ones((numP+1, self.nT)) * np.nan
         iMatchT = np.where(np.in1d(self.allT, self.tLev[0]))[0]
         if iMatchT.size != 0: levelT[0, iMatchT] = self.allT[iMatchT]
@@ -790,6 +799,7 @@ class makeABSCO():
         # layer P and level T population
         if iBand == 0:
           layPArr[iP, iMatchT] = bandABSCO['layerP'][pLev]
+          layTArr[iP, iMatchT] = bandABSCO['layerT'][pLev]
           levelT[offsetP, iMatchT] = self.allT[iMatchT]
         # endif band 0
 
@@ -840,6 +850,7 @@ class makeABSCO():
     outAx = (2, 1, 0)
     self.ABSCO = np.transpose(np.array(arrABSCO), axes=outAx)
     self.layerP = np.array(layPArr)
+    self.layerT = np.array(layTArr)
     self.levelT = np.array(levelT)
     self.levelP = np.array(bandABSCO['levelP'])
 
@@ -923,13 +934,24 @@ class makeABSCO():
     outVar.valid_range = (0, 1050)
     outVar.description = 'LBLRTM-calculated layer pressures'
 
-    # Use minimum of the frequency dimension size versus the file configured chunk size
+    outVar = outFP.createVariable('T_layer', float, \
+      ('nlay', 'ntemp'), zlib=True, complevel=self.compress, \
+      fill_value=np.nan)
+    outVar[:] = np.ma.array(self.layerT, mask=np.isnan(self.layerT))
+    outVar.units = 'K'
+    outVar.long_name = 'Layer temperatures'
+    outVar.valid_range = (180, 320)
+    outVar.description = 'LBLRTM-calculated layer temperatures'
+
+    # Use minimum of the frequency dimension size versus the file 
+    # configured chunk size
     # All other dimension are small enough to chunk outright
     chunksizes = list(inDims)
     chunksizes[0] = min(inDims[0], self.freq_chunk)
 
     outVar = outFP.createVariable('Cross_Section', float, abscoDim, \
-      zlib=True, complevel=self.compress, chunksizes=chunksizes, fill_value=np.nan)
+      zlib=True, complevel=self.compress, chunksizes=chunksizes, \
+      fill_value=np.nan)
     outVar[:] = np.ma.array(self.ABSCO, mask=np.isnan(self.ABSCO))
     outVar.units = 'cm2/molecule'
     outVar.long_name = 'Absorption Coefficients'
