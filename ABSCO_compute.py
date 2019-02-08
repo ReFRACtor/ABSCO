@@ -970,7 +970,7 @@ class makeABSCO():
       'ABSCOs in a single layer for a single temperature and in ' + \
       'a given spectral range'
 
-    outVar = outFP.createVariable('Temperature', float, \
+    outVar = outFP.createVariable('T_level', float, \
       ('nlev', 'ntemp'), zlib=True, complevel=self.compress, \
       fill_value=np.nan)
     outVar[:] = np.ma.array(self.levelT, mask=np.isnan(self.levelT))
