@@ -23,6 +23,9 @@ if [ -z "$out_dir" ]; then
     exit 1
 fi
 
+# Create output directory if it does not already exist
+mkdir -p $out_dir
+
 mol_names=$(find $in_dir -name "*.nc" -exec basename {} \; | sed 's/_.*$//g' | sort | uniq | xargs)
 
 echo -e "Found the following molecule names:\n$mol_names"
