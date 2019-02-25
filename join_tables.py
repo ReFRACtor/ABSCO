@@ -11,7 +11,7 @@ logger = logging.getLogger(__file__)
 
 # Datasets to check for consistency between files
 DIMS_ENSURE_SAME = ("nlay", "nlev", "nranges_lims", "ntemp", "nvmr")
-VARIABLES_ENSURE_SAME = ("H2O_VMR", "O2_VMR", "P_layer", "P_level", "Temperature")
+VARIABLES_ENSURE_SAME = ("H2O_VMR", "O2_VMR", "P_layer", "P_level", "T_layer", "T_level")
 
 # How many units of the cross section table to copy at a time to reduce memory overhead
 # Number here ~ 4GB
