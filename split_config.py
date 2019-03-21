@@ -90,10 +90,10 @@ class AbscoConfigSplitter(object):
             out_config.read(self.in_filename)
 
             # Modify sections
-            out_config['channels']['wn1'] = "{:f}".format(chan_beg)
-            out_config['channels']['wn2'] = "{:f}".format(chan_end)
-            out_config['channels']['lblres'] = "{:e}".format(lbl_res)
-            out_config['channels']['outres'] = "{:e}".format(out_res)
+            out_config['channels']['wn1'] = "{:0.8f}".format(chan_beg)
+            out_config['channels']['wn2'] = "{:0.8f}".format(chan_end)
+            out_config['channels']['lblres'] = "{:0.10e}".format(lbl_res)
+            out_config['channels']['outres'] = "{:0.10e}".format(out_res)
 
             out_config['molecules']['molnames'] = " ".join(mol_names)
 
