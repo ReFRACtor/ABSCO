@@ -80,7 +80,7 @@ class AbscoConfigSplitter(object):
         for idx, (channel_info, mol_names) in enumerate(config_prod):
             chan_beg, chan_end, lbl_res, out_res = channel_info
             
-            output_filename = "{base}-{num:02}-{chan_beg:.0f}_{chan_end:.0f}-{molecules}{ext}".format(
+            output_filename = "{base}-{num:03}-{chan_beg:.0f}_{chan_end:.0f}-{molecules}{ext}".format(
                 base=fn_base, ext=fn_ext, num=(idx+1), chan_beg=chan_beg, chan_end=chan_end, molecules="_".join(mol_names))
 
             logger.debug("Creating configuration file: {}".format(output_filename))
