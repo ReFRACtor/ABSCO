@@ -7,7 +7,11 @@ absco_sw_dir=$(dirname $0)
 num_configs=$#
 
 # Round up
-group_size=$(awk "BEGIN {printf(\"%.0f\", $num_configs / $num_processors)}")
+if [ $num_configs -lt $num_processors ]; then
+    group_size=1
+else
+    group_size=$(awk "BEGIN {printf(\"%.0f\", $num_configs / $num_processors)}")
+fi
 
 run_script=$(mktemp)
 
