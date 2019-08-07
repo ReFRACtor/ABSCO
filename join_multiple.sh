@@ -45,7 +45,7 @@ for mol in $mol_names; do
         # Parse out the beginning and ending wn range to put into the output filename
         first_range=($(spectral_range $first_fn))
         last_range=($(spectral_range $last_fn))
-        new_range=$(printf "%0.5d-%0.5d" ${first_range[0]} ${last_range[-1]})
+        new_range=$(printf "%05.0f-%05.0f" ${first_range[0]} ${last_range[-1]})
 
         first_base=$(basename $first_fn)
         first_parts=(${first_base//_/ })
