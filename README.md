@@ -71,9 +71,9 @@ Periodically, the models and LPD will be updated to reflect new line parameters,
 
 **AER-maintained models that are linked as ABSCO submodules** <a id="Table1"></a>
 
-| Model | Version |
+| Model | Version (GitHub Tag/Release) |
 | :---: | :---: |
-| LNFL | v3.1 |
+| LNFL | v3.2 |
 | LBLRTM | v12.9 |
 | LPD | v3.6 |
 
