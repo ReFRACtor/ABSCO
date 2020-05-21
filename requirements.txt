@@ -3,3 +3,4 @@ scipy
 pandas
 netCDF4
 xarray
+zenodo_get
