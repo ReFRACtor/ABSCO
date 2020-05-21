@@ -193,7 +193,6 @@ class submodules():
     else:
       iniDat = open(self.iniFile).read().splitlines()
       outFP = open(self.iniFile, 'w')
-      print('Replacing {} in {}'.format(self.pathStr, self.iniFile))
 
       if self.lines:
         # making some assumptions about directory structure here...
@@ -211,6 +210,7 @@ class submodules():
       for line in iniDat:
         if self.lines:
           for old, new in zip(self.pathStr, modStr):
+            print('Replacing {} in {}'.format(old, self.iniFile))
             if (old in line):
               split = line.split('=')
               line = line.replace(split[1], \
@@ -218,10 +218,11 @@ class submodules():
             # endif LNFL
           # end path loop
         else:
+          print('Replacing {} in {}'.format(self.pathStr, self.iniFile))
           if (self.pathStr in line):
             split = line.split('=')
-            line = line.replace(split[1], ' {}/{}'.format(
-              (self.topDir, modExe) ))
+            line = line.replace(split[1], ' {}/{}'.format(\
+              self.topDir, modExe))
           # endif LNFL
         # endif lines
         outFP.write('{}\n'.format(line))
