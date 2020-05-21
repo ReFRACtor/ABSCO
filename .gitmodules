@@ -7,6 +7,3 @@
 [submodule "LNFL"]
 	path = LNFL
 	url = git@github.com:AER-RC/LNFL.git
-[submodule "AER_Line_File"]
-	path = AER_Line_File
-	url = https://tig.aer.com/git/ABSCO

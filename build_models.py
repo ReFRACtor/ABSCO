@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, glob, argparse
-import subprocess as sub
-from distutils.spawn import find_executable as which
-
+import os, sys
 import numpy as np
 
 sys.path.append('common')
@@ -12,7 +9,7 @@ import utils
 class submodules():
   def __init__(self, inArgs, lnfl=False, lbl=False, lines=False):
     """
-    Build models as needed (one at a time) and replace paths in 
+    Build models as needed (one at a time) and replace paths in
     ABSCO_tables.py configuration file if specified
     """
 
@@ -25,7 +22,7 @@ class submodules():
     compiler = inArgs['compiler']
     compiler = compiler.lower()
     if compiler not in ['ifort', 'gfortran', 'pgf90']:
-      sys.exit('%s is not a supported compiler.' % compiler)
+      sys.exit('{} is not a supported compiler.'.format(compiler))
 
     iniFile = args.config_file
     if iniFile is not None: utils.file_check(iniFile)
@@ -36,8 +33,9 @@ class submodules():
     if lbl:
       lblDir = args.lblrtm_path; utils.file_check(lblDir)
 
-    if lines:
-      linesDir = args.lines_path; utils.file_check(linesDir)
+    # we do not expect the line file to exist now that it is no
+    # longer a submodule
+    if lines: linesDir = args.lines_path
 
     self.compiler = str(compiler)
     self.iniFile = None if iniFile is None else str(iniFile)
@@ -65,19 +63,91 @@ class submodules():
       self.pathStr = ['tape1_path', 'tape2_path', 'extra_params', \
         'xs_path', 'fscdxs']
       self.lines = True
+      self.zRecID = args.record_id
     else:
       sys.exit('No model build chosen')
     # endif model
   # end constructor
+
+  def checkLineFile(self):
+    """
+    Check if line file dataset from Zenodo needs to be downloaded
+    """
+
+    # do we need to dowload the Line File Parameter Database?
+    self.lfpdDL = True
+
+    # it is assumed that if AER_Line_File exists, that everything
+    # that is needed is underneath the directory
+    if os.path.exists(self.modelDir):
+      self.lfpdDL = False
+      return
+    # endif modelDir
+
+    print('Generating list of Zenodo URLs')
+    wgetList = 'line_file_list.txt'
+    sub.call([self.zGet, str(self.zRecID), '-w', wgetList])
+    files = open(wgetList).read().splitlines()
+
+    # we archive a tarball and a license, just need tarball
+    for file in files:
+      base = os.path.basename(file)
+      if '.tar.gz' not in base: continue
+      if os.path.exists(base): self.lfpdDL = False
+      self.tarBall = base
+
+      # AER convention is that the tarball is just the line file
+      # directory name with ".tar.gz" appended
+      self.tarDir = base[:-7]
+    # end file loop
+  # end checkLineFile()
+
+  def getLineFile(self):
+    """
+    Retrieve line file dataset from Zenodo, extract archive, then
+    stage files as expected by LNFL and LBLRTM
+    """
+
+    import tarfile
+    from zenodo_get.__main__ import zenodo_get as zget
+
+    # what can be downloaded? should just be a tarball and license
+    arcList = 'zenodo_archive_list.txt'
+    zget([str(self.zRecID), '-w', arcList])
+    files = open(arcList).read().splitlines()
+    for file in files:
+      base = os.path.basename(file)
+      if '.tar.gz' not in base: continue
+      if os.path.exists(base): self.lfpdDL = False
+      self.tarBall = base
+
+      # AER convention is that the tarball is just the line file
+      # directory name with ".tar.gz" appended
+      self.tarDir = base[:-7]
+    # end file loop
+
+    zget([str(self.zRecID)])
+
+    print('Extracting {}'.format(self.tarBall))
+    #with tarfile.open(self.tarBall) as tar: tar.extractall()
+
+    if not os.path.exists(self.modelDir):
+      os.rename(self.tarDir, self.modelDir)
+    else:
+      print('{} already exists, using its Line File contents'.
+        format(self.modelDir))
+    # endif modelDir
+  # end getLineFile()
 
   def build(self):
     """
     Build LBLRTM or LNFL
     """
 
+    import subprocess as sub
+
     # OS determination
     # https://docs.python.org/2/library/sys.html#sys.platform
-    compPath = which(self.compiler)
     platform = sys.platform
     if platform in ['linux', 'linux2']:
       self.opSys = 'linux'
@@ -98,14 +168,14 @@ class submodules():
       self.compStr = 'PGI'
     # endif compiler
 
-    cmd = '%s%s%s' % (self.opSys, self.compStr, self.precision)
+    cmd = '{}{}{}'.format(self.opSys, self.compStr, self.precision)
 
     cwd = os.getcwd()
 
-    os.chdir('%s/build' % self.modelDir)
-    print('Building %s' % self.modelStr)
+    os.chdir('{}/build'.format(self.modelDir))
+    print('Building {}'.format(self.modelStr))
     status = sub.call(['make', '-f', self.makeStr, cmd])
-    if status != 0: sys.exit('%s not built' % self.modelStr)
+    if status != 0: sys.exit('{} not built'.format(self.modelStr))
     os.chdir(cwd)
 
     return self
@@ -117,22 +187,25 @@ class submodules():
     established in this class
     """
 
+    import glob
+
     if self.iniFile is None:
       sys.exit('No configuration file specified, returning')
     else:
       iniDat = open(self.iniFile).read().splitlines()
       outFP = open(self.iniFile, 'w')
-      print('Replacing %s in %s' % (self.pathStr, self.iniFile))
+      print('Replacing {} in {}'.format(self.pathStr, self.iniFile))
 
       if self.lines:
         # making some assumptions about directory structure here...
-        modStr = ['line_file/aer_v_3.6', 'line_file/lncpl_lines', \
-          'extra_brd_params', 'xs_files/xs', 'xs_files/FSCDXS']
+        modStr = ['line_file/{}'.format(self.tarDir), \
+          'line_file/lncpl_lines', 'extra_brd_params', \
+          'xs_files/xs', 'xs_files/FSCDXS']
       else:
         # make_lnfl and make_lblrtm -o arguments
-        modStr = '%s/%s_*_%s_%s_%s' % \
+        modStr = '{}/{}_*_{}_{}_{}'.format(
           (self.modelDir, self.modelStr.lower(), \
-           self.opSys, self.compStr.lower(), self.precision)
+           self.opSys, self.compStr.lower(), self.precision))
         modExe = glob.glob(modStr)[0]
       # endif lines
 
@@ -142,17 +215,17 @@ class submodules():
             if (old in line):
               split = line.split('=')
               line = line.replace(split[1], \
-                ' %s/%s/%s' % (self.topDir, self.modelDir, new) )
+                ' {}/{}/{}'.format(self.topDir, self.modelDir, new) )
             # endif LNFL
           # end path loop
         else:
           if (self.pathStr in line):
             split = line.split('=')
-            line = line.replace(split[1], ' %s/%s' % \
-              (self.topDir, modExe) )
+            line = line.replace(split[1], ' {}/{}'.format(
+              (self.topDir, modExe) ))
           # endif LNFL
         # endif lines
-        outFP.write('%s\n' % line)
+        outFP.write('{}\n'.format(line))
       # end dat loop
       outFP.close()
     # endif ini
@@ -160,6 +233,8 @@ class submodules():
 # end submodules class
 
 if __name__ == '__main__':
+  import argparse
+
   parser = argparse.ArgumentParser(\
     formatter_class=argparse.ArgumentDefaultsHelpFormatter, \
     description='Build LBLRTM and LNFL executables for usage in ' + \
@@ -177,6 +252,8 @@ if __name__ == '__main__':
     help='Path of LBLRTM submodule directory (top level).')
   parser.add_argument('-lines', '--lines_path', \
     default='AER_Line_File', help='Top-level path of AER line file.')
+  parser.add_argument('-record', '--record_id', type=int, \
+    default=3837550, help='Zenodo record ID for the line file.')
   parser.add_argument('-no', '--no_build', action='store_true', \
     help='If set, only the line file paths are changed in the ' + \
     'configuration file and no model builds are done.')
@@ -189,9 +266,11 @@ if __name__ == '__main__':
 
   # first replace line file paths
   subObj = submodules(vars(args), lines=True)
+  subObj.getLineFile()
+  sys.exit()
   subObj.configFile()
-  if args.no_build:
-    sys.exit('Only replaced lines paths in %s' % args.config_file)
+  if args.no_build: sys.exit(
+    'Only replaced lines paths in {}'.format(args.config_file))
 
   # now do LNFL -- line file paths will not change
   subObj = submodules(vars(args), lnfl=True)
