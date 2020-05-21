@@ -128,10 +128,9 @@ class submodules():
 
     zget([str(self.zRecID)])
 
-    print('Extracting {}'.format(self.tarBall))
-    with tarfile.open(self.tarBall) as tar: tar.extractall()
-
     if not os.path.exists(self.modelDir):
+      print('Extracting {}'.format(self.tarBall))
+      with tarfile.open(self.tarBall) as tar: tar.extractall()
       os.rename(self.tarDir, self.modelDir)
     else:
       print('{} already exists, using its Line File contents'.
@@ -204,8 +203,8 @@ class submodules():
       else:
         # make_lnfl and make_lblrtm -o arguments
         modStr = '{}/{}_*_{}_{}_{}'.format(
-          (self.modelDir, self.modelStr.lower(), \
-           self.opSys, self.compStr.lower(), self.precision))
+          self.modelDir, self.modelStr.lower(), \
+          self.opSys, self.compStr.lower(), self.precision)
         modExe = glob.glob(modStr)[0]
       # endif lines
 
@@ -267,7 +266,6 @@ if __name__ == '__main__':
   # first replace line file paths
   subObj = submodules(vars(args), lines=True)
   subObj.getLineFile()
-  sys.exit()
   subObj.configFile()
   if args.no_build: sys.exit(
     'Only replaced lines paths in {}'.format(args.config_file))
