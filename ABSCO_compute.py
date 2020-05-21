@@ -697,8 +697,12 @@ class makeABSCO():
 
           # grab necessary parameters from TAPE7
           # store pressure layer calculated in LBLATM
-          t7Dict = RC.readTAPE7('TAPE7', \
-            xsTAPE7=self.doXS[mol][iBand])
+          if self.doXS[mol][iBand]:
+            t7Dict = RC.readXS('TAPE7', mol)
+          else:
+            t7Dict = RC.readTAPE7('TAPE7')
+          # endif XS
+
           tempLayP.append(t7Dict['p_lay'][0])
           tempLayT.append(t7Dict['T_lay'][0])
           molDen = t7Dict['vmrXS'][0][0] if \
