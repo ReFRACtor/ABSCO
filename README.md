@@ -57,6 +57,8 @@ The following libraries were [installed with miniconda](<https://conda.io/docs/u
   - netCDF4 (v1.3.1)
   - xarray (v0.10.8)
 
+More recent versions of the software gather the line file from a Zenodo archive with [`zenodo_get` (v1.3.0)](https://gitlab.com/dvolgyes/zenodo_get). This library can be installed with `pip`, so it has been added to `requirements.txt` with the other packages that were miniconda installs.
+
 All are used in this ABSCO library. **The software is optimized for Python 3 usage -- Python 2 has not been tested and is not recommended.**
 
 ## LNFL, LBLRTM, and the AER Line File
@@ -65,7 +67,7 @@ LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to t
 
 LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Git repository](<https://github.com/AER-RC/LBLRTM>) and is a declared ABSCO submodule. It is stored under the `LBLRTM` subdirectory. LBLRTM in the context of this software simply calculates optical depth at specified pressures, temperatures, and spectral ranges.
 
-The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory. Currently, it is available on the AER external Git server and is linked as a submodule of this ABSCO repository (so a `--recursive` clone will take care of this dependency as well). End users will need to contact Rick Pernak or Karen Cady-Pereira so that they can be granted access to the LPD repo.
+The AER line parameter database (LPD) is distributed as a set of ASCII text files in the `AER_Line_File` directory. Initially, Verison 3.6 of the LPD was available on the AER external Git server and linked as a submodule of this ABSCO repository (so a `--recursive` clone would take care of this dependency as well). As of LPD v3.7, the dataset should no longer be retrieved from Git. Rather, it is archived as a [dataset in Zenodo](https://zenodo.org/record/3837550) -- archiving this way makes the ABSCO repository completely open and allows for easier implementation of updated line file releases. The Zenodo request is handled internally in `build_models.py`, which will be described shortly.
 
 Periodically, the models and LPD will be updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. For reference, the model and LPD version numbers associated with the initial release of the ABSCO software are listed in [Table 1](#Table1).
 
@@ -75,7 +77,7 @@ Periodically, the models and LPD will be updated to reflect new line parameters,
 | :---: | :---: |
 | LNFL | v3.2 |
 | LBLRTM | v12.9 |
-| LPD | v3.6 |
+| LPD | v3.7 |
 
 Currently, there are no plans on updating these three repositories.
 
@@ -86,6 +88,8 @@ LNFL and LBLRTM can be built with the `build_models.py` script:
 ```
 
 This script call specifies a `gfortran` compiler (`-c`) and replaces the paths to the executables in `ABSCO_config.ini` with the paths of the newly-built executables. Other valid compilers are `ifort` and `pgf90`. Use the `-h` option with the script for more options. Path replacement also occurs with the line file-associated paths (`tape1_path`, `tape2_path`, `extra_params`, `xs_path`, and `fscdxs`). If `-i` is not set, no path replacement occurs even though the executable are compiled. The two executables follow the naming convention `model_version_os_compiler_precision`, e.g., `lblrtm_v12.9_linux_intel_dbl`. It is recommended that `build_models.py` with the `-i` option be run after the initial clone of this repository to minimize any path issues.
+
+For the line file, `build_models.py` utilizes the `zenodo_get` Python library to first download a list of Zenodo archive files, check if the archive needs to be downloaded, then extract the `.tar.gz` in which the dataset is packaged. If the user already has an `AER_Line_File` directory in the working directory, it is not overwritten (so for updates, one should consider either moving `AER_Line_File` or removing it recursively).
 
 # Setup (Configuration File) <a name="setup"></a>
 
@@ -306,4 +310,3 @@ optional arguments:
                         relative tolerance (e.g. 0.01 would mean P from netCDF
                         is within 1% of in_pressure). (default: None)
 ```
-
