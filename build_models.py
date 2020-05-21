@@ -129,7 +129,7 @@ class submodules():
     zget([str(self.zRecID)])
 
     print('Extracting {}'.format(self.tarBall))
-    #with tarfile.open(self.tarBall) as tar: tar.extractall()
+    with tarfile.open(self.tarBall) as tar: tar.extractall()
 
     if not os.path.exists(self.modelDir):
       os.rename(self.tarDir, self.modelDir)
