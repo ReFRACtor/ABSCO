@@ -129,8 +129,11 @@ class submodules():
     zget([str(self.zRecID)])
 
     if not os.path.exists(self.modelDir):
-      print('Extracting {}'.format(self.tarBall))
-      with tarfile.open(self.tarBall) as tar: tar.extractall()
+      if not os.path.exists(self.tarDir):
+        # don't untar if it's not needed
+        print('Extracting {}'.format(self.tarBall))
+        with tarfile.open(self.tarBall) as tar: tar.extractall()
+      # endif tar
       os.rename(self.tarDir, self.modelDir)
     else:
       print('{} already exists, using its Line File contents'.
