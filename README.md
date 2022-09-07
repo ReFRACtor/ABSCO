@@ -3,12 +3,13 @@
 ---
 **Contents**
 
-1. [Introduction](#intro)
-2. [Dependencies](#dependencies)
-3. [Setup](#setup)
-4. [HITRAN Cross Sections](#xs)
-5. [Driver Script](#driver)
-6. [Output](#output)
+1. [Quickstart](#quickstart)
+2. [Introduction](#intro)
+3. [Dependencies](#dependencies)
+4. [Setup](#setup)
+5. [HITRAN Cross Sections](#xs)
+6. [Driver Script](#driver)
+7. [Output](#output)
 
 **Tables**
 
@@ -17,13 +18,15 @@
 [Output netCDF Dimensions](#Table3)<br>
 [Output netCDF Variables](#Table4)<br>
 
-# TL;DR
+# Quickstart <a name="quickstart"></a>
 
 Assuming the user has installed all [dependencies](#dependencies), is using the `gfortran` compiler, and edited the configuration file to their liking (or is OK with using the default settings), the steps for a complete, out-of-the-box run of this library are:
 
 1. `git clone --recursive git@github.com:ReFRACtor/ABSCO.git; cd ABSCO`
-2. `./build_models.py -c gfortran -i ABSCO_config.ini`
-3. `run_LBLRTM_ABSCO.py -e2e`
+2. `conda env create -n absco -f environment.yml`
+3. `conda activate absco`
+4. `./build_models.py -c gfortran -i ABSCO_config.ini`
+5. `run_LBLRTM_ABSCO.py -e2e`
 
 # Introduction <a name="intro"></a>
 
