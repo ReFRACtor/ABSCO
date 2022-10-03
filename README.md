@@ -42,8 +42,7 @@ Note the `--recursive` keyword -- it will force the clone to copy the necessary 
 
 ```
 cd ABSCO
-git submodule init
-git submodule update
+git submodule update --init --recursive
 ```
 
 # Dependencies <a name="dependencies"></a>
