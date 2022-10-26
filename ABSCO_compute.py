@@ -705,8 +705,7 @@ class makeABSCO():
 
           tempLayP.append(t7Dict['p_lay'][0])
           tempLayT.append(t7Dict['T_lay'][0])
-          molDen = t7Dict['vmrXS'][0][0] if \
-            self.doXS[mol][iBand] else t7Dict['vmr'][self.iMol][0]
+          molDen = t7Dict['densities'][self.iMol][0]
 
           # extract the spectrum
           wnFine, odFine = lblTools.readOD(odFile, double=True)
