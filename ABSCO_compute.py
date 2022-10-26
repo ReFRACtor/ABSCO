@@ -698,14 +698,16 @@ class makeABSCO():
           # grab necessary parameters from TAPE7
           # store pressure layer calculated in LBLATM
           if self.doXS[mol][iBand]:
-            t7Dict = RC.readXS('TAPE7', mol)
+            t7Dict = RC.readTAPE7('TAPE7', xs=True)
+            iDen = str(mol)
           else:
             t7Dict = RC.readTAPE7('TAPE7')
+            iDen = self.iMol
           # endif XS
 
           tempLayP.append(t7Dict['p_lay'][0])
           tempLayT.append(t7Dict['T_lay'][0])
-          molDen = t7Dict['densities'][self.iMol][0]
+          molDen = t7Dict['densities'][iDen][0]
 
           # extract the spectrum
           wnFine, odFine = lblTools.readOD(odFile, double=True)
