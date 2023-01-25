@@ -14,17 +14,17 @@ import pandas as pd
 class configure():
   def __init__(self, inFile, molActiveCheck=True, prompt_user=True):
     """
-    Parse the input .ini file (inFile) and return as an object for 
-    use in makeABSCO class.  Also do some error checking and other 
+    Parse the input .ini file (inFile) and return as an object for
+    use in makeABSCO class.  Also do some error checking and other
     processes that are not directly related to running LNFL and LBLRTM
 
     Inputs
-      inFile -- string, full path to .ini file that specifies paths 
+      inFile -- string, full path to .ini file that specifies paths
         and filenames for...
 
     Keywords
-      molActiveCheck -- boolean, run a test to determine for which 
-        bands LNFL and LBLRTM should be run based on the user-input 
+      molActiveCheck -- boolean, run a test to determine for which
+        bands LNFL and LBLRTM should be run based on the user-input
         ranges and whether the given molecules are active in the bands
     """
     # Allow turning of interactive prompts for batch processing
@@ -35,14 +35,14 @@ class configure():
     self.readConfig()
     self.checkAtts()
 
-    # these intermediate subdirs should be underneath intdir, 
+    # these intermediate subdirs should be underneath intdir,
     # which can be an another file system
     self.lnfl_run_dir = os.path.join(self.intdir, self.lnfl_run_dir)
     self.lbl_run_dir = os.path.join(self.intdir, self.lbl_run_dir)
     self.tape3_dir = os.path.join(self.intdir, self.tape3_dir)
     self.outdir = os.path.join(self.intdir, self.outdir)
 
-    # these guys should always be in the "source" directory -- the 
+    # these guys should always be in the "source" directory -- the
     # directory into which the ABSCO repo is cloned, which is assumed
     # to be the working dir
     gitDir = os.path.dirname(__file__)
@@ -65,7 +65,7 @@ class configure():
     # from HITRAN molecules
     self.xsNames = ['CCL4', 'F11', 'F12', 'F22', 'ISOP', 'PAN', 'BRO']
 
-    # these also have line parameters, but HITRAN recommends to use 
+    # these also have line parameters, but HITRAN recommends to use
     # their XS coefficients in certain bands (see xsCheck() method).
     self.xsLines = ['CF4', 'SO2', 'NO2', 'HNO3']
 
@@ -73,7 +73,7 @@ class configure():
     self.molH2O = ['CO2', 'N2', 'O2', 'H2O']
 
     # and these guys are neither HITRAN or XS molecules
-    self.dunno = ['HDO']
+    # self.dunno = ['HDO']
 
     # O2 is a special case where we'll have to fix the VMR
     self.vmrO2 = np.array([0.19, 0.23]) * 1e6
@@ -122,7 +122,7 @@ class configure():
     cParse.read(self.configFile)
     cpSections = cParse.sections()
 
-    # loop over each field (of all sections) and keep the field and 
+    # loop over each field (of all sections) and keep the field and
     # associated value in returned object (self)
     for iCPS, cps in enumerate(cpSections):
       cItems = cParse.items(cps)
@@ -134,7 +134,7 @@ class configure():
 
           if len(split) == 0:
             # CONSIDER DEFAULTS
-            chanErrMsg = 'No bands specified in %s, returning' % self.configFile 
+            chanErrMsg = 'No bands specified in %s, returning' % self.configFile
             sys.exit(chanErrMsg)
           # endif split
 
@@ -166,7 +166,7 @@ class configure():
           sys.exit(errMsg)
         # endif units
 
-        # there should be an equal number of starting and ending 
+        # there should be an equal number of starting and ending
         # wavenumbers and associated spectral resolutions
         # need to also check that each wn1 < wn2
         for key in keys[1:]:
@@ -187,7 +187,7 @@ class configure():
 
         # LBLRTM can only handle 2000 cm-1 chunks at a time, so break
         # up any bands that are larger than this
-        # also make sure user provides correct WN order and convert 
+        # also make sure user provides correct WN order and convert
         # to cm-1 if necessary
         for iBand in range(len(channels['wn1'])):
           wn1, wn2, res, deg, kern = \
@@ -227,7 +227,7 @@ class configure():
             while (bandwidth/2000 >= 1.0):
 
               tempWN2 = tempWN1 + 2000
-              if tempWN2 >= wn2: tempWN2 = float(wn2) 
+              if tempWN2 >= wn2: tempWN2 = float(wn2)
 
               subChanWN1.append(tempWN1)
               subChanWN2.append(tempWN2)
@@ -251,7 +251,7 @@ class configure():
             channels['wn2'] = \
               np.insert(channels['wn2'], iBand, subChanWN2)
 
-            # now apply resolution and degradation from entire 
+            # now apply resolution and degradation from entire
             # (width > 2000 cm-1) channel to the subchannels
             channels['lblres'] = np.insert(channels['lblres'], \
               iBand, np.repeat(res, len(subChanWN1)))
@@ -301,7 +301,7 @@ class configure():
           if param == 'intdir':
             val = os.getcwd() if val == '.' else str(val)
             if not os.path.exists(val): os.makedirs(val)
-          # endif 
+          # endif
 
           setattr(self, param, val)
         # end item loop
@@ -314,8 +314,8 @@ class configure():
 
   def checkAtts(self):
     """
-    Make sure all of the attributes in the configure object that are 
-    necessary for ABSCO_tables.py exist (i.e., that the user did not 
+    Make sure all of the attributes in the configure object that are
+    necessary for ABSCO_tables.py exist (i.e., that the user did not
     delete or forget a field in the .ini file)
     """
 
@@ -339,9 +339,9 @@ class configure():
   def processP(self):
     """
     Read in user and standard atmosphere pressures (associated
-    with VMRs) and perform quality control -- user-specified pressure 
-    grid should be identical to standard atmosphere pressures, and we 
-    should make the pressures used in ABSCO_tables.py monotonically 
+    with VMRs) and perform quality control -- user-specified pressure
+    grid should be identical to standard atmosphere pressures, and we
+    should make the pressures used in ABSCO_tables.py monotonically
     decreasing
     """
 
@@ -363,7 +363,7 @@ class configure():
 
     datVMR = pd.read_csv(self.vmrfile)['P'].values
     pErrMsg = 'Inconsistent pressure inputs.  Check %s and %s' % \
-      (self.pfile, self.vmrfile) 
+      (self.pfile, self.vmrfile)
     if nP != datVMR.size: sys.exit(pErrMsg)
 
     return self
@@ -371,8 +371,8 @@ class configure():
 
   def findActiveMol(self):
     """
-    If the user only specifies a spectral range and no valid 
-    molecules, try to determine the molecules to be processed based 
+    If the user only specifies a spectral range and no valid
+    molecules, try to determine the molecules to be processed based
     on the input spectral range
     """
 
@@ -426,7 +426,7 @@ class configure():
       for key in regions.keys():
         active = False
         for band in regions[key]:
-          # is there any *overlap*? (user band does not have to be 
+          # is there any *overlap*? (user band does not have to be
           # contained inside active band, just overlap)
           if (fWN >= band[0]) & (iWN <= band[1]): active = True
         # end band loop
@@ -442,7 +442,7 @@ class configure():
 
   def molProcess(self):
     """
-    Determine for which bands LNFL and LBLRTM should be run based on 
+    Determine for which bands LNFL and LBLRTM should be run based on
     the user-input ranges and whether the given molecules are active
     """
 
@@ -498,7 +498,7 @@ class configure():
     wn1 = self.channels['wn1']
     wn2 = self.channels['wn2']
 
-    # for each mol to be processed, determine whether it is active in 
+    # for each mol to be processed, determine whether it is active in
     # each of the bands provided by the user
     doBandDict = {}
     for mol in self.molnames:
@@ -519,7 +519,7 @@ class configure():
           #print(mol, uiWN, ufWN, actBand[0], actBand[1], overlap)
         # end active band loop
 
-        # if there is user overlap with any of the active bands, go 
+        # if there is user overlap with any of the active bands, go
         # ahead with the band processing
         status = True if any(bandOver) else False
         doBand.append(status)
@@ -535,15 +535,15 @@ class configure():
 
   def xsCheck(self):
     """
-    Determine if each of the specified molecules should be treated 
+    Determine if each of the specified molecules should be treated
     like a XS or line parameter molecule.
 
     Right now this is not robust enough to handle 2 different statuses
-    for a single molecule (e.g. HITRAN recommends XS for 5 of the 6 
+    for a single molecule (e.g. HITRAN recommends XS for 5 of the 6
     CH3CN bands and line parameters for the remaining band), but that
     feature is also not necessary given the allowed molecules
 
-    Also not robust enough to handle a user-input band spanning line 
+    Also not robust enough to handle a user-input band spanning line
     parameter space into XS space
     """
 
@@ -573,7 +573,7 @@ class configure():
           # no doubter: molecule is only XS
           bandXS.append(True)
         else:
-          # this gets complicated...if the molecule has both XS and 
+          # this gets complicated...if the molecule has both XS and
           # line parameters, and there is overlap between the "user"
           # and "XS" bands, and HITRAN recommends XS over lines, doXS
           if (mol in self.xsLines):
@@ -613,7 +613,7 @@ class configure():
     Generate weighting kernels for the spectral degradation
     """
 
-    # the kernels can be of different size, depending on the 
+    # the kernels can be of different size, depending on the
     # degradation factor, so let's use a list instead of arrays
     # 1 kernel per band
     weights = []
@@ -624,7 +624,7 @@ class configure():
       # denominator for weights
       denom = 2**(np.log2(kWidth)-1) + 1
 
-      # not sure what the mathematical term is, but we want to 
+      # not sure what the mathematical term is, but we want to
       # increase by 1 until a max, then reverse by 1 (e.g. 1 2 3 2 1)
       initKern = np.arange(nKernEl)+1
       revKern = initKern[::-1]
@@ -640,7 +640,7 @@ class configure():
 
   def determineSources(self):
     """
-    Determine the source for each band, then combine into a single 
+    Determine the source for each band, then combine into a single
     string for output netCDF
     """
 
@@ -660,18 +660,18 @@ class configure():
 
   def calcRAM(self):
     """
-    Determine the approximate amount of RAM needed for the entirety 
+    Determine the approximate amount of RAM needed for the entirety
     of the ABSCO computation
 
-    This calculation is simply 8 bytes (np.float64.itemsize) x 
+    This calculation is simply 8 bytes (np.float64.itemsize) x
     2 (wavenumber and absco) x number of output wavenumbers (degraded
-    spectrum) for all bands combined x number of temperatures x 
+    spectrum) for all bands combined x number of temperatures x
     number of layers
 
     Less HD space is needed because of netCDF compression
 
     If multiple molecules are provided in the .ini file, they will be
-    handled in series, so the by-molecule RAM usage is of greater 
+    handled in series, so the by-molecule RAM usage is of greater
     importance unless the code is run in parallel
     """
 
@@ -699,7 +699,7 @@ class configure():
     prompt = 'Full ABSCO table netCDF generation expected to ' + \
       'consume up to %.3f GB of RAM' % totEst
     self.show_prompt(prompt)
-  
+
   def show_prompt(self, message):
     if self.prompt_user:
       message += ', proceed (y/n)? '
@@ -710,4 +710,3 @@ class configure():
 
   # end calcRAM()
 # end configure()
-

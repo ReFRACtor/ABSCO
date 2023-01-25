@@ -42,7 +42,7 @@ class makeABSCO():
   - Use the ODInt files to calculate absorption coefficients and store
     in netCDF file
 
-  Generate absorption coefficient tables (ABSCO as a function of 
+  Generate absorption coefficient tables (ABSCO as a function of
   wavenumber, pressure, temperature, and band) for specified molecule
   """
 
@@ -55,13 +55,13 @@ class makeABSCO():
       inObj -- preproc.configure instance
 
     Keywords
-      debug -- boolean, only for testing purposes (probably a bit 
-        obsolete as well, except that it does not do a loop over all 
+      debug -- boolean, only for testing purposes (probably a bit
+        obsolete as well, except that it does not do a loop over all
         TAPE5s)
-      vmrWV -- float, water vapor mixing ratio [ppmv] to be used in 
-        H2O, CO2, and N2 profiles 
-      vmrO2 -- float, oxygen mixing ratio [ppmv] to be used in 
-        O2 profiles 
+      vmrWV -- float, water vapor mixing ratio [ppmv] to be used in
+        H2O, CO2, and N2 profiles
+      vmrO2 -- float, oxygen mixing ratio [ppmv] to be used in
+        O2 profiles
     """
 
     # make output directories
@@ -114,7 +114,7 @@ class makeABSCO():
       if mol in allMolCSV:
         userProf[mol] = inUserProf[mol].values
       else:
-        # This should be identical to "if mol in self.xsLines" 
+        # This should be identical to "if mol in self.xsLines"
         # NO2 and SO2 have identical XS and HITRAN densities
         # HNO3 and CF4 do not. whether we use the XS or HITRAN density
         # is determined in lblT5()
@@ -128,7 +128,7 @@ class makeABSCO():
           userProf[xsMol] = inUserProf[xsMol].values
       # endif mol
 
-      # this is the only special case so far: allowed molecule that 
+      # this is the only special case so far: allowed molecule that
       # has an LBLRTM alias that is not the allowed string
       if mol == 'F22': userProf[mol] = inUserProf['CHCLF2'].values
     # end mol loop
@@ -187,7 +187,7 @@ class makeABSCO():
       'CH3CN', 'CF4', 'C4H2', 'HC3N', 'H2', 'CS', 'SO3']
 
     try:
-      self.iMol = self.HITRAN.index(mol)
+      self.iMol = 0 if mol == 'HDO' else self.HITRAN.index(inMol)
     except:
       print('Could not find %s in HITRAN names' % mol)
       self.iMol = None
@@ -210,8 +210,8 @@ class makeABSCO():
   def lnflT5(self, mol):
     """
     For a given molecule, make a TAPE5 that can be used as input into
-    an LNFL run for every band. We will only be using the extra 
-    broadening option (so we are not writing to an ASCII TAPE7 and 
+    an LNFL run for every band. We will only be using the extra
+    broadening option (so we are not writing to an ASCII TAPE7 and
     are including line coupling).
     """
 
@@ -219,7 +219,7 @@ class makeABSCO():
     molIndInit = np.repeat('0', 47)
 
     # the other part of record 3 -- let's always keep line coupling on
-    # so we get the O2, CO2, and CH4 coupling params; suppress any 
+    # so we get the O2, CO2, and CH4 coupling params; suppress any
     # output to an ASCII TAPE7; and always use extra broadening params
     holInd = 'EXBRD'
 
@@ -228,18 +228,18 @@ class makeABSCO():
 
     for iBand in range(self.nBands):
       if self.doBand[mol][iBand] is False: continue
-      # band specification	
+      # band specification
       wvn1 = self.bands['wn1'][iBand]
       wvn2 = self.bands['wn2'][iBand]
 
-      # spectral range should go +/- 25 cm-1 to incorporate 
+      # spectral range should go +/- 25 cm-1 to incorporate
       # non-negligible contributions from all "nearby" lines
       # and LNFL is smart enough to work with wvn1 < 0
       record1 = 'TAPE5 for %s, %.f-%.f' % (mol, wvn1, wvn2)
       record2 = '%10.3f%10.3f' % (wvn1-25, wvn2+25)
 
       # switch molecule "on" for LNFL; we still need a TAPE3 for LBL
-      # with XS molecules even though they have no molecule number, 
+      # with XS molecules even though they have no molecule number,
       # so just don't turn on any molecules
       molInd = np.array(molIndInit)
       if self.iMol is not None: molInd[self.iMol] = '1'
@@ -262,8 +262,8 @@ class makeABSCO():
   def runLNFL(self):
     """
     Run executable to generate a binary line file (TAPE3) for usage
-    in LBLRTM.  Do this for each TAPE5 input available for a given 
-    molecule.  Each TAPE3 contains a subset of the full TAPE1 line 
+    in LBLRTM.  Do this for each TAPE5 input available for a given
+    molecule.  Each TAPE3 contains a subset of the full TAPE1 line
     file (i.e., only the lines for the given band and molecule).
     """
 
@@ -323,7 +323,7 @@ class makeABSCO():
 
   def lblT5(self, mol):
     """
-    For a given molecule, make a TAPE5 for every temperature and band 
+    For a given molecule, make a TAPE5 for every temperature and band
     that can be used as input into an LBLRTM run
 
     see lblrtm_instructions.html for doc on each TAPE5 record
@@ -342,8 +342,8 @@ class makeABSCO():
 
     # records required with IATM=1 (we're using LBLATM to calculate
     # layer amounts for species -- we only have level amounts)
-    # US Standard atmosphere, path type 2 (slant from H1 to H2), 2 
-    # pressure levels, no zero-filling, full printout, 7 molecules, 
+    # US Standard atmosphere, path type 2 (slant from H1 to H2), 2
+    # pressure levels, no zero-filling, full printout, 7 molecules,
     # write to TAPE7
     record31 = '%5d%5d%5d%5d%5d%5d%5d' % \
       (0, 2, -nLevT5, 0, 0, self.molMaxLBL, 1)
@@ -394,7 +394,7 @@ class makeABSCO():
         (self.bands['wn1'][iBand], self.bands['wn2'][iBand])
 
       # concatenate (NOT append) 6 zeros in scientific notation
-      # using defaults for SAMPLE, DVSET, ALFAL0, AVMASS, 
+      # using defaults for SAMPLE, DVSET, ALFAL0, AVMASS,
       # DPTMIN, and DPTFAC params
       record13 += ''.join(['%10.3e' % 0 for i in range(6)])
 
@@ -422,7 +422,7 @@ class makeABSCO():
 
           # now determine the density to use for the level
           if mol in self.xsLines:
-            # handle the "double agents" -- HITRAN and XS params are 
+            # handle the "double agents" -- HITRAN and XS params are
             # available, and density profiles for each are stored
             if doXS:
               levVMR = self.vmrProf['%s_XS' % mol][iP]
@@ -436,7 +436,7 @@ class makeABSCO():
           # eventually decided to use VMR in ppmv
           levVMR *= 1e6
 
-          # record 3.6: provide VMR at a given level, but only for the 
+          # record 3.6: provide VMR at a given level, but only for the
           # given mol (VMR)
           lblAll = np.repeat(0.0, self.molMaxLBL)
 
@@ -462,9 +462,9 @@ class makeABSCO():
           # record 3.8.1: boundary pressure (really just rec 3.3b)
           # record 3.8.2: layer molecule VMR, which should have been
           # defined in when constructing records 3.5 and 3.6
-          # can combine these two since we're only doing 1 XS 
+          # can combine these two since we're only doing 1 XS
           # molecule per layer
-          if doXS: 
+          if doXS:
             records381_382.append('%10.3f%5s1\n%10.3E' % \
               (pLev, '', float(levVMR)) )
             if iP != self.nP-1: records381_382.append('\n')
@@ -543,17 +543,17 @@ class makeABSCO():
 
   def calcABSCO(self, mol):
     """
-    Run LBLRTM for each TAPE5 made in lblT5(). Extract spectrum and 
-    pressure layers from run results. Then to save time and space, 
-    we will just calculate ABSCOs directory instead of transporting 
+    Run LBLRTM for each TAPE5 made in lblT5(). Extract spectrum and
+    pressure layers from run results. Then to save time and space,
+    we will just calculate ABSCOs directory instead of transporting
     the data for their computation into another method
 
-    This can be run in parallel for each molecule, but that means 
-    each molecule should have its own configuration file (each of 
+    This can be run in parallel for each molecule, but that means
+    each molecule should have its own configuration file (each of
     which should specify a different lbl_run_dir)
     """
 
-    # find TAPE3s and their associated TAPE5s (for every TAPE3, 
+    # find TAPE3s and their associated TAPE5s (for every TAPE3,
     # there is a TAPE5 for every pressure and every temperature)
     molT3 = []
     for wn1, wn2 in zip(self.bands['wn1'], self.bands['wn2']):
@@ -584,7 +584,7 @@ class makeABSCO():
     sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
     makeSymLinks(sources, targets)
 
-    # outList is going to be an nBand-element list of dictionaries 
+    # outList is going to be an nBand-element list of dictionaries
     # that contain nLay x nT x nWN arrays of ABSCOs ('ABSCO' field)
     # and nLay x nT arrays of layer pressures ('layerP' field)
     # the idea with layerP is "this layer pressure is associated with
@@ -593,14 +593,14 @@ class makeABSCO():
     # over all bands
     outList = []
     for iBand, t3 in enumerate(molT3):
-      # should be one TAPE3 per band, and we are assuming they're 
+      # should be one TAPE3 per band, and we are assuming they're
       # sorted by band
       base = os.path.basename(t3)
       band = base.split('_')[-1]
 
       bandDict = {}
 
-      # wavenumber array of spectrum will remain the same for a 
+      # wavenumber array of spectrum will remain the same for a
       # given band
       bandWN = None
 
@@ -610,8 +610,8 @@ class makeABSCO():
 
       # initialize output for given pressure
       # (which are dim [nT x nWN] and [nT])
-      # the dictionary fields will be level pressures -- since each 
-      # P has a different number of corresponding T values, we 
+      # the dictionary fields will be level pressures -- since each
+      # P has a different number of corresponding T values, we
       # cannot simply make an nP x nT x nWN array
       # "pLayP": layer pressure (P) associated with level pressure (p)
       # "TLayP": layer temperature (T) associated with p
@@ -619,12 +619,12 @@ class makeABSCO():
       pABSCO, pLayP, pLayT = {}, {}, {}
       for iP, pLev in enumerate(pLevs):
         # skip the TOA level because (from Karen):
-        # LBL is calculating the altitude of the observer level and 
-        # the profiles slightly differently, and coming up with an 
+        # LBL is calculating the altitude of the observer level and
+        # the profiles slightly differently, and coming up with an
         # observer height above the top of the profile
         if iP == self.nP-1: continue
 
-        # this is a bit different than self.pLev -- it represents 
+        # this is a bit different than self.pLev -- it represents
         # what levels we processed rather than what we expected to use
         # skipping the last level is the difference here
         # but we count the first level because it is the lower bound
@@ -712,10 +712,11 @@ class makeABSCO():
           # extract the spectrum
           wnFine, odFine = lblTools.readOD(odFile, double=True)
           abscoFine = odFine / molDen
+          if mol.upper() == 'HDO': abscoFine *= 3.107e-4
 
-          # calculate absorption coefficients then degrade the 
-          # spectrum. convolve ABSCO with weighting associated with 
-          # kernel then resample; most of this taken directly from 
+          # calculate absorption coefficients then degrade the
+          # spectrum. convolve ABSCO with weighting associated with
+          # kernel then resample; most of this taken directly from
           # IDL code resample_grid.pro
           kernel = self.degradeKern[iBand]
           nDegrade = kernel.size - 1
@@ -725,7 +726,7 @@ class makeABSCO():
             abscoFine[0], abscoFine[-1]
           tempABSCO.append(abscoFine[coarseRes])
 
-          # have to do 2nd conditional in case the first couple of 
+          # have to do 2nd conditional in case the first couple of
           # runs did not extend the entire spectral range
           bandWN = wnFine[coarseRes]
         # end temperature loop
@@ -757,13 +758,13 @@ class makeABSCO():
 
   def arrABSCO(self):
     """
-    Organize an array from the complicated dictionary returned by 
-    calcABSCO(). This is where the (nWN x nP x nT) arrays 
+    Organize an array from the complicated dictionary returned by
+    calcABSCO(). This is where the (nWN x nP x nT) arrays
     are generated.
 
-    Not every LBL run produces spectra of the same size for a given 
-    band, and we know that different temperatures apply depending on 
-    the pressure, so this is where we reconcile differences in 
+    Not every LBL run produces spectra of the same size for a given
+    band, and we know that different temperatures apply depending on
+    the pressure, so this is where we reconcile differences in
     dimensions
     """
 
@@ -788,11 +789,11 @@ class makeABSCO():
       # endif band
 
       for iP, pLev in enumerate(pKeys):
-        # we skipped over the surface level P in the LBL runs, so 
+        # we skipped over the surface level P in the LBL runs, so
         # indexing has to be changed accordingly
         offsetP = iP + 1
 
-        # our T array spans from 180-320, but not every temperature 
+        # our T array spans from 180-320, but not every temperature
         # is used. whatever range is used, it is in increments of 10 K
         # so let's find the indices of the T values that are used
         # for this pressure that correspond to the allT array
@@ -812,8 +813,8 @@ class makeABSCO():
         inArr = bandABSCO['ABSCO'][pLev]
         for iT in range(len(inArr)):
           # FILL IN EMPTY SPECTRA
-          # here, we assume that if the LBL run did not extend the 
-          # entire spectral range, then it stopped early and we 
+          # here, we assume that if the LBL run did not extend the
+          # entire spectral range, then it stopped early and we
           # append fill values to the end of the array
           nWN = len(inArr[iT])
           if nWN < nBandWN:
@@ -835,7 +836,7 @@ class makeABSCO():
     iStart, iEnd = [], []
     start, end = 0, 0
     for iBand, band in enumerate(wnAll):
-      if iBand == 0: 
+      if iBand == 0:
         wnStack = list(band)
       else:
         start = int(end)
@@ -948,7 +949,7 @@ class makeABSCO():
     outVar.valid_range = (180, 320)
     outVar.description = 'LBLRTM-calculated layer temperatures'
 
-    # Use minimum of the frequency dimension size versus the file 
+    # Use minimum of the frequency dimension size versus the file
     # configured chunk size
     # All other dimension are small enough to chunk outright
     chunksizes = list(inDims)
@@ -1042,17 +1043,17 @@ class makeABSCO():
 
 def combineVMR(inList):
   """
-  Combine attributes (ABSCO, vmrWV, and vmrO2) from multiple makeABSCO 
+  Combine attributes (ABSCO, vmrWV, and vmrO2) from multiple makeABSCO
   objects generated with different water vapor or O2 VMRs
 
   Input
     inList -- list of makeABSCO objects with ABSCO arrays (with same
-      dimensions!) and single-value vmr attributes. this should 
-      only be a 2-element list, but the function is flexible enough 
+      dimensions!) and single-value vmr attributes. this should
+      only be a 2-element list, but the function is flexible enough
       to handle more
 
   Output
-    outObj -- modified makeABSCO object with new ABSCO and vmrWV 
+    outObj -- modified makeABSCO object with new ABSCO and vmrWV
       arrays
   """
 
@@ -1061,8 +1062,8 @@ def combineVMR(inList):
     abscoList.append(obj.ABSCO)
   # end object loop
 
-  # the rest of the makeABSCO objects should be the same, so just 
-  # replace vmrWV and ABSCO; make the VMR dimension the last one 
+  # the rest of the makeABSCO objects should be the same, so just
+  # replace vmrWV and ABSCO; make the VMR dimension the last one
   # in the outAxes and convert vmr to ppmv
   outAxes = (1, 2, 3, 0)
 
@@ -1075,4 +1076,3 @@ def combineVMR(inList):
 
   return outObj
 # end combineVMR()
-
