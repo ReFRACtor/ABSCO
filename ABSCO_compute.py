@@ -113,6 +113,8 @@ class makeABSCO():
       # extract VMRs for each specified molecule
       if mol in allMolCSV:
         userProf[mol] = inUserProf[mol].values
+      elif mol == 'HDO':
+        userProf[mol] = inUserProf['H2O'].values
       else:
         # This should be identical to "if mol in self.xsLines"
         # NO2 and SO2 have identical XS and HITRAN densities

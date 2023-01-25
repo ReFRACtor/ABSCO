@@ -73,7 +73,7 @@ class configure():
     self.molH2O = ['CO2', 'N2', 'O2', 'H2O']
 
     # and these guys are neither HITRAN or XS molecules
-    # self.dunno = ['HDO']
+    self.dunno = []
 
     # O2 is a special case where we'll have to fix the VMR
     self.vmrO2 = np.array([0.19, 0.23]) * 1e6
