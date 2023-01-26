@@ -189,7 +189,7 @@ class makeABSCO():
       'CH3CN', 'CF4', 'C4H2', 'HC3N', 'H2', 'CS', 'SO3']
 
     try:
-      self.iMol = 0 if mol == 'HDO' else self.HITRAN.index(inMol)
+      self.iMol = 0 if inMol == 'HDO' else self.HITRAN.index(inMol)
     except:
       print('Could not find %s in HITRAN names' % mol)
       self.iMol = None
