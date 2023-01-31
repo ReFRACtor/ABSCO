@@ -49,11 +49,12 @@ class configure():
     self.pfile = os.path.join(gitDir, self.pfile)
     self.ptfile = os.path.join(gitDir, self.ptfile)
     self.vmrfile = os.path.join(gitDir, self.vmrfile)
+    self.hdofile = os.path.join(gitDir, self.hdofile)
     self.xs_lines = os.path.join(gitDir, self.xs_lines)
 
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \
-      self.extra_params, self.lnfl_path, \
+      self.hdofile, self.extra_params, self.lnfl_path, \
       self.lbl_path, self.xs_path, self.fscdxs, self.xs_lines]
     self.outDirs = [self.lnfl_run_dir, self.lbl_run_dir, \
       self.tape3_dir, self.tape5_dir, self.outdir]
@@ -70,16 +71,16 @@ class configure():
     self.xsLines = ['CF4', 'SO2', 'NO2', 'HNO3']
 
     # these guys have continua that are affected by WV amount
-    self.molH2O = ['CO2', 'N2', 'O2', 'H2O']
-
-    # and these guys are neither HITRAN or XS molecules
-    self.dunno = []
+    # and HDO profile needs to mimic H2O
+    self.molH2O = ['CO2', 'N2', 'O2', 'H2O', 'HDO']
 
     # O2 is a special case where we'll have to fix the VMR
     self.vmrO2 = np.array([0.19, 0.23]) * 1e6
 
     # read in pressures and do some quality control
     self.processP()
+
+    if 'HDO' in self.molnames: self.checkHDO()
 
     # XS or line parameter processing?
     self.xsCheck()
@@ -321,8 +322,8 @@ class configure():
 
     # in the makeABSCO() class, we expect certain attributes
     # let's make sure they exist in the config file
-    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'channels', 'intdir', \
-      'molnames', 'scale', 'lnfl_run_dir', 'lnfl_path', \
+    reqAtt = ['pfile', 'ptfile', 'vmrfile', 'hdofile', 'channels', \
+      'intdir', 'molnames', 'scale', 'lnfl_run_dir', 'lnfl_path', \
       'tape1_path', 'tape3_dir', 'extra_params', 'tape5_dir', \
       'lbl_path', 'xs_path', 'fscdxs', 'lbl_run_dir', 'outdir']
 
@@ -368,6 +369,17 @@ class configure():
 
     return self
   # end processP()
+
+  def checkHDO(self):
+    """
+    Simple check to make sure HDO profile is consistent with 
+    input profiles of other molecules
+    """
+
+    nHDO = pd.read_csv(self.hdofile)['HDO'].values.size
+    nP = self.pressures.size
+    if nHDO != nP: sys.exit('Inconsistent HDO profile, returning')
+  # end checkHDO
 
   def findActiveMol(self):
     """

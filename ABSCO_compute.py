@@ -103,6 +103,11 @@ class makeABSCO():
 
     # grab the user provided VMR profile for the species of interest
     inUserProf = pd.read_csv(inObj.vmrfile)
+    if 'HDO' in inObj.molnames:
+      inUserProf['HDO'] = pd.read_csv(inObj.hdofile)['HDO']
+      self.fracHDO = inUserProf['HDO'] / inUserProf['H2O']
+    # endif HDO
+
     userProf = {}
     userProf['P'] = inUserProf['P'].values
     userProf['T'] = inUserProf['T'].values
@@ -378,6 +383,10 @@ class makeABSCO():
       if mol == 'H2O':
         scales[0] = self.cntnmScale
         scales[1] = self.cntnmScale
+      elif mol == 'HDO':
+        # never allow WV continuum with HDO
+        scales[0] = 0
+        scales[1] = 0
       elif mol == 'CO2':
         scales[2] = self.cntnmScale
       elif mol == 'O3':
@@ -713,8 +722,14 @@ class makeABSCO():
 
           # extract the spectrum
           wnFine, odFine = lblTools.readOD(odFile, double=True)
+
+          if mol.upper() == 'HDO':
+            # molDen at this point is H2O because iDen is 0
+            # convert it to HDO density based on user profile
+            molDen = self.fracHDO[iP] * molDen
+          # endif HDO
+
           abscoFine = odFine / molDen
-          if mol.upper() == 'HDO': abscoFine *= 3.107e-4
 
           # calculate absorption coefficients then degrade the
           # spectrum. convolve ABSCO with weighting associated with
