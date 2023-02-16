@@ -105,7 +105,7 @@ With the exception of the `--run_lnfl`, `--run_lbl`, and `--end_to_end` (alterna
 | ptfile | PT_Grid | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
 | vmrfile | PT_Grid | CSV files generated with VMR/standard_atm_profiles.py that provide interpolated/extrapolated volume mixing ratios (VMRs) for entire user-specified profile. this needs to be a *relative* path with respect to the directory in which this repo is cloned|
 | xs_lines | Repository top-level directory | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN. this should be a full path and can be assigned in `build_models.py`|
-| wn1, wn2 | N/A | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers |
+| wn1, wn2 | N/A | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers. 200 cm<sup>-1<sup> should be the minimum extent of the window -- broader windows increase the accuracy of the calculations |
 | lblres, outres | N/A | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
 | units | N/A | spectral units ("cm<sup>-1</sup>", "um", and "nm" are allowed) |
 | wv_vmr | N/A | water vapor VMR (in **ppmv**) that will be used for all levels in a given profile for H<sub>2</sub>O, CO<sub>2</sub>, O<sub>2</sub>, and N<sub>2</sub>, since their continua are dependent on water vapor amounts |
