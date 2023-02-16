@@ -14,7 +14,8 @@ import ABSCO_preprocess as preproc
 import ABSCO_compute as absco
 
 parser = argparse.ArgumentParser(\
-  description='Generate ABSCO tables for user-specified molecules.')
+  description='Generate ABSCO tables for user-specified molecules.',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-i', '--config_file', type=str, \
   default='ABSCO_config.ini', \
   help='Configuration file that contains the file and ' + \
@@ -44,9 +45,6 @@ iniFile = args.config_file; utils.file_check(iniFile)
 
 # configuration object instantiation
 ini = preproc.configure(iniFile, prompt_user=args.prompt_user)
-
-for iniName in ini.molnames:
-  if iniName in ini.dunno: sys.exit('Cannot do %s yet' % iniName)
 
 if args.run_lnfl or args.end_to_end:
   # don't need to save these objects because runLNFL() will do all 
