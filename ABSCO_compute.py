@@ -978,7 +978,7 @@ class makeABSCO():
     outVar[:] = np.ma.array(self.ABSCO, mask=np.isnan(self.ABSCO))
     outVar.units = 'cm2/molecule'
     outVar.long_name = 'Absorption Coefficients'
-    outVar.valid_range = (0, 1e-20)
+    outVar.valid_range = (0, 1e-15)
     outVar.description = 'Absorption coefficients (k) calculated ' + \
       'from LBLRTM optical depths and layer amounts'
 
