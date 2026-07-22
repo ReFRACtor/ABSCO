@@ -202,7 +202,7 @@ above.
 | :---: | :---: | :--- |
 | pfile | packaged / `PT_grid` | text file with 1 pressure level in millibars per line. these will be the pressures on which the ABSCOs are calculated. leave blank to use the packaged default, or set an absolute path to a custom file |
 | ptfile | packaged / `PT_grid` | for every pressure level, there are different allowed temperatures. this file contains a set of pressures and their permitted temperatures. leave blank to use the packaged default, or set an absolute path |
-| vmrfile | packaged / `VMR` | CSV file (see `VMR/standard_atm_profiles.py`) providing interpolated/extrapolated volume mixing ratios (VMRs) for the entire profile. leave blank to use the packaged default, or set an absolute path |
+| vmrfile | packaged / `VMR` | CSV file (see `scripts/standard_atm_profiles.py`) providing interpolated/extrapolated volume mixing ratios (VMRs) for the entire profile. leave blank to use the packaged default, or set an absolute path |
 | xs_lines | packaged | this file contains the species names for when XS and line parameters exist and line parameter usage is recommended by HITRAN. leave blank to use the packaged default, or set an absolute path |
 | wn1, wn2 | N/A | starting and ending spectral points for every desired band. can be in wavenumbers, microns, or nanometers. 200 cm<sup>-1</sup> should be the minimum extent of the window -- broader windows increase the accuracy of the calculations |
 | lblres, outres | N/A | spectral resolution at which LBLRTM is run and spectral resolution of the output (after spectral degradation). for now, this should be in wavenumbers |
@@ -276,9 +276,13 @@ Species specification is optional, but nothing is done if not molecule is provid
 
 ### Pressure levels
 
-In the `VMR` subdirectory, `standard_atm_profiles.py` should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmopshere provided in the repository). This module utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of `standard_atm_profiles.py` should be entered into the `vmrfile` field in `ABSCO_config.ini` (see [Table 2](#Table2)).
+The `scripts/standard_atm_profiles.py` generator should be run if the user ever wants to use a different profile (rather than the default 1976 United States standard atmosphere bundled with the package). It utilizes a standard atmosphere (the different kinds of standard atmospheres computed by LBLRTM are documented in the constructor of the vmrProfiles class) and the pressures expected by the user and performs an interpolation of the associated volume mixing ratios onto the user-specified grid. The interpolated profile is then used as a user-input atmosphere in the TAPE5 files that are generated for LBLRTM. Whatever the user chooses to be the output file name of the generator should be entered into the `vmrfile` field in `ABSCO_config.ini` (see [Table 2](#Table2)). Its default input CSVs are read from the packaged `absco/data/VMR`, so run it from within the environment (e.g. after `pixi shell`):
 
-As documented in [Table 2](#Table2), pressures are extracted from `pfile`, and each pressure has an associated range of acceptable temperature values listed in `ptfile`. Both of these files are underneath the `PT_Grid`. By default, the pressures that are used are based on the AIRS instrument (`PT_Grid/AIRS_P_air.txt`). `build_temp_array.txt` is the associated `ptfile`.
+```
+python scripts/standard_atm_profiles.py -o my_vmr.csv
+```
+
+As documented in [Table 2](#Table2), pressures are extracted from `pfile`, and each pressure has an associated range of acceptable temperature values listed in `ptfile`. By default, the pressures that are used are based on the AIRS instrument (packaged `PT_grid/AIRS_P_air.txt`), with `build_temp_array.txt` as the associated `ptfile`.
 
 ### Allowed Molecules
 

@@ -29,7 +29,7 @@ The software generates netCDF tables of absorption coefficients indexed by waven
   - `src/absco/data/` - Bundled data files resolved from the installed package (see `src/absco/paths.py`): `PT_grid/` (default AIRS instrument grid), `VMR/` profiles, `FSCDXS_line_params.csv`, and `ABSCO_config.template.ini`
 - `LBLRTM/` - Fortran source code submodule (AER-RC/LBLRTM v12.17). Has nested submodules `aer_rt_utils` and `cross-sections` — requires `--recursive` init.
 - `LNFL/` - Fortran line file converter submodule (AER-RC/LNFL master, v3.2-30). Has nested submodule `aer_rt_utils` — requires `--recursive` init.
-- `VMR/` - Volume mixing ratio profile generator scripts
+- `scripts/` - Helper scripts: parallel-run drivers (`run_multiple_configs.sh`, `join_multiple.sh`) and VMR profile generators (`standard_atm_profiles.py`, `standard_atm_HDO_profile.py`)
 - `AER_Line_File/` - Line parameter database (v3.9, Zenodo record 18881607, downloaded via Zenodo by `absco-init`). v3.9 layout: `lncpl_lines` is at the top level (not under `line_file/`) and there is no `xs_files/` — cross sections (`xs/`, `FSCDXS`) come from the LBLRTM `cross-sections` submodule, staged into the data dir by `absco-build`.
 
 ## Common Commands
@@ -133,16 +133,15 @@ cd LBLRTM && git pull origin master
 
 ## VMR Profile Generation
 
-To use non-default atmospheric profiles (run inside the environment, e.g. after `pixi shell`, since these scripts import `absco._common`):
+To use non-default atmospheric profiles (run inside the environment, e.g. after `pixi shell`, since these scripts import from the `absco` package). The generators live in `scripts/` and read their default input CSVs from the packaged `absco/data/VMR`:
 
 ```bash
-cd VMR
-python standard_atm_profiles.py  # generates CSV with interpolated VMRs
+python scripts/standard_atm_profiles.py -o my_vmr.csv  # CSV with interpolated VMRs
 # Set output filename as `vmrfile` in ABSCO_config.ini
 ```
 
 For HDO profiles:
 ```bash
-python standard_atm_HDO_profile.py
+python scripts/standard_atm_HDO_profile.py -o my_hdo.csv
 # Set output as `hdofile` in config
 ```
