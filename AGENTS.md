@@ -24,11 +24,12 @@ The software generates netCDF tables of absorption coefficients indexed by waven
 - **XS vs line parameters** - Some molecules have both cross sections and line parameters; `FSCDXS_line_params.csv` encodes HITRAN recommendations
 
 ### Directory Structure
-- `common/` - Shared utilities (submodule from AER-RC/common): `lblTools.py` (LBLRTM I/O), `RC_utils.py`, `utils.py`, `FortranFile.py`
+- `src/absco/` - Installable Python package (src layout)
+  - `src/absco/_common/` - Shared utilities vendored from AER-RC/common: `lblTools.py` (LBLRTM I/O), `RC_utils.py`, `utils.py`, `FortranFile.py`. These are vendored (copied in), not a submodule, so the installed package has no runtime dependence on the `common` repository.
+  - `src/absco/data/` - Bundled data files resolved from the installed package (see `src/absco/paths.py`): `PT_grid/` (default AIRS instrument grid), `VMR/` profiles, `FSCDXS_line_params.csv`, and `ABSCO_config.template.ini`
 - `LBLRTM/` - Fortran source code submodule (AER-RC/LBLRTM v12.9)
 - `LNFL/` - Fortran line file converter submodule (AER-RC/LNFL v3.2)
-- `VMR/` - Volume mixing ratio profile generators
-- `PT_grid/` - Pressure/temperature grid specifications (default: AIRS instrument grid)
+- `VMR/` - Volume mixing ratio profile generator scripts
 - `AER_Line_File/` - Line parameter database (v3.7, downloaded via Zenodo by `build_models.py`)
 
 ## Common Commands

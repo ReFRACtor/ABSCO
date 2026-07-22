@@ -47,7 +47,7 @@ git submodule update --init --recursive
 
 # Dependencies <a name="dependencies"></a>
 
-This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that are available as a GitHub repository in the AER-RC account (`utils`, `RC_utils`, `lblTools`). The latter modules are located in the `common` subdirectory, which is [its own repository](<https://github.com/AER-RC/common>) but also a submodule that is cloned along with the ABSCO repository if submodules are updated (e.g., `--recursive` clone). Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
+This library depends on a number of standard Python libraries (`os`, `sys`, `configparser`, `subprocess`, `glob`, `argparse`), some widely distributed third-party libraries (see "Python Packages" subsection), and some ad hoc subroutines that originate from the [AER-RC/common](<https://github.com/AER-RC/common>) repository (`utils`, `RC_utils`, `lblTools`, `FortranFile`). These modules are vendored into the package as `absco._common`, so the installed tool no longer requires the `common` submodule at runtime. Additionally, some AER-maintained models and line parameters are required to run the ABSCO software.
 
 ## Python Packages
 

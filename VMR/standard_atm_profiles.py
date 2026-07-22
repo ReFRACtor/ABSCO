@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame as DF
 
-sys.path.append('../common')
-import utils
+# vendored common utilities (installed as part of the absco package)
+from absco._common import utils
 
 LBLDEFAULT = '/nas/project/rc_static/models/aer_lblrtm/' + \
   'lblrtm_v12.9/lblrtm_v12.9_linux_pgi_dbl'
@@ -410,8 +410,8 @@ class broadener():
       separate broadener objects
     """
 
-    # ABSCO submodule (in ../common)
-    import RC_utils as RC
+    # vendored common utilities (installed as part of the absco package)
+    from absco._common import RC_utils as RC
 
     allT7 = list(self.allT7) if supplementT7 is None else \
       self.allT7 + supplementT7
