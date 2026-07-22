@@ -414,7 +414,7 @@ packages:
   timestamp: 1784221492234
 - pypi: ./
   name: absco
-  version: '2.0'
+  version: 2.0.0
   sha256: b36a9abf0b1c31df7f7529cf4578a04d294303dd8af2707aac6f28c78460353d
   requires_dist:
   - numpy>=1.24
