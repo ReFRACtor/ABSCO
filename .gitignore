@@ -5,6 +5,7 @@ TAPE3_dir
 TAPE5_dir
 LBL_Runs
 nc_ABSCO
+logs
 obsolete
 *.npz
 *.tar.gz

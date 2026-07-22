@@ -329,6 +329,23 @@ absco-generate -e2e
 
 Separating the LNFL and LBL runs may be useful after the user has generated all of the TAPE3 files that they need, but it will not be detrimental to run the end-to-end mode everytime. The only bottlenecks are the LNFL runs and the loop over all LBL cases. The latter will happen whenever ABSCOs are computed, and the former will not take a noticeable amount of time because LNFL will not be run if the expected TAPE3 exists.
 
+## Logging
+
+`absco-generate` automatically records its output to a log directory (default:
+`<intdir>/logs`, e.g. `logs/` under the working directory). Three files are written:
+
+- `absco-generate.log` -- the full driver output (everything printed to the console,
+  which is still shown on the terminal as well);
+- `lnfl.log` -- the LNFL subprocess output, one section per TAPE5 run;
+- `lblrtm.log` -- the LBLRTM subprocess output, one section per P/T/VMR run.
+
+Use `--log_dir DIR` (or `-log DIR`) to write the logs elsewhere. Log files are opened
+in append mode, so re-running accumulates history rather than overwriting it.
+
+```
+absco-generate -e2e --log_dir /path/to/logs
+```
+
 # Parallel Processing (split and join) <a name="parallel"></a>
 
 A single `absco-generate` run processes all molecules and the full spectral range in

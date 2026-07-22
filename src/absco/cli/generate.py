@@ -10,6 +10,7 @@ from absco._common import utils
 
 # local modules
 from absco import paths
+from absco import logutil
 from absco import preprocess as preproc
 from absco import compute as absco
 
@@ -63,7 +64,28 @@ def build_parser():
     help='Use for testing (only iterates over a few pressure levels.)')
   parser.add_argument('-y', '--no_prompt', action='store_false', dest='prompt_user', default=True,
     help='Do not prompt for continuation at warning messages.')
+  parser.add_argument('-log', '--log_dir', type=str, default=None,
+    help='Directory for run logs (driver output, and LNFL/LBLRTM subprocess ' + \
+    'output). Defaults to a "logs" directory under the config\'s intdir.')
   return parser
+
+
+def _peek_intdir(iniFile):
+  """Read just [output] intdir from the config to derive the default log dir.
+
+  Mirrors preprocess handling: '.' (or missing) -> cwd, else abspath. Done before
+  the full configure() so the tee log can be set up around it.
+  """
+  import configparser
+  cp = configparser.ConfigParser()
+  try:
+    cp.read(iniFile)
+    val = cp.get('output', 'intdir', fallback='.').strip()
+  except Exception:
+    val = '.'
+  if val in ('', '.'):
+    return os.getcwd()
+  return os.path.abspath(os.path.expanduser(val))
 
 
 def main():
@@ -74,11 +96,22 @@ def main():
 
   iniFile = args.config_file; utils.file_check(iniFile)
 
+  # set up logging: everything the driver prints (and the LNFL/LBLRTM subprocess
+  # output) is tee'd to <log_dir>/absco-generate.log while still shown on screen.
+  logDir = logutil.resolve_log_dir(args.log_dir, _peek_intdir(iniFile), create=True)
+  with logutil.tee_stdio(os.path.join(logDir, 'absco-generate.log')):
+    print('ABSCO run log directory: %s' % logDir)
+    _run(args, iniFile, logDir)
+
+
+def _run(args, iniFile, logDir):
   # early, actionable warning if executables / line file are not set up
   check_artifacts()
 
   # configuration object instantiation
   ini = preproc.configure(iniFile, prompt_user=args.prompt_user)
+  # tell compute where to write LNFL/LBLRTM subprocess logs
+  ini.log_dir = os.fspath(logDir)
 
   if args.run_lnfl or args.end_to_end:
     # don't need to save these objects because runLNFL() will do all

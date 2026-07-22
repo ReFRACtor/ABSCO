@@ -5,7 +5,6 @@
 from __future__ import print_function
 
 import os, sys, glob, argparse
-import subprocess as sub
 
 # miniconda-installed libs
 import numpy as np
@@ -13,6 +12,7 @@ import pandas as pd
 
 # local module (part of the ABSCO library)
 from absco import paths
+from absco import logutil
 from absco import preprocess as preproc
 
 # vendored common utilities
@@ -177,6 +177,12 @@ class makeABSCO():
     self.pathListXS = str(inObj.fscdxs)
     # LBLRTM v12.11+ runtime data files (e.g. MT_CKD netCDF) read from the run dir
     self.lblrtmData = list(paths.lblrtm_data_files())
+
+    # directory for LNFL/LBLRTM subprocess logs (set by the driver; default
+    # <intdir>/logs). Resolved to an absolute path here since the run methods
+    # chdir into the run directories before invoking the executables.
+    logDir = getattr(inObj, 'log_dir', None)
+    self.logDir = logutil.resolve_log_dir(logDir, inObj.intdir, create=True)
     self.dirT5 = str(inObj.tape5_dir)
     self.doXS = dict(inObj.doXS)
     self.molH2O = list(inObj.molH2O)
@@ -326,7 +332,9 @@ class makeABSCO():
         print('Running LNFL for %s' % os.path.basename(t5))
         if os.path.islink('TAPE5'): os.unlink('TAPE5')
         os.symlink(t5, 'TAPE5')
-        sub.call(['./lnfl'])
+        logutil.run_logged(['./lnfl'],
+          os.path.join(self.logDir, 'lnfl.log'),
+          header='LNFL %s' % os.path.basename(t5))
         os.rename('TAPE3', outT3)
       # end TAPE5 loop
 
@@ -710,7 +718,9 @@ class makeABSCO():
 
           # run the model
           ext = base.replace('TAPE5_', '')
-          status = sub.call(['./lblrtm'])
+          status = logutil.run_logged(['./lblrtm'],
+            os.path.join(self.logDir, 'lblrtm.log'),
+            header='LBLRTM %s' % base)
 
           # if LBL does not finish, no OD file is generated
           if not os.path.exists(odFile):

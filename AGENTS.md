@@ -66,7 +66,14 @@ absco-generate -lbl
 
 # Specify custom config file
 absco-generate -e2e -i custom_config.ini
+
+# Change where run logs are written (default: <intdir>/logs)
+absco-generate -e2e --log_dir /path/to/logs
 ```
+
+Driver output and the LNFL/LBLRTM subprocess output are tee'd to `<intdir>/logs`
+(`absco-generate.log`, `lnfl.log`, `lblrtm.log`) while still shown on the terminal;
+override the directory with `--log_dir`.
 
 ### Utilities
 
