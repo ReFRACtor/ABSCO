@@ -346,6 +346,35 @@ in append mode, so re-running accumulates history rather than overwriting it.
 absco-generate -e2e --log_dir /path/to/logs
 ```
 
+### Interpreting the LBLRTM/LNFL logs
+
+Each LBLRTM run section in `lblrtm.log` normally ends with two lines that look alarming
+but are **expected and harmless**:
+
+```
+=== LBLRTM TAPE5_O3_P1013.9480_T200.0K_00820-00910 ===
+Note: The following floating-point exceptions are signalling: IEEE_INVALID_FLAG IEEE_DIVIDE_BY_ZERO
+STOP  LBLRTM EXIT
+```
+
+- **`STOP  LBLRTM EXIT`** is LBLRTM's normal successful-completion message (a Fortran
+  `STOP` statement); the process exits with status 0. Seeing it once per `TAPE5_...`
+  section means that pressure/temperature/VMR case ran to completion and produced its
+  optical-depth output. (LNFL's equivalent is `STOP  LINFIL COMPLETE` in `lnfl.log`.)
+- **`Note: The following floating-point exceptions are signalling: ...`** is printed by
+  the gfortran runtime at program exit, not by LBLRTM itself. It is a one-time summary
+  that some IEEE floating-point flags (`IEEE_DIVIDE_BY_ZERO`, `IEEE_INVALID_FLAG`) were
+  raised at some point during the run -- routine for this legacy spectroscopy code,
+  where intermediate `x/0` or `0/0` results are produced and then masked or overwritten.
+  It is informational only: it does not change the exit status or indicate that NaNs
+  reached the output coefficients.
+
+A run that actually *failed* looks different: no `STOP  LBLRTM EXIT`, a Fortran traceback
+or `Error termination`, and no optical-depth file -- in which case ABSCO records NaN fill
+values for that pressure/temperature. To sanity-check results (rather than run status),
+read a coefficient back from the output netCDF with `absco-read` and confirm it is finite
+and positive.
+
 # Parallel Processing (split and join) <a name="parallel"></a>
 
 A single `absco-generate` run processes all molecules and the full spectral range in
