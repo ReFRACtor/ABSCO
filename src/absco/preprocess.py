@@ -6,6 +6,9 @@ import os, sys
 # vendored common utilities
 from absco._common import utils
 
+# package data / runtime artifact resolution
+from absco import paths
+
 # miniconda-installed libs
 import numpy as np
 import pandas as pd
@@ -41,15 +44,20 @@ class configure():
     self.tape3_dir = os.path.join(self.intdir, self.tape3_dir)
     self.outdir = os.path.join(self.intdir, self.outdir)
 
-    # these guys should always be in the "source" directory -- the
-    # directory into which the ABSCO repo is cloned, which is assumed
-    # to be the working dir
-    gitDir = os.path.dirname(__file__)
-    self.pfile = os.path.join(gitDir, self.pfile)
-    self.ptfile = os.path.join(gitDir, self.ptfile)
-    self.vmrfile = os.path.join(gitDir, self.vmrfile)
-    self.hdofile = os.path.join(gitDir, self.hdofile)
-    self.xs_lines = os.path.join(gitDir, self.xs_lines)
+    # data files: when the config leaves a value blank, fall back to the file
+    # bundled with the installed package; otherwise honor the user-supplied path
+    # (custom file). This lets a minimal config omit these entirely.
+    for key in ['pfile', 'ptfile', 'vmrfile', 'hdofile', 'xs_lines']:
+      self.resolvePath(key, paths.default_data_file(key))
+
+    # executables and AER line-file components: when blank, fall back to the
+    # runtime data directory populated by `absco-init` (see absco.paths).
+    lineDefaults = paths.line_file_paths()
+    self.resolvePath('lnfl_path', paths.lnfl_exe())
+    self.resolvePath('lbl_path', paths.lblrtm_exe())
+    for key in ['tape1_path', 'tape2_path', 'extra_params', \
+      'xs_path', 'fscdxs']:
+      self.resolvePath(key, lineDefaults[key])
 
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \
@@ -96,6 +104,31 @@ class configure():
 
     self.calcRAM()
   # end constructor
+
+  def resolvePath(self, attr, default):
+    """
+    Resolve a file/directory path attribute against a package-provided default.
+
+    If the config value for `attr` is blank/absent, use `default` (a path
+    resolved from the installed package or the runtime data directory). If the
+    user supplied an explicit path, expand it and keep it as-is (custom file).
+    `default` may be None when the artifact has not been initialized yet (e.g.
+    the executables before `absco-init` has run); in that case a blank value is
+    left blank so the subsequent existence check reports a clear error.
+    """
+    val = getattr(self, attr, '')
+    val = '' if val is None else str(val).strip()
+
+    if val:
+      resolved = os.path.abspath(os.path.expanduser(val))
+    elif default is not None:
+      resolved = default
+    else:
+      resolved = ''
+
+    setattr(self, attr, resolved)
+    return resolved
+  # end resolvePath()
 
   def readConfig(self):
     """

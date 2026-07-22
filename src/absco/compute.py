@@ -77,8 +77,9 @@ class makeABSCO():
       # endif outDir
     # end outDir loop
 
-    # for cd'ing back into the directories with the Git repo
-    self.gitDir = os.getcwd()
+    # working directory captured at start; run methods chdir into the LNFL/LBL
+    # run dirs (which live under intdir == cwd) and cd back here when done
+    self.workDir = os.getcwd()
 
     inP = np.array(inObj.pressures)
 
@@ -324,7 +325,7 @@ class makeABSCO():
 
     # end mol loop
 
-    os.chdir(self.gitDir)
+    os.chdir(self.workDir)
   # end runLNFL()
 
   def lblT5(self, mol):
@@ -765,7 +766,7 @@ class makeABSCO():
       outList.append(bandDict)
     # end t3 (band) loop
 
-    os.chdir(self.gitDir)
+    os.chdir(self.workDir)
 
     self.ABSCO = list(outList)
 
