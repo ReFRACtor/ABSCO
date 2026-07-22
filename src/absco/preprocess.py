@@ -3,9 +3,8 @@
 from __future__ import print_function
 import os, sys
 
-# path to GIT common submodules
-sys.path.append('common')
-import utils
+# vendored common utilities
+from absco._common import utils
 
 # miniconda-installed libs
 import numpy as np

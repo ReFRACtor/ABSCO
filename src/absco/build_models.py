@@ -3,8 +3,7 @@
 import os, sys
 import numpy as np
 
-sys.path.append('common')
-import utils
+from absco._common import utils
 
 class submodules():
   def __init__(self, inArgs, lnfl=False, lbl=False, lines=False):

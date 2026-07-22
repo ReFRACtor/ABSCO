@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "absco"
+version = "0.1.0"
+description = "Absorption coefficient (ABSCO) table generation using LBLRTM and LNFL"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE.md" }
+authors = [
+    { name = "Atmospheric and Environmental Research, Inc." },
+    { name = "ReFRACtor" },
+]
+keywords = ["atmospheric", "radiative-transfer", "LBLRTM", "absorption", "spectroscopy"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "netCDF4>=1.6",
+    "xarray>=2023.1",
+    "platformdirs>=3",
+    "zenodo_get>=1.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/ReFRACtor/ABSCO"
+Repository = "https://github.com/ReFRACtor/ABSCO"
+
+[project.scripts]
+absco-config = "absco.cli.config:main"
+absco-generate = "absco.cli.generate:main"
+absco-init = "absco.cli.init:main"
+absco-build = "absco.cli.build:main"
+absco-read = "absco.cli.read_tables:main"
+absco-split-config = "absco.cli.split_config:main"
+absco-join-tables = "absco.cli.join_tables:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"absco.data" = [
+    "**/*.txt",
+    "**/*.csv",
+    "*.ini",
+    "PT_grid/dump_air_pres",
+]
+# Fortran executables bundled into the wheel by the CI build (see docs/packaging_plan.md,
+# item 4).  Present in binary wheels, absent from the sdist.
+"absco" = ["_bin/*"]

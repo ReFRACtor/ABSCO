@@ -12,13 +12,12 @@ import numpy as np
 import pandas as pd
 
 # local module (part of the ABSCO library)
-import ABSCO_preprocess as preproc
+from absco import preprocess as preproc
 
-# path to GIT common submodules
-sys.path.append('common')
-import utils
-import RC_utils as RC
-import lblTools
+# vendored common utilities
+from absco._common import utils
+from absco._common import RC_utils as RC
+from absco._common import lblTools
 
 def makeSymLinks(sources, targets):
   """
