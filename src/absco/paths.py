@@ -33,6 +33,7 @@ __all__ = [
     "data_dir",
     "bin_dir",
     "line_file_root",
+    "cross_sections_dir",
     "lnfl_exe",
     "lblrtm_exe",
     "line_file_paths",
@@ -57,8 +58,13 @@ DEFAULT_DATA_FILES = {
 }
 
 # Layout of the AER line file database beneath the data dir.  Mirrors the structure
-# staged by absco.artifacts (line_file/<aer_ver>, line_file/lncpl_lines, ...).
+# staged by absco.artifacts.
 LINE_FILE_SUBDIR = "AER_Line_File"
+
+# Cross-section files (xs/ and FSCDXS) come from the LBLRTM `cross-sections`
+# submodule (AER line file v3.9 dropped its xs_files/ directory) and are staged into
+# this subdirectory of the data dir by absco-build / absco-init.
+CROSS_SECTION_SUBDIR = "cross_sections"
 
 
 def data_file(relpath: str) -> str:
@@ -113,6 +119,11 @@ def line_file_root() -> Path:
     return data_dir() / LINE_FILE_SUBDIR
 
 
+def cross_sections_dir() -> Path:
+    """Directory of staged LBLRTM cross-section files (xs/ and FSCDXS) in the data dir."""
+    return data_dir() / CROSS_SECTION_SUBDIR
+
+
 def _wheel_bin_dir() -> Path:
     """Directory of executables bundled inside the wheel (``absco/_bin``), if any."""
     return Path(__file__).resolve().parent / "_bin"
@@ -149,22 +160,38 @@ def line_file_paths() -> dict:
     """Return default paths for the AER line-file components in the data dir.
 
     Keys mirror the ``ABSCO_config.ini`` fields: ``tape1_path``, ``tape2_path``,
-    ``extra_params``, ``xs_path``, ``fscdxs``.  ``tape1_path`` points at the AER
-    line-parameter directory (``line_file/aer_v_*``), discovered by glob so the exact
-    version-stamped name does not need to be hard-coded; if none is present the
-    conventional ``line_file/aer_v_3.9`` path is returned so error messages are useful.
+    ``extra_params``, ``xs_path``, ``fscdxs``.
+
+    ``tape1_path`` points at the AER line-parameter directory (``line_file/aer_v_*``),
+    discovered by glob so the exact version-stamped name is not hard-coded.
+
+    The layout changed with AER line file v3.9: ``lncpl_lines`` moved to the top level
+    (it was under ``line_file/``), and the ``xs_files/`` directory was dropped -- the
+    cross sections (``xs/`` and ``FSCDXS``) now come from the LBLRTM ``cross-sections``
+    submodule, staged into the data dir under :func:`cross_sections_dir`. Each field is
+    resolved by checking the v3.9 location first, then the older location, so both
+    releases work; when neither exists the v3.9 path is returned for a useful error.
     """
     root = line_file_root()
+    xs_root = cross_sections_dir()
+
+    def _pick(*candidates):
+        for c in candidates:
+            if Path(c).exists():
+                return os.fspath(c)
+        return os.fspath(candidates[0])
 
     aer_matches = sorted(glob.glob(os.fspath(root / "line_file" / "aer_v_*")))
     tape1 = Path(aer_matches[0]) if aer_matches else root / "line_file" / "aer_v_3.9"
 
     return {
         "tape1_path": os.fspath(tape1),
-        "tape2_path": os.fspath(root / "line_file" / "lncpl_lines"),
+        # v3.9: <root>/lncpl_lines ; older: <root>/line_file/lncpl_lines
+        "tape2_path": _pick(root / "lncpl_lines", root / "line_file" / "lncpl_lines"),
         "extra_params": os.fspath(root / "extra_brd_params"),
-        "xs_path": os.fspath(root / "xs_files" / "xs"),
-        "fscdxs": os.fspath(root / "xs_files" / "FSCDXS"),
+        # v3.9: staged LBLRTM cross-sections ; older: <root>/xs_files/*
+        "xs_path": _pick(xs_root / "xs", root / "xs_files" / "xs"),
+        "fscdxs": _pick(xs_root / "FSCDXS", root / "xs_files" / "FSCDXS"),
     }
 
 

@@ -141,10 +141,13 @@ submodules) or downloaded/staged with `absco-init` (end user, prebuilt binary wh
 `absco-build` compiles LNFL (single precision) and LBLRTM (double precision) for the
 current OS/compiler, then copies the resulting executables into the data directory as
 `<data_dir>/bin/model_version_os_compiler_precision` (e.g. `lblrtm_v12.17_linux_gnu_dbl`).
-It also stages the LBLRTM MT_CKD continuum netCDF that v12.17 needs at run time. The
-executables and line file are located at run time (see [Setup](#setup)), so **no paths
-need to be written into `ABSCO_config.ini`**. Supported compilers are `gfortran`
-(default), `ifort`, and `pgf90`; use `-h` for options.
+It also stages the LBLRTM MT_CKD continuum netCDF that v12.17 needs at run time, and
+the LBLRTM cross-section files (`xs/` and `FSCDXS`) -- as of AER line file v3.9 the
+line-file archive no longer ships an `xs_files/` directory, so the cross sections come
+from LBLRTM's `cross-sections` submodule instead. The executables, line file, and
+cross sections are located at run time (see [Setup](#setup)), so **no paths need to be
+written into `ABSCO_config.ini`**. Supported compilers are `gfortran` (default),
+`ifort`, and `pgf90`; use `-h` for options.
 
 The runtime artifacts live in a data directory resolved in this order: the
 `ABSCO_DATA_DIR` environment variable, otherwise a per-user location from

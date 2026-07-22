@@ -88,10 +88,15 @@ def main():
 
     # report final resolution status
     lnfl, lbl = paths.lnfl_exe(), paths.lblrtm_exe()
+    lf = paths.line_file_paths()
+    xs_ok = os.path.isdir(lf["xs_path"]) and os.path.isfile(lf["fscdxs"])
     print("\nInitialization complete.")
     print(f"  line file : {paths.line_file_root()}")
     print(f"  lnfl exe  : {lnfl or '(not found -- run absco-build)'}")
     print(f"  lblrtm exe: {lbl or '(not found -- run absco-build)'}")
+    if not xs_ok:
+        print("  cross sections: (not found -- AER line file v3.9 no longer ships "
+              "them; run `absco-build` to stage the LBLRTM cross-sections)")
 
 
 if __name__ == "__main__":

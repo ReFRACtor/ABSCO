@@ -30,7 +30,7 @@ The software generates netCDF tables of absorption coefficients indexed by waven
 - `LBLRTM/` - Fortran source code submodule (AER-RC/LBLRTM v12.17). Has nested submodules `aer_rt_utils` and `cross-sections` — requires `--recursive` init.
 - `LNFL/` - Fortran line file converter submodule (AER-RC/LNFL master, v3.2-30). Has nested submodule `aer_rt_utils` — requires `--recursive` init.
 - `VMR/` - Volume mixing ratio profile generator scripts
-- `AER_Line_File/` - Line parameter database (v3.9, Zenodo record 18881607, downloaded via Zenodo by `absco-init`)
+- `AER_Line_File/` - Line parameter database (v3.9, Zenodo record 18881607, downloaded via Zenodo by `absco-init`). v3.9 layout: `lncpl_lines` is at the top level (not under `line_file/`) and there is no `xs_files/` — cross sections (`xs/`, `FSCDXS`) come from the LBLRTM `cross-sections` submodule, staged into the data dir by `absco-build`.
 
 ## Common Commands
 

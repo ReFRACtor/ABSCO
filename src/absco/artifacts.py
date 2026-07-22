@@ -258,6 +258,48 @@ def stage_lblrtm_data_files(source_dir, dest_dir=None, force: bool = False) -> l
     return staged
 
 
+def stage_cross_sections(source_dir, dest_dir=None, force: bool = False) -> str:
+    """Stage the LBLRTM cross-section files (xs/ and FSCDXS) into the data dir.
+
+    AER line file v3.9 dropped its ``xs_files/`` directory; the cross sections now
+    live in the LBLRTM ``cross-sections`` submodule (``<lblrtm_source>/cross-sections``,
+    containing ``xs/`` and ``FSCDXS``). Copy them into :func:`absco.paths.cross_sections_dir`
+    so ``line_file_paths`` can resolve ``xs_path``/``fscdxs``. Returns the dest dir, or
+    None if the source is not present.
+    """
+    source_dir = Path(source_dir).resolve()
+    xs_src = source_dir / "cross-sections"
+    if not (xs_src / "xs").is_dir() or not (xs_src / "FSCDXS").is_file():
+        print(
+            f"Warning: LBLRTM cross-sections not found at {xs_src} "
+            "(is the 'cross-sections' submodule initialized?); skipping"
+        )
+        return None
+
+    if dest_dir is None:
+        dest_dir = paths.cross_sections_dir()
+    dest_dir = Path(dest_dir)
+
+    for name in ("xs", "FSCDXS"):
+        src = xs_src / name
+        dest = dest_dir / name
+        if dest.exists() and not force:
+            print(f"{dest} already exists, skipping")
+            continue
+        if dest.exists():
+            if dest.is_dir():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        if src.is_dir():
+            shutil.copytree(src, dest)
+        else:
+            shutil.copy2(src, dest)
+        print(f"Staged cross-sections/{name} -> {dest}")
+    return os.fspath(dest_dir)
+
+
 def _zenodo_cli():
     """Return the argv prefix for invoking the zenodo_get console script.
 

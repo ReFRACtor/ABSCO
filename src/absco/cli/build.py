@@ -94,6 +94,8 @@ def main():
     artifacts.stage_executable(lbl_exe, force=args.force)
     # LBLRTM v12.17 reads MT_CKD continuum data (netCDF) from its run dir
     artifacts.stage_lblrtm_data_files(args.lblrtm_path, force=args.force)
+    # cross sections now come from LBLRTM (AER line file v3.9 dropped xs_files/)
+    artifacts.stage_cross_sections(args.lblrtm_path, force=args.force)
 
     if args.lines:
         extracted = artifacts.fetch_line_file(record=args.record, force=args.force)
