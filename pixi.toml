@@ -32,9 +32,14 @@ absco = { path = ".", editable = true }
 # see docs/packaging_plan.md item 7 for the full task set (build-fortran, init, ...)
 # LNFL/LBLRTM carry nested submodules (aer_rt_utils, cross-sections); init recursively.
 submodules = "git submodule update --init --recursive"
+# compile LNFL/LBLRTM from the submodules and stage them into the data dir
 build-fortran = { cmd = "absco-build", depends-on = ["submodules"] }
+# download + stage the AER line file (and any wheel-bundled binaries)
+init = "absco-init"
+# assemble a config, run the generator, read a value back
 config = "absco-config"
 generate = "absco-generate"
+read = "absco-read"
 # Fast unit tests only. The end-to-end integration test skips unless the
 # LNFL/LBLRTM binaries + AER line file are staged (set ABSCO_TEST_BUILD=1 to
 # build/fetch them first); see tests/conftest.py.
