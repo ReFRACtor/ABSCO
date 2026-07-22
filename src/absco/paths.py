@@ -152,12 +152,12 @@ def line_file_paths() -> dict:
     ``extra_params``, ``xs_path``, ``fscdxs``.  ``tape1_path`` points at the AER
     line-parameter directory (``line_file/aer_v_*``), discovered by glob so the exact
     version-stamped name does not need to be hard-coded; if none is present the
-    conventional ``line_file/aer_v_3.6`` path is returned so error messages are useful.
+    conventional ``line_file/aer_v_3.9`` path is returned so error messages are useful.
     """
     root = line_file_root()
 
     aer_matches = sorted(glob.glob(os.fspath(root / "line_file" / "aer_v_*")))
-    tape1 = Path(aer_matches[0]) if aer_matches else root / "line_file" / "aer_v_3.6"
+    tape1 = Path(aer_matches[0]) if aer_matches else root / "line_file" / "aer_v_3.9"
 
     return {
         "tape1_path": os.fspath(tape1),

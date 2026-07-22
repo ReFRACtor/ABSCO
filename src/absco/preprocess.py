@@ -693,7 +693,7 @@ class configure():
       molXS = list(self.doXS[mol])
       molSrc = []
       for iBand, doXS in enumerate(molXS):
-        src = 'HITRAN2012' if doXS else 'AER v3.6'
+        src = 'HITRAN2012' if doXS else 'AER v3.9'
         molSrc.append('Band %d: %s' % (iBand+1, src))
       # end band loop
       sources[mol] = '; '.join(molSrc)

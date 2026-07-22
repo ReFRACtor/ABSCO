@@ -30,7 +30,7 @@ The software generates netCDF tables of absorption coefficients indexed by waven
 - `LBLRTM/` - Fortran source code submodule (AER-RC/LBLRTM v12.17). Has nested submodules `aer_rt_utils` and `cross-sections` — requires `--recursive` init.
 - `LNFL/` - Fortran line file converter submodule (AER-RC/LNFL master, v3.2-30). Has nested submodule `aer_rt_utils` — requires `--recursive` init.
 - `VMR/` - Volume mixing ratio profile generator scripts
-- `AER_Line_File/` - Line parameter database (v3.7, downloaded via Zenodo by `absco-init`)
+- `AER_Line_File/` - Line parameter database (v3.9, Zenodo record 18881607, downloaded via Zenodo by `absco-init`)
 
 ## Common Commands
 
@@ -107,7 +107,7 @@ For HDO: set `tape1_path` to `01_h2o_162_only` subdirectory and use `hdofile` fo
 
 - **Python 3 only** - Python 2 not tested or supported
 - **Compiler options**: `gfortran`, `ifort`, `pgf90` (the latest gfortran builds the legacy Fortran given the `absco-build` `-std=legacy -fallow-argument-mismatch` shim; requires `netcdf-fortran` in the env for LBLRTM v12.17)
-- **Model versions**: LNFL master (v3.2-30), LBLRTM v12.17, AER LPD v3.7
+- **Model versions**: LNFL master (v3.2-30), LBLRTM v12.17, AER LPD v3.9 (Zenodo record 18881607)
 - **H₂O-affected molecules output extra dimension**: netCDF includes `H2O_VMR` dimension for H₂O, CO₂, O₂, N₂
 - **O₂ special case**: Uses two O₂ VMRs (1.9e5, 2.3e5 ppmv) in addition to two H₂O VMRs
 - **TAPE3 existence check**: LNFL skips regeneration if TAPE3 already exists for molecule/band

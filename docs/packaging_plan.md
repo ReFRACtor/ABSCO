@@ -136,7 +136,7 @@ Mapped to three usage paths:
   download+extract the line file, and runs (c) to place everything under `$ABSCO_DATA_DIR` /
   `platformdirs.user_data_dir("absco")`. Idempotent: skips artifacts already present (mirrors
   the existing `checkLineFile` "already exists" logic, `build_models.py:72-103`). Flags:
-  `--data-dir`, `--record <zenodo-id>` (default 3837550, from `build_models.py:258`),
+  `--data-dir`, `--record <zenodo-id>` (default 18881607, AER v3.9),
   `--force`, `--lines-only`.
 - **`absco-build` (developer only)** — runs (a) from a source checkout to (re)compile the
   Fortran when not using a prebuilt wheel; can then feed (c) so a from-source dev has the same

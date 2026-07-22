@@ -43,8 +43,8 @@ __all__ = [
     "stage_line_file",
 ]
 
-# Default Zenodo record for the AER line file (from the original build_models.py).
-DEFAULT_ZENODO_RECORD = 3837550
+# Default Zenodo record for the AER line file (aer_v_3.9).
+DEFAULT_ZENODO_RECORD = 18881607
 
 # ABSCO compiler name -> (make FC_TYPE label, ini/exe token).
 COMPILER_MAP = {
@@ -300,20 +300,23 @@ def fetch_line_file(
                          "-o", os.fspath(download_dir)]
     )
     urls = wget_list.read_text().splitlines()
-    # Zenodo file URLs look like ".../files/aer_v_3.7.tar.gz/content", so match
-    # ".tar.gz" as a path component rather than at the end of the URL.
+    # Zenodo file URLs look like ".../files/aer_v_3.9.tgz/content", so match a
+    # tar archive extension as a path component rather than at the end of the URL.
+    tar_exts = (".tar.gz", ".tgz")
     tar_name = None
     for url in urls:
         for part in url.strip().split("/"):
-            if part.endswith(".tar.gz"):
+            if part.endswith(tar_exts):
                 tar_name = part
                 break
         if tar_name:
             break
     if tar_name is None:
-        raise RuntimeError(f"No .tar.gz found in Zenodo record {record}")
+        raise RuntimeError(f"No tar archive (.tar.gz/.tgz) found in Zenodo record {record}")
     tar_path = download_dir / tar_name
-    extract_dir = download_dir / tar_name[:-len(".tar.gz")]
+    # strip the matched extension to get the extracted top-level directory name
+    ext = next(e for e in tar_exts if tar_name.endswith(e))
+    extract_dir = download_dir / tar_name[:-len(ext)]
 
     if extract_dir.exists() and not force:
         print(f"{extract_dir} already extracted, reusing")
@@ -322,13 +325,23 @@ def fetch_line_file(
     if not tar_path.exists() or force:
         print(f"Downloading Zenodo record {record} ({tar_name})")
         subprocess.check_call(
-            _zenodo_cli() + ["-r", str(record), "-g", "*.tar.gz",
+            _zenodo_cli() + ["-r", str(record), "-g", tar_name,
                              "-o", os.fspath(download_dir)]
         )
 
     print(f"Extracting {tar_path}")
     with tarfile.open(tar_path) as tar:
+        members = tar.getnames()
         tar.extractall(download_dir)
+
+    # AER convention: the archive stem is the extracted top-level directory. If
+    # that is not what the archive actually contains, fall back to the archive's
+    # own top-level directory.
+    if not extract_dir.is_dir():
+        tops = {m.split("/")[0] for m in members if m and not m.startswith("/")}
+        tops.discard(".")
+        if len(tops) == 1:
+            extract_dir = download_dir / next(iter(tops))
     return os.fspath(extract_dir)
 
 

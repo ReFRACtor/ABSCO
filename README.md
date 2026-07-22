@@ -118,7 +118,7 @@ Python 2 is not supported.**
 
 LNFL (LiNe FiLe) FORTRAN code that converts ASCII text line parameter files to the binary files that LBLRTM expects (TAPE3) is located in [its own repository](<https://github.com/AER-RC/LNFL>) and is a submodule under the `LNFL` subdirectory. LBLRTM (Line-By-Line Radiative Transfer Model) FORTRAN code also has [its own Git repository](<https://github.com/AER-RC/LBLRTM>) and is a submodule under `LBLRTM`; in the context of this software it calculates optical depth at specified pressures, temperatures, and spectral ranges. Both of these submodules themselves contain nested submodules (`aer_rt_utils`, and for LBLRTM `cross-sections`), so they must be cloned **recursively** (`git clone --recursive`, or `git submodule update --init --recursive`).
 
-The AER line parameter database (LPD) is distributed as a set of ASCII text files. As of LPD v3.7 the dataset is archived as a [dataset in Zenodo](https://zenodo.org/record/3837550) rather than in Git; `absco-init` (and `absco-build --lines`) fetch and extract it with the `zenodo_get` library and stage it under the data directory.
+The AER line parameter database (LPD) is distributed as a set of ASCII text files archived as a [dataset in Zenodo](https://zenodo.org/record/18881607) (record `18881607`, `aer_v_3.9.tgz`) rather than in Git; `absco-init` (and `absco-build --lines`) fetch and extract it with the `zenodo_get` library and stage it under the data directory. A different record can be selected with `--record`.
 
 Periodically, the models and LPD are updated to reflect new line parameters, a new continuum, or bug fixes. These revisions can have significant effects on the model output. The versions currently pinned as submodules are listed in [Table 1](#Table1).
 
@@ -128,7 +128,7 @@ Periodically, the models and LPD are updated to reflect new line parameters, a n
 | :---: | :---: |
 | LNFL | master (v3.2-30) |
 | LBLRTM | v12.17 |
-| LPD | v3.7 |
+| LPD | v3.9 |
 
 The executables are built and staged with `absco-build` (developer, compiles from the
 submodules) or downloaded/staged with `absco-init` (end user, prebuilt binary wheel):
@@ -237,7 +237,7 @@ The generation pipeline is built from two modules -- `absco.preprocess` and `abs
   - Find the molecules that are radiatively active in the given spectral regions and ask user if they want to include omitted or extra species (this provision allows the `molnames` field in the configuration file to be empty, but if it is, all active molecules will be processed)
   - Determine when to use cross section parameters as opposed to the line parameter database (as specified by `FSCDXS_line_params.csv`)
   - Calculate the kernel and weights for spectral degradation
-  - Ascertain the source (AER LPD v3.6 or HITRAN 2012) for each molecule and each band
+  - Ascertain the source (AER LPD v3.9 or HITRAN 2012) for each molecule and each band
   - Compute the amount of memory needed for the calculation and output file
 
 These items are part of a `configure` object that is required input for the `makeABSCO` class.
@@ -343,7 +343,7 @@ Since their continua are dependent on water vapor content, netCDF variables for 
 
 All other allowed molecules will conform to a similar convention as [Table 4](#Table4), only without the H<sub>2</sub>O VMR dimension. There is thus no `H2O_VMR` array for these species.
 
-In the global attributes, there is a "source" field. There are only two sources -- HITRAN 2012 and AER LPD v3.6 -- and they can vary by band. The code accounts for the by-band differences in source. All fill values in the netCDF files are NaN (not-a-number).
+In the global attributes, there is a "source" field. There are only two sources -- HITRAN 2012 and AER LPD v3.9 -- and they can vary by band. The code accounts for the by-band differences in source. All fill values in the netCDF files are NaN (not-a-number).
 
 ## Reading the Output
 
