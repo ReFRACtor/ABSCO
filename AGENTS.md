@@ -27,10 +27,10 @@ The software generates netCDF tables of absorption coefficients indexed by waven
 - `src/absco/` - Installable Python package (src layout)
   - `src/absco/_common/` - Shared utilities vendored from AER-RC/common: `lblTools.py` (LBLRTM I/O), `RC_utils.py`, `utils.py`, `FortranFile.py`. These are vendored (copied in), not a submodule, so the installed package has no runtime dependence on the `common` repository.
   - `src/absco/data/` - Bundled data files resolved from the installed package (see `src/absco/paths.py`): `PT_grid/` (default AIRS instrument grid), `VMR/` profiles, `FSCDXS_line_params.csv`, and `ABSCO_config.template.ini`
-- `LBLRTM/` - Fortran source code submodule (AER-RC/LBLRTM v12.9)
-- `LNFL/` - Fortran line file converter submodule (AER-RC/LNFL v3.2)
+- `LBLRTM/` - Fortran source code submodule (AER-RC/LBLRTM v12.17). Has nested submodules `aer_rt_utils` and `cross-sections` — requires `--recursive` init.
+- `LNFL/` - Fortran line file converter submodule (AER-RC/LNFL master, v3.2-30). Has nested submodule `aer_rt_utils` — requires `--recursive` init.
 - `VMR/` - Volume mixing ratio profile generator scripts
-- `AER_Line_File/` - Line parameter database (v3.7, downloaded via Zenodo by `build_models.py`)
+- `AER_Line_File/` - Line parameter database (v3.7, downloaded via Zenodo by `absco-init`)
 
 ## Common Commands
 
@@ -98,8 +98,8 @@ For HDO: set `tape1_path` to `01_h2o_162_only` subdirectory and use `hdofile` fo
 ## Important Notes
 
 - **Python 3 only** - Python 2 not tested or supported
-- **Compiler options**: `gfortran`, `ifort`, `pgf90`
-- **Model versions**: LNFL v3.2, LBLRTM v12.9, AER LPD v3.7 (no planned updates)
+- **Compiler options**: `gfortran`, `ifort`, `pgf90` (gfortran pinned to 11.2.0 in pixi for building the legacy Fortran; requires `netcdf-fortran` in the env for LBLRTM v12.17)
+- **Model versions**: LNFL master (v3.2-30), LBLRTM v12.17, AER LPD v3.7
 - **H₂O-affected molecules output extra dimension**: netCDF includes `H2O_VMR` dimension for H₂O, CO₂, O₂, N₂
 - **O₂ special case**: Uses two O₂ VMRs (1.9e5, 2.3e5 ppmv) in addition to two H₂O VMRs
 - **TAPE3 existence check**: LNFL skips regeneration if TAPE3 already exists for molecule/band

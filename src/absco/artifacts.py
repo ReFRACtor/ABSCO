@@ -118,6 +118,25 @@ def _accepts_flag(compiler_exe: str, flag: str) -> bool:
         return False
 
 
+def _netcdf_fortran_prefix():
+    """Best-effort discovery of the netCDF-Fortran install prefix.
+
+    Looks for ``netcdf.inc`` under ``$CONDA_PREFIX`` (the pixi/conda env) and a few
+    common locations.  Returns the prefix path (str) or ``None`` if not found, in
+    which case the caller lets the makefile fall back to its own defaults.
+    """
+    candidates = []
+    conda = os.environ.get("CONDA_PREFIX")
+    if conda:
+        candidates.append(conda)
+    candidates += ["/usr", "/usr/local"]
+
+    for prefix in candidates:
+        if (Path(prefix) / "include" / "netcdf.inc").is_file():
+            return prefix
+    return None
+
+
 def compile_model(model: str, source_dir, compiler: str = "gfortran") -> str:
     """Compile LNFL or LBLRTM from a source checkout and return the exe path.
 
@@ -144,6 +163,21 @@ def compile_model(model: str, source_dir, compiler: str = "gfortran") -> str:
         raise FileNotFoundError(f"No build directory found at {build_dir}")
 
     target = f"{platform_os()}{COMPILER_MAP[compiler]}{precision}"
+    make_cmd = ["make", "-f", makefile, target]
+
+    # LBLRTM (>= v12.11) unconditionally compiles its netCDF read module via the
+    # contnm dependency chain, so it needs the Fortran netCDF headers/libs even for
+    # non-netCDF runs. Enable NETCDF and point the makefile's NCI/NCL at the netCDF
+    # install so the build resolves netcdf.inc / -lnetcdff.
+    if model == "lblrtm":
+        nc_prefix = _netcdf_fortran_prefix()
+        if nc_prefix is not None:
+            make_cmd += [
+                "NETCDF=yes",
+                f"NCI={os.fspath(Path(nc_prefix) / 'include')}",
+                f"NCL={os.fspath(Path(nc_prefix) / 'lib')}",
+            ]
+
     print(f"Building {product} (target {target}) in {build_dir}")
 
     # The LNFL/LBLRTM makefiles pin FC=gfortran and the FCFLAG list, so there is no
@@ -151,15 +185,16 @@ def compile_model(model: str, source_dir, compiler: str = "gfortran") -> str:
     # argument type mismatches by default; shim `gfortran` on PATH to append
     # -fallow-argument-mismatch (a no-op on older gfortran that lack the flag).
     with _gfortran_compat_path(compiler) as env:
-        status = subprocess.call(
-            ["make", "-f", makefile, target], cwd=os.fspath(build_dir), env=env
-        )
+        status = subprocess.call(make_cmd, cwd=os.fspath(build_dir), env=env)
     if status != 0:
         raise RuntimeError(f"{product} build failed (make returned {status})")
 
-    # make writes the exe one level up as <product>_<version>_<os>_<comp>_<prec>
+    # make writes the exe one level up as
+    # <product>_<version>_<os>_<fc_type>_<prec>, where <fc_type> is the
+    # lowercased make FC_TYPE token (gnu/intel/pgi), not the compiler name.
+    fc_type = COMPILER_MAP[compiler].lower()
     pattern = os.fspath(
-        source_dir / f"{product}_*_{platform_os()}_{compiler}_{precision}"
+        source_dir / f"{product}_*_{platform_os()}_{fc_type}_{precision}"
     )
     matches = sorted(glob.glob(pattern))
     if not matches:

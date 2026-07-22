@@ -208,14 +208,18 @@ Mapped to three usage paths:
   macOS). If wheels stall, the interim fallback is a from-source install + `absco-build` compiling
   on the user's machine, then `absco-init --lines-only` for the line file — the runtime resolution
   in `paths.py` supports both bundled-binary and compiled-locally without code change.
-- **CONFIRMED (item 4): the LBLRTM v12.9 / LNFL v3.2 submodules do not compile cleanly on the
-  conda-forge toolchain pixi installs (gfortran 15.2, modern GNU Make).** `absco-build` adds a
-  PATH shim that injects `-std=legacy -fallow-argument-mismatch` (the makefiles pin FC/FCFLAG, so
-  a shim is the only clean hook), which gets `lnfl.f` to compile; the build then fails on a latent
-  makefile bug (`OBPATH = ${SRCS:.f=.o} ${SRCS:.f90=.o}` leaves `util_gfortran.f90` in the object
-  list, unfindable via the `VPATH` line). A clean native build needs an upstream makefile patch,
-  an older pinned gfortran, or the prebuilt-binary-wheel path. The `absco-build` orchestration
-  itself is verified (correct target/dir, failure detection, exe glob+stage); only the native
-  compile on gfortran 15 is blocked.
+- **RESOLVED (item 4 follow-up): the Fortran build now succeeds end to end on linux-64.** The
+  submodules were bumped to LBLRTM v12.17 and LNFL master (v3.2-30), and three things were needed:
+  (1) **recursive submodule init** — both models now carry a nested `aer_rt_utils` submodule
+  (LBLRTM also `cross-sections`), and `src/util_gfortran.f90` is a symlink into it; the earlier
+  "No rule to make target 'util_gfortran.f90'" was an empty nested submodule, NOT a makefile bug.
+  Run `git submodule update --init --recursive`. (2) **gfortran pinned to 11.2.0** in `pixi.toml`
+  (linux-64/osx-64; osx-arm64 has no 11.2.0 build so uses `>=11,<13`), combined with the
+  `absco-build` PATH shim injecting `-std=legacy -fallow-argument-mismatch`. (3) **netcdf-fortran**
+  in the env — LBLRTM v12.17 unconditionally compiles its netCDF read module, so `compile_model`
+  passes `NETCDF=yes NCI/NCL` pointing at the env's netCDF. Both ELF x86-64 executables
+  (`lnfl_v3.2_linux_gnu_sgl`, `lblrtm_v12.17_linux_gnu_dbl`) build, stage into the data dir, and
+  resolve via `absco.paths`. The prebuilt-binary-wheel path (cibuildwheel) remains the intended
+  distribution mechanism; this confirms the from-source `absco-build` fallback works.
 - LBLRTM/LNFL license terms must permit binary redistribution — confirm before publishing wheels.
 - Line file (`AER_Line_File`) is far too large for PyPI; it stays a fetched artifact regardless.
