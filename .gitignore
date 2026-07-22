@@ -11,3 +11,8 @@ LICENSE
 aer_*
 zenodo_archive_list.txt
 md5sums.txt
+
+# graphify local files
+graphify-out/cost.json
+graphify-out/cache/
+graphify-out/2???-??-??/
