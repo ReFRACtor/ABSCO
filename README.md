@@ -9,7 +9,8 @@
 4. [Setup](#setup)
 5. [HITRAN Cross Sections](#xs)
 6. [Driver Script](#driver)
-7. [Output](#output)
+7. [Parallel Processing](#parallel)
+8. [Output](#output)
 
 **Tables**
 
@@ -306,6 +307,66 @@ absco-generate -e2e
 ```
 
 Separating the LNFL and LBL runs may be useful after the user has generated all of the TAPE3 files that they need, but it will not be detrimental to run the end-to-end mode everytime. The only bottlenecks are the LNFL runs and the loop over all LBL cases. The latter will happen whenever ABSCOs are computed, and the former will not take a noticeable amount of time because LNFL will not be run if the expected TAPE3 exists.
+
+# Parallel Processing (split and join) <a name="parallel"></a>
+
+A single `absco-generate` run processes all molecules and the full spectral range in
+series, which can be slow and memory-hungry. Two helper commands let you break a run
+into independent pieces, run them concurrently (e.g. one per core, or across a cluster),
+and stitch the resulting tables back together.
+
+## `absco-split-config`
+
+Splits one `ABSCO_config.ini` into several smaller configuration files -- by molecule
+and, optionally, by spectral chunk -- so each can be generated independently.
+
+```
+absco-split-config CONFIG_FILE [-m MOLECULES_PER_FILE] [-c CHUNK_SIZE]
+```
+
+| Option | Default | Description |
+| :--- | :---: | :--- |
+| `config_file` (positional) | -- | Source configuration file to split |
+| `-m`, `--molecules_per_file` | `1` | Number of molecules per output config. `0` puts all molecules in one file |
+| `-c`, `--chunk_size` | none | Width of each spectral sub-window, in the config's `units`. Omit (or `0`) to keep each band whole |
+
+For every (spectral chunk × molecule group) combination it writes a new config named
+`<base>-<NNN>-<wn1>_<wn2>-<molecules><ext>` (e.g. `ABSCO_config-001-4166_4358-ch4.ini`).
+Each output config also gets a numbered subdirectory appended to its `intdir`
+(`01`, `02`, ...) so concurrent runs write their intermediate/output files to separate
+locations and do not clobber one another.
+
+```
+# one config per molecule, splitting the band into 100 cm-1 chunks
+absco-split-config ABSCO_config.ini -m 1 -c 100
+# then run each generated config (in parallel, on separate cores/nodes)
+for cfg in ABSCO_config-*.ini; do absco-generate -e2e -y -i "$cfg"; done
+```
+
+## `absco-join-tables`
+
+Concatenates ABSCO tables for the **same molecule** along their spectral axis. All inputs
+must have been generated with the same configuration parameters (pressures, temperatures,
+resolution, VMRs); only the spectral range differs. Input order does not matter -- the
+tables are sorted by spectral extent before joining.
+
+```
+absco-join-tables FILENAME [FILENAME ...] [-o OUT_FILENAME]
+```
+
+| Option | Default | Description |
+| :--- | :---: | :--- |
+| `FILENAME ...` (positional) | -- | Two or more input `.nc` tables to combine |
+| `-o`, `--out_filename` | derived | Output file. If omitted, a name is derived from the molecule and the combined extent, e.g. `H2O_4166-4358_joined.nc` |
+
+```
+absco-join-tables nc_ABSCO/01/H2O_*.nc nc_ABSCO/02/H2O_*.nc -o H2O_full.nc
+```
+
+The `join_multiple.sh` and `run_multiple_configs.sh` helper scripts at the repository root
+illustrate one way to drive many split configs and then join their outputs (they predate
+the packaging refactor and still call the old script names, so treat them as a reference
+for the workflow rather than ready-to-run).
 
 # Output netCDF <a name="output"></a>
 
