@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-USSCSV = 'USS_AIRS_profile.csv'
+from absco import paths
+
+# default input is the packaged US standard atmosphere profile
+USSCSV = paths.data_file('VMR/USS_AIRS_profile.csv')
 HDOCSV = 'HDO_example_profile.csv'
 SCALE = 3.107e-4
 

@@ -3,9 +3,11 @@
 from __future__ import print_function
 import os, sys
 
-# path to GIT common submodules
-sys.path.append('common')
-import utils
+# vendored common utilities
+from absco._common import utils
+
+# package data / runtime artifact resolution
+from absco import paths
 
 # miniconda-installed libs
 import numpy as np
@@ -42,15 +44,20 @@ class configure():
     self.tape3_dir = os.path.join(self.intdir, self.tape3_dir)
     self.outdir = os.path.join(self.intdir, self.outdir)
 
-    # these guys should always be in the "source" directory -- the
-    # directory into which the ABSCO repo is cloned, which is assumed
-    # to be the working dir
-    gitDir = os.path.dirname(__file__)
-    self.pfile = os.path.join(gitDir, self.pfile)
-    self.ptfile = os.path.join(gitDir, self.ptfile)
-    self.vmrfile = os.path.join(gitDir, self.vmrfile)
-    self.hdofile = os.path.join(gitDir, self.hdofile)
-    self.xs_lines = os.path.join(gitDir, self.xs_lines)
+    # data files: when the config leaves a value blank, fall back to the file
+    # bundled with the installed package; otherwise honor the user-supplied path
+    # (custom file). This lets a minimal config omit these entirely.
+    for key in ['pfile', 'ptfile', 'vmrfile', 'hdofile', 'xs_lines']:
+      self.resolvePath(key, paths.default_data_file(key))
+
+    # executables and AER line-file components: when blank, fall back to the
+    # runtime data directory populated by `absco-init` (see absco.paths).
+    lineDefaults = paths.line_file_paths()
+    self.resolvePath('lnfl_path', paths.lnfl_exe())
+    self.resolvePath('lbl_path', paths.lblrtm_exe())
+    for key in ['tape1_path', 'tape2_path', 'extra_params', \
+      'xs_path', 'fscdxs']:
+      self.resolvePath(key, lineDefaults[key])
 
     # let's pack all of the files into a single list
     self.paths = [self.pfile, self.ptfile, self.vmrfile, \
@@ -97,6 +104,31 @@ class configure():
 
     self.calcRAM()
   # end constructor
+
+  def resolvePath(self, attr, default):
+    """
+    Resolve a file/directory path attribute against a package-provided default.
+
+    If the config value for `attr` is blank/absent, use `default` (a path
+    resolved from the installed package or the runtime data directory). If the
+    user supplied an explicit path, expand it and keep it as-is (custom file).
+    `default` may be None when the artifact has not been initialized yet (e.g.
+    the executables before `absco-init` has run); in that case a blank value is
+    left blank so the subsequent existence check reports a clear error.
+    """
+    val = getattr(self, attr, '')
+    val = '' if val is None else str(val).strip()
+
+    if val:
+      resolved = os.path.abspath(os.path.expanduser(val))
+    elif default is not None:
+      resolved = default
+    else:
+      resolved = ''
+
+    setattr(self, attr, resolved)
+    return resolved
+  # end resolvePath()
 
   def readConfig(self):
     """
@@ -179,11 +211,18 @@ class configure():
           # endif channels
         # end key loop
 
-        # make sure degradation is an integer exponent of 2
-        if not np.all(np.log2(channels['kernwidth']) % 1 == 0):
+        # make sure degradation is an integer exponent of 2. outres and lblres are
+        # each written to the config with finite precision, so their ratio may be
+        # off from an exact power of 2 by a tiny floating-point amount; validate
+        # with a tolerance and then snap kernwidth to the exact integer used by the
+        # degradation kernel.
+        exponent = np.log2(channels['kernwidth'])
+        if not np.all(np.isclose(exponent, np.round(exponent), atol=1e-6)):
           errMsg = 'Please provide an outres/lblres ratio that ' + \
             'is an integer exponent of 2 (2, 4, 8, 16, etc.)'
           sys.exit(errMsg)
+        channels['kernwidth'] = np.round(
+          2.0 ** np.round(exponent)).astype(float)
         # endif degrade
 
         # LBLRTM can only handle 2000 cm-1 chunks at a time, so break
@@ -300,7 +339,11 @@ class configure():
           # endif header
 
           if param == 'intdir':
-            val = os.getcwd() if val == '.' else str(val)
+            # intdir must be absolute: compute.py chdir's into the run dirs and
+            # then references intdir-derived paths, so a relative intdir (e.g. the
+            # "./01" that split_config writes) would resolve against the wrong cwd.
+            val = os.getcwd() if val == '.' else os.path.abspath(
+              os.path.expanduser(str(val)))
             if not os.path.exists(val): os.makedirs(val)
           # endif
 
@@ -661,7 +704,7 @@ class configure():
       molXS = list(self.doXS[mol])
       molSrc = []
       for iBand, doXS in enumerate(molXS):
-        src = 'HITRAN2012' if doXS else 'AER v3.6'
+        src = 'HITRAN2012' if doXS else 'AER v3.9'
         molSrc.append('Band %d: %s' % (iBand+1, src))
       # end band loop
       sources[mol] = '; '.join(molSrc)

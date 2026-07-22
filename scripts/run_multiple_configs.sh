@@ -1,9 +1,20 @@
 #!/bin/bash
+#
+# Run several ABSCO_config.ini files concurrently, grouping them across the
+# available cores. Generate the split configs with `absco-split-config` first.
+#
+# Usage: run_multiple_configs.sh config1.ini config2.ini ...
+#
+# Requires the absco environment to be active (e.g. `pixi shell`) so that the
+# `absco-generate` command is on PATH.
 
-source ~/refractor/absco/env/bin/activate
+if ! command -v absco-generate >/dev/null 2>&1; then
+    echo "Error: absco-generate not found on PATH. Activate the environment first" \
+         "(e.g. 'pixi shell')." >&2
+    exit 1
+fi
 
 num_processors=$(grep -c ^processor /proc/cpuinfo)
-absco_sw_dir=$(dirname $0)
 num_configs=$#
 
 # Round up
@@ -27,7 +38,7 @@ for config_fn in $*; do
     log_dir=$(grep ^intdir $config_fn | awk '{print $3}')
 
     echo -n "mkdir -p $log_dir ; "
-    echo -n "$absco_sw_dir/run_LBLRTM_ABSCO.py -e2e -i $config_fn -y > $log_dir/$log_fn 2>&1"
+    echo -n "absco-generate -e2e -i $config_fn -y > $log_dir/$log_fn 2>&1"
     if [[ $group_count == $group_size ]]; then
         # Start a new line
         group_count=1

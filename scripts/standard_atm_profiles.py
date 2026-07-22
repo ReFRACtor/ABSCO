@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame as DF
 
-sys.path.append('../common')
-import utils
+# vendored common utilities (installed as part of the absco package)
+from absco._common import utils
+from absco import paths
 
 LBLDEFAULT = '/nas/project/rc_static/models/aer_lblrtm/' + \
   'lblrtm_v12.9/lblrtm_v12.9_linux_pgi_dbl'
@@ -410,8 +411,8 @@ class broadener():
       separate broadener objects
     """
 
-    # ABSCO submodule (in ../common)
-    import RC_utils as RC
+    # vendored common utilities (installed as part of the absco package)
+    from absco._common import RC_utils as RC
 
     allT7 = list(self.allT7) if supplementT7 is None else \
       self.allT7 + supplementT7
@@ -436,19 +437,20 @@ if __name__ == '__main__':
     'standard atmosphere VMR profiles, then ' + \
     'interpolate/extrapolate to the desired pressure grid.')
   parser.add_argument('-hi', '--csvHITRAN', type=str, \
-    default='LBLATM_Standard_Profiles.csv', \
+    default=paths.data_file('VMR/LBLATM_Standard_Profiles.csv'), \
     help='CSV file that contains LBLATM VMR profile blocks ' + \
     'for all 6 standard atmospheres.  The VMRs exist for ' + \
-    'all HITRAN molecules.')
+    'all HITRAN molecules. (default: packaged copy)')
   parser.add_argument('-x', '--csvXS', type=str, \
-    default='XS_LBLATM_Standard_Profiles.csv', \
+    default=paths.data_file('VMR/XS_LBLATM_Standard_Profiles.csv'), \
     help='CSV file that contains LBLATM VMR profile blocks ' + \
     'for all 6 standard atmospheres.  The VMRs exist for ' + \
     'all XS molecules (i.e., those where no HITRAN line ' + \
-    'parameters exist.')
+    'parameters exist. (default: packaged copy)')
   parser.add_argument('-p', '--pressures', type=str, \
-    default='../PT_grid/AIRS_P_air.txt', \
-    help='List of pressures to use (1 pressure per line).')
+    default=paths.data_file('PT_grid/AIRS_P_air.txt'), \
+    help='List of pressures to use (1 pressure per line). ' + \
+    '(default: packaged AIRS pressure grid)')
   parser.add_argument('--standard_atm', type=int, default=6, \
     help='Index of LBLRTM standard atmosphere (TRP, USS, SAW, etc.)')
   parser.add_argument('-o', '--outfile', type=str, \

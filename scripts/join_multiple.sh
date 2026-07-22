@@ -1,10 +1,24 @@
 #!/bin/bash
+#
+# Join per-chunk ABSCO tables (produced by running several split configs) into a
+# single table per molecule, using `absco-join-tables`.
+#
+# Usage: join_multiple.sh <input_directory> <output_directory>
+#
+# Requires the absco environment to be active (e.g. `pixi shell`) so that the
+# `absco-join-tables` command is on PATH.
+
+if ! command -v absco-join-tables >/dev/null 2>&1; then
+    echo "Error: absco-join-tables not found on PATH. Activate the environment first" \
+         "(e.g. 'pixi shell')." >&2
+    exit 1
+fi
 
 in_dir=$1
 out_dir=$2
 
 function usage {
-    print "$0 <input_directory> <output_directory>"
+    echo "$0 <input_directory> <output_directory>"
 }
 
 function spectral_range {
@@ -18,7 +32,7 @@ if [ -z "$in_dir" ]; then
 fi
 
 if [ -z "$out_dir" ]; then
-    print "No output directory supplied"
+    echo "No output directory supplied"
     usage
     exit 1
 fi
@@ -55,7 +69,7 @@ for mol in $mol_names; do
 
         output_fn="${mol}_${new_range}_${new_postfix}"
 
-        $(dirname $0)/join_tables.py ${mol_files[@]} -o $out_dir/$output_fn
+        absco-join-tables ${mol_files[@]} -o $out_dir/$output_fn
     else
         ln -svf $(readlink -f $first_fn) $out_dir/$(basename $first_fn)
     fi

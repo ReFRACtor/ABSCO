@@ -1,8 +1,11 @@
 *.pyc
+__pycache__/
 LNFL_Runs
 TAPE3_dir
+TAPE5_dir
 LBL_Runs
 nc_ABSCO
+logs
 obsolete
 *.npz
 *.tar.gz
@@ -11,6 +14,18 @@ LICENSE
 aer_*
 zenodo_archive_list.txt
 md5sums.txt
+line_file_list.txt
+
+# Python packaging / build artifacts
+*.egg-info/
+build/
+dist/
+
+# pytest
+.pytest_cache/
+
+# pixi
+.pixi/
 
 # graphify local files
 graphify-out/cost.json

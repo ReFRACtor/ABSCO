@@ -1,13 +1,25 @@
 name: absco
 channels:
-  - defaults
+  - conda-forge
 dependencies:
   - git
-  - numpy=1.22.3
-  - scipy=1.7.3
-  - pandas=1.4.3
-  - netcdf4=1.5.7
-  - xarray=0.20.1
+  - python>=3.10
+  - numpy>=1.24
+  - scipy>=1.10
+  - pandas>=2.0
+  - netcdf4>=1.6
+  - xarray>=2023.1
+  - platformdirs>=3
   - pip
+  # Fortran toolchain for building LBLRTM/LNFL (absco-build). The latest gfortran
+  # builds LBLRTM v12.17 / LNFL master cleanly, given the absco-build PATH shim
+  # (-std=legacy -fallow-argument-mismatch) for the legacy AER code.
+  - gfortran
+  - make
+  # LBLRTM v12.17 unconditionally builds its netCDF read module, so the Fortran
+  # netCDF headers/libs (netcdf.inc, libnetcdff) are required even for non-netCDF runs.
+  - netcdf-fortran
   - pip:
-    - zenodo_get==1.3.0
+    - zenodo_get>=1.3
+    # install the ABSCO package itself (editable) so the absco-* commands are available
+    - -e .

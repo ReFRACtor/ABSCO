@@ -1,0 +1,47 @@
+[workspace]
+name = "absco"
+# The package version is declared once, in src/absco/__init__.py (absco.__version__),
+# and consumed by pyproject.toml via [tool.setuptools.dynamic].
+description = "Absorption coefficient (ABSCO) table generation using LBLRTM and LNFL"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64"]
+
+[dependencies]
+python = ">=3.10"
+numpy = ">=1.24"
+scipy = ">=1.10"
+pandas = ">=2.0"
+netcdf4 = ">=1.6"
+xarray = ">=2023.1"
+platformdirs = ">=3"
+pip = "*"
+# Fortran toolchain for building LBLRTM/LNFL (absco-build). The latest gfortran
+# builds LBLRTM v12.17 / LNFL master cleanly, given the absco-build PATH shim
+# (-std=legacy -fallow-argument-mismatch) for the legacy AER code.
+gfortran = "*"
+make = "*"
+# LBLRTM v12.17 unconditionally builds its netCDF read module, so the Fortran
+# netCDF headers/libs (netcdf.inc, libnetcdff) are required even for non-netCDF runs.
+netcdf-fortran = "*"
+pytest = "*"
+
+[pypi-dependencies]
+zenodo-get = ">=1.3"
+absco = { path = ".", editable = true }
+
+[tasks]
+# see docs/packaging_plan.md item 7 for the full task set (build-fortran, init, ...)
+# LNFL/LBLRTM carry nested submodules (aer_rt_utils, cross-sections); init recursively.
+submodules = "git submodule update --init --recursive"
+# compile LNFL/LBLRTM from the submodules and stage them into the data dir
+build-fortran = { cmd = "absco-build", depends-on = ["submodules"] }
+# download + stage the AER line file (and any wheel-bundled binaries)
+init = "absco-init"
+# assemble a config, run the generator, read a value back
+config = "absco-config"
+generate = "absco-generate"
+read = "absco-read"
+# Fast unit tests only. The end-to-end integration test skips unless the
+# LNFL/LBLRTM binaries + AER line file are staged (set ABSCO_TEST_BUILD=1 to
+# build/fetch them first); see tests/conftest.py.
+test = "pytest -v"

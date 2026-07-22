@@ -5,20 +5,20 @@
 from __future__ import print_function
 
 import os, sys, glob, argparse
-import subprocess as sub
 
 # miniconda-installed libs
 import numpy as np
 import pandas as pd
 
 # local module (part of the ABSCO library)
-import ABSCO_preprocess as preproc
+from absco import paths
+from absco import logutil
+from absco import preprocess as preproc
 
-# path to GIT common submodules
-sys.path.append('common')
-import utils
-import RC_utils as RC
-import lblTools
+# vendored common utilities
+from absco._common import utils
+from absco._common import RC_utils as RC
+from absco._common import lblTools
 
 def makeSymLinks(sources, targets):
   """
@@ -78,8 +78,9 @@ class makeABSCO():
       # endif outDir
     # end outDir loop
 
-    # for cd'ing back into the directories with the Git repo
-    self.gitDir = os.getcwd()
+    # working directory captured at start; run methods chdir into the LNFL/LBL
+    # run dirs (which live under intdir == cwd) and cd back here when done
+    self.workDir = os.getcwd()
 
     inP = np.array(inObj.pressures)
 
@@ -174,6 +175,14 @@ class makeABSCO():
     self.pathLBL = str(inObj.lbl_path)
     self.pathXSDB = str(inObj.xs_path)
     self.pathListXS = str(inObj.fscdxs)
+    # LBLRTM v12.11+ runtime data files (e.g. MT_CKD netCDF) read from the run dir
+    self.lblrtmData = list(paths.lblrtm_data_files())
+
+    # directory for LNFL/LBLRTM subprocess logs (set by the driver; default
+    # <intdir>/logs). Resolved to an absolute path here since the run methods
+    # chdir into the run directories before invoking the executables.
+    logDir = getattr(inObj, 'log_dir', None)
+    self.logDir = logutil.resolve_log_dir(logDir, inObj.intdir, create=True)
     self.dirT5 = str(inObj.tape5_dir)
     self.doXS = dict(inObj.doXS)
     self.molH2O = list(inObj.molH2O)
@@ -204,8 +213,12 @@ class makeABSCO():
     self.xsNames = list(inObj.xsNames)
     self.xsLines = list(inObj.xsLines)
 
-    # for final output netCDF
-    self.version = str(inObj.sw_ver)
+    # for final output netCDF; a blank sw_ver falls back to the package version
+    # so the version lives in exactly one place (absco.__version__)
+    swVer = str(inObj.sw_ver).strip()
+    if not swVer:
+      from absco import __version__ as swVer
+    self.version = str(swVer)
     self.runDesc = str(inObj.out_file_desc)
     self.outDir = str(inObj.outdir)
     self.compress = int(inObj.nc_compress)
@@ -319,13 +332,15 @@ class makeABSCO():
         print('Running LNFL for %s' % os.path.basename(t5))
         if os.path.islink('TAPE5'): os.unlink('TAPE5')
         os.symlink(t5, 'TAPE5')
-        sub.call(['./lnfl'])
+        logutil.run_logged(['./lnfl'],
+          os.path.join(self.logDir, 'lnfl.log'),
+          header='LNFL %s' % os.path.basename(t5))
         os.rename('TAPE3', outT3)
       # end TAPE5 loop
 
     # end mol loop
 
-    os.chdir(self.gitDir)
+    os.chdir(self.workDir)
   # end runLNFL()
 
   def lblT5(self, mol):
@@ -595,6 +610,12 @@ class makeABSCO():
     sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
     makeSymLinks(sources, targets)
 
+    # LBLRTM v12.11+ reads runtime data files (MT_CKD continuum netCDF) from the
+    # run dir; symlink them in under their basenames
+    if self.lblrtmData:
+      makeSymLinks(self.lblrtmData,
+                   [os.path.basename(p) for p in self.lblrtmData])
+
     # outList is going to be an nBand-element list of dictionaries
     # that contain nLay x nT x nWN arrays of ABSCOs ('ABSCO' field)
     # and nLay x nT arrays of layer pressures ('layerP' field)
@@ -697,7 +718,9 @@ class makeABSCO():
 
           # run the model
           ext = base.replace('TAPE5_', '')
-          status = sub.call(['./lblrtm'])
+          status = logutil.run_logged(['./lblrtm'],
+            os.path.join(self.logDir, 'lblrtm.log'),
+            header='LBLRTM %s' % base)
 
           # if LBL does not finish, no OD file is generated
           if not os.path.exists(odFile):
@@ -766,7 +789,7 @@ class makeABSCO():
       outList.append(bandDict)
     # end t3 (band) loop
 
-    os.chdir(self.gitDir)
+    os.chdir(self.workDir)
 
     self.ABSCO = list(outList)
 
@@ -801,7 +824,7 @@ class makeABSCO():
         layPArr = np.ones((numP, self.nT)) * np.nan
         layTArr = np.ones((numP, self.nT)) * np.nan
         levelT = np.ones((numP+1, self.nT)) * np.nan
-        iMatchT = np.where(np.in1d(self.allT, self.tLev[0]))[0]
+        iMatchT = np.where(np.isin(self.allT, self.tLev[0]))[0]
         if iMatchT.size != 0: levelT[0, iMatchT] = self.allT[iMatchT]
       # endif band
 
@@ -814,7 +837,7 @@ class makeABSCO():
         # is used. whatever range is used, it is in increments of 10 K
         # so let's find the indices of the T values that are used
         # for this pressure that correspond to the allT array
-        iMatchT = np.where(np.in1d(self.allT, self.tLev[offsetP]))[0]
+        iMatchT = np.where(np.isin(self.allT, self.tLev[offsetP]))[0]
 
         # NaN spectrum for this P over all T if no match
         if iMatchT.size == 0: continue
