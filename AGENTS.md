@@ -98,7 +98,7 @@ For HDO: set `tape1_path` to `01_h2o_162_only` subdirectory and use `hdofile` fo
 ## Important Notes
 
 - **Python 3 only** - Python 2 not tested or supported
-- **Compiler options**: `gfortran`, `ifort`, `pgf90` (gfortran pinned to 11.2.0 in pixi for building the legacy Fortran; requires `netcdf-fortran` in the env for LBLRTM v12.17)
+- **Compiler options**: `gfortran`, `ifort`, `pgf90` (the latest gfortran builds the legacy Fortran given the `absco-build` `-std=legacy -fallow-argument-mismatch` shim; requires `netcdf-fortran` in the env for LBLRTM v12.17)
 - **Model versions**: LNFL master (v3.2-30), LBLRTM v12.17, AER LPD v3.7
 - **H₂O-affected molecules output extra dimension**: netCDF includes `H2O_VMR` dimension for H₂O, CO₂, O₂, N₂
 - **O₂ special case**: Uses two O₂ VMRs (1.9e5, 2.3e5 ppmv) in addition to two H₂O VMRs

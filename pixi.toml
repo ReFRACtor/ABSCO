@@ -14,24 +14,14 @@ netcdf4 = ">=1.6"
 xarray = ">=2023.1"
 platformdirs = ">=3"
 pip = "*"
-# Fortran toolchain for building LBLRTM/LNFL (absco-build).
+# Fortran toolchain for building LBLRTM/LNFL (absco-build). The latest gfortran
+# builds LBLRTM v12.17 / LNFL master cleanly, given the absco-build PATH shim
+# (-std=legacy -fallow-argument-mismatch) for the legacy AER code.
+gfortran = "*"
 make = "*"
 # LBLRTM v12.17 unconditionally builds its netCDF read module, so the Fortran
 # netCDF headers/libs (netcdf.inc, libnetcdff) are required even for non-netCDF runs.
 netcdf-fortran = "*"
-
-# gfortran is pinned to 11.2.0 on linux-64: LBLRTM v12.17 / LNFL master are legacy
-# AER code, and 11.2.0 is the known-good build compiler (see docs/packaging_plan.md
-# item 4). conda-forge only ships that exact build for linux-64/osx-64; other
-# platforms get the latest gfortran.
-[target.linux-64.dependencies]
-gfortran = "==11.2.0"
-
-[target.osx-64.dependencies]
-gfortran = ">=11,<13"
-
-[target.osx-arm64.dependencies]
-gfortran = ">=11,<13"
 
 [pypi-dependencies]
 zenodo-get = ">=1.3"

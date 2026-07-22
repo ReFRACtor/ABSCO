@@ -213,13 +213,15 @@ Mapped to three usage paths:
   (1) **recursive submodule init** — both models now carry a nested `aer_rt_utils` submodule
   (LBLRTM also `cross-sections`), and `src/util_gfortran.f90` is a symlink into it; the earlier
   "No rule to make target 'util_gfortran.f90'" was an empty nested submodule, NOT a makefile bug.
-  Run `git submodule update --init --recursive`. (2) **gfortran pinned to 11.2.0** in `pixi.toml`
-  (linux-64/osx-64; osx-arm64 has no 11.2.0 build so uses `>=11,<13`), combined with the
-  `absco-build` PATH shim injecting `-std=legacy -fallow-argument-mismatch`. (3) **netcdf-fortran**
+  Run `git submodule update --init --recursive`. (2) the **`absco-build` PATH shim** injecting
+  `-std=legacy -fallow-argument-mismatch` for the legacy AER code — with this, **the latest
+  gfortran (15.2.0) builds both models cleanly**, so `pixi.toml` uses `gfortran = "*"` (no version
+  pin; an 11.2.0 pin was tried and then removed once 15.2 was confirmed). (3) **netcdf-fortran**
   in the env — LBLRTM v12.17 unconditionally compiles its netCDF read module, so `compile_model`
   passes `NETCDF=yes NCI/NCL` pointing at the env's netCDF. Both ELF x86-64 executables
-  (`lnfl_v3.2_linux_gnu_sgl`, `lblrtm_v12.17_linux_gnu_dbl`) build, stage into the data dir, and
-  resolve via `absco.paths`. The prebuilt-binary-wheel path (cibuildwheel) remains the intended
-  distribution mechanism; this confirms the from-source `absco-build` fallback works.
+  (`lnfl_v3.2_linux_gnu_sgl`, `lblrtm_v12.17_linux_gnu_dbl`) build via `pixi run absco-build`,
+  stage into the data dir, and resolve via `absco.paths`. The prebuilt-binary-wheel path
+  (cibuildwheel) remains the intended distribution mechanism; this confirms the from-source
+  `absco-build` fallback works.
 - LBLRTM/LNFL license terms must permit binary redistribution — confirm before publishing wheels.
 - Line file (`AER_Line_File`) is far too large for PyPI; it stays a fetched artifact regardless.
