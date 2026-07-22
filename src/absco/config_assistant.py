@@ -188,6 +188,10 @@ def build_config(wn1, wn2, outres, molnames, units="cm-1", wv_vmr=None,
 
     config["molecules"]["molnames"] = " ".join(m.lower() for m in molnames)
 
+    # record the installed package version so the output netCDF's sw_ver matches
+    from absco import __version__ as absco_version
+    config["output"]["sw_ver"] = str(absco_version)
+
     if wv_vmr is not None:
         config["vmr"]["wv_vmr"] = " ".join(str(v) for v in np.atleast_1d(wv_vmr))
 

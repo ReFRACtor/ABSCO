@@ -207,8 +207,12 @@ class makeABSCO():
     self.xsNames = list(inObj.xsNames)
     self.xsLines = list(inObj.xsLines)
 
-    # for final output netCDF
-    self.version = str(inObj.sw_ver)
+    # for final output netCDF; a blank sw_ver falls back to the package version
+    # so the version lives in exactly one place (absco.__version__)
+    swVer = str(inObj.sw_ver).strip()
+    if not swVer:
+      from absco import __version__ as swVer
+    self.version = str(swVer)
     self.runDesc = str(inObj.out_file_desc)
     self.outDir = str(inObj.outdir)
     self.compress = int(inObj.nc_compress)

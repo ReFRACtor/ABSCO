@@ -1,6 +1,7 @@
 [workspace]
 name = "absco"
-version = "0.1.0"
+# The package version is declared once, in src/absco/__init__.py (absco.__version__),
+# and consumed by pyproject.toml via [tool.setuptools.dynamic].
 description = "Absorption coefficient (ABSCO) table generation using LBLRTM and LNFL"
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-64", "osx-arm64"]

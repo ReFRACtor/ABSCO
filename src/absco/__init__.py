@@ -6,4 +6,4 @@ directory.  See :mod:`absco.paths` for how bundled data and runtime artifacts
 (line file, Fortran executables) are located.
 """
 
-__version__ = "0.1.0"
+__version__ = "2.0"
