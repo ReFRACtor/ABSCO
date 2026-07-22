@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 # local module (part of the ABSCO library)
+from absco import paths
 from absco import preprocess as preproc
 
 # vendored common utilities
@@ -174,6 +175,8 @@ class makeABSCO():
     self.pathLBL = str(inObj.lbl_path)
     self.pathXSDB = str(inObj.xs_path)
     self.pathListXS = str(inObj.fscdxs)
+    # LBLRTM v12.11+ runtime data files (e.g. MT_CKD netCDF) read from the run dir
+    self.lblrtmData = list(paths.lblrtm_data_files())
     self.dirT5 = str(inObj.tape5_dir)
     self.doXS = dict(inObj.doXS)
     self.molH2O = list(inObj.molH2O)
@@ -595,6 +598,12 @@ class makeABSCO():
     sources = [self.pathLBL, self.pathXSDB, self.pathListXS]
     makeSymLinks(sources, targets)
 
+    # LBLRTM v12.11+ reads runtime data files (MT_CKD continuum netCDF) from the
+    # run dir; symlink them in under their basenames
+    if self.lblrtmData:
+      makeSymLinks(self.lblrtmData,
+                   [os.path.basename(p) for p in self.lblrtmData])
+
     # outList is going to be an nBand-element list of dictionaries
     # that contain nLay x nT x nWN arrays of ABSCOs ('ABSCO' field)
     # and nLay x nT arrays of layer pressures ('layerP' field)
@@ -801,7 +810,7 @@ class makeABSCO():
         layPArr = np.ones((numP, self.nT)) * np.nan
         layTArr = np.ones((numP, self.nT)) * np.nan
         levelT = np.ones((numP+1, self.nT)) * np.nan
-        iMatchT = np.where(np.in1d(self.allT, self.tLev[0]))[0]
+        iMatchT = np.where(np.isin(self.allT, self.tLev[0]))[0]
         if iMatchT.size != 0: levelT[0, iMatchT] = self.allT[iMatchT]
       # endif band
 
@@ -814,7 +823,7 @@ class makeABSCO():
         # is used. whatever range is used, it is in increments of 10 K
         # so let's find the indices of the T values that are used
         # for this pressure that correspond to the allT array
-        iMatchT = np.where(np.in1d(self.allT, self.tLev[offsetP]))[0]
+        iMatchT = np.where(np.isin(self.allT, self.tLev[offsetP]))[0]
 
         # NaN spectrum for this P over all T if no match
         if iMatchT.size == 0: continue

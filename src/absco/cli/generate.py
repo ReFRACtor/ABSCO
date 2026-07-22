@@ -9,8 +9,35 @@ import numpy as np
 from absco._common import utils
 
 # local modules
+from absco import paths
 from absco import preprocess as preproc
 from absco import compute as absco
+
+
+def check_artifacts():
+  """Warn early (with actionable guidance) if runtime artifacts are missing.
+
+  The executables and line file are resolved by absco.paths from the data dir.
+  If they are absent, preprocess.configure would exit with a bare "could not
+  find <path>"; this gives a clearer pointer to absco-init / absco-build first.
+  """
+  missing = []
+  if paths.lnfl_exe() is None:
+    missing.append('LNFL executable')
+  if paths.lblrtm_exe() is None:
+    missing.append('LBLRTM executable')
+  lineRoot = paths.line_file_root()
+  if not lineRoot.exists():
+    missing.append('AER line file (%s)' % lineRoot)
+
+  if missing:
+    print('Warning: the following runtime artifacts were not found in the '
+          'ABSCO data directory (%s):' % paths.data_dir())
+    for m in missing:
+      print('  - %s' % m)
+    print('Run `absco-init` (prebuilt binaries) or `absco-build` (compile '
+          'from source) to set them up, or set $ABSCO_DATA_DIR / the paths in '
+          'the config file.')
 
 def build_parser():
   parser = argparse.ArgumentParser(\
@@ -46,6 +73,9 @@ def main():
     sys.exit('Nothing done. Please set "-e2e", "-lbl", or "-lnfl"')
 
   iniFile = args.config_file; utils.file_check(iniFile)
+
+  # early, actionable warning if executables / line file are not set up
+  check_artifacts()
 
   # configuration object instantiation
   ini = preproc.configure(iniFile, prompt_user=args.prompt_user)

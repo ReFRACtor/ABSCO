@@ -79,6 +79,8 @@ def main():
 
     lbl_exe = artifacts.compile_model("lblrtm", args.lblrtm_path, compiler=args.compiler)
     artifacts.stage_executable(lbl_exe, force=args.force)
+    # LBLRTM v12.17 reads MT_CKD continuum data (netCDF) from its run dir
+    artifacts.stage_lblrtm_data_files(args.lblrtm_path, force=args.force)
 
     if args.lines:
         extracted = artifacts.fetch_line_file(record=args.record, force=args.force)

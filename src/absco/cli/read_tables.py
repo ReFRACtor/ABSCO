@@ -26,8 +26,10 @@ class testABSCO():
     self.userH2O = float(inArgs['in_h2o'])
     self.userO2 = float(inArgs['in_o2'])
     self.molName = os.path.basename(self.ncFile).split('_')[0]
-    self.h2o = True if self.molName in ['O2', 'CO2', 'N2'] else False
-    self.o2 = True if self.molName == 'O2' else False
+    # molecules whose tables carry the extra H2O_VMR dimension (continuum depends
+    # on water vapor); must match preprocess.configure.molH2O, including H2O/HDO
+    self.h2o = self.molName in ['H2O', 'HDO', 'O2', 'CO2', 'N2']
+    self.o2 = self.molName == 'O2'
 
     # ironically, this cannot be frequency
     freq = float(inArgs['in_spectral'][0])
@@ -55,7 +57,8 @@ class testABSCO():
 
     with xa.open_dataset(self.ncFile) as xaObj:
       ncP = np.array(xaObj.variables['P_level'])
-      ncT = np.array(xaObj.variables['Temperature'])
+      # temperatures are stored per level as T_level (nlev x ntemp)
+      ncT = np.array(xaObj.variables['T_level'])
       ncWN = np.array(xaObj.variables['Spectral_Grid'])
       if self.h2o: ncH2O = np.array(xaObj['H2O_VMR'])
       if self.o2: ncO2 = np.array(xaObj['O2_VMR'])

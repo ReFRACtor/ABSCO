@@ -36,7 +36,13 @@ __all__ = [
     "lnfl_exe",
     "lblrtm_exe",
     "line_file_paths",
+    "lblrtm_data_files",
 ]
+
+# Data files LBLRTM (>= v12.11) reads from its run directory at run time, e.g. the
+# MT_CKD water-vapor continuum coefficients. Staged into <data_dir>/bin alongside
+# the executables and symlinked into the LBL run dir by absco.compute.
+LBLRTM_RUNTIME_DATA = ["absco-ref_wv-mt-ckd.nc"]
 
 # Environment variable that overrides the runtime data directory.
 DATA_DIR_ENV = "ABSCO_DATA_DIR"
@@ -160,3 +166,20 @@ def line_file_paths() -> dict:
         "xs_path": os.fspath(root / "xs_files" / "xs"),
         "fscdxs": os.fspath(root / "xs_files" / "FSCDXS"),
     }
+
+
+def lblrtm_data_files() -> list:
+    """Absolute paths to LBLRTM runtime data files staged in the data dir.
+
+    Looks in the wheel-bundled ``absco/_bin`` first, then ``<data_dir>/bin`` (where
+    ``absco-build`` / ``absco-init`` stage them). Returns only the files that exist,
+    so callers can symlink whatever is present into the LBL run directory.
+    """
+    found = []
+    for name in LBLRTM_RUNTIME_DATA:
+        for d in (_wheel_bin_dir(), bin_dir()):
+            candidate = d / name
+            if candidate.is_file():
+                found.append(os.fspath(candidate.resolve()))
+                break
+    return found

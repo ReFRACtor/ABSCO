@@ -228,6 +228,36 @@ def stage_executable(exe_path, dest_dir=None, force: bool = False) -> str:
     return os.fspath(dest)
 
 
+def stage_lblrtm_data_files(source_dir, dest_dir=None, force: bool = False) -> list:
+    """Stage LBLRTM runtime data files (e.g. the MT_CKD netCDF) into the data dir.
+
+    LBLRTM >= v12.11 reads ``absco-ref_wv-mt-ckd.nc`` (and similar) from its run
+    directory. These ship in ``<lblrtm_source>/data``; copy the ones ABSCO needs
+    (see ``paths.LBLRTM_RUNTIME_DATA``) into the data dir ``bin`` so they can be
+    symlinked into the LBL run dir at generation time. Returns the staged paths.
+    """
+    source_dir = Path(source_dir).resolve()
+    if dest_dir is None:
+        dest_dir = paths.bin_dir()
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    staged = []
+    for name in paths.LBLRTM_RUNTIME_DATA:
+        src = source_dir / "data" / name
+        if not src.is_file():
+            print(f"Warning: LBLRTM data file not found: {src}")
+            continue
+        dest = dest_dir / name
+        if dest.exists() and not force:
+            print(f"{dest} already exists, skipping")
+        else:
+            shutil.copy2(src, dest)
+            print(f"Staged {name} -> {dest}")
+        staged.append(os.fspath(dest))
+    return staged
+
+
 def _zenodo_cli():
     """Return the argv prefix for invoking the zenodo_get console script.
 
@@ -270,11 +300,18 @@ def fetch_line_file(
                          "-o", os.fspath(download_dir)]
     )
     urls = wget_list.read_text().splitlines()
-    tarballs = [u for u in urls if u.strip().endswith(".tar.gz")]
-    if not tarballs:
+    # Zenodo file URLs look like ".../files/aer_v_3.7.tar.gz/content", so match
+    # ".tar.gz" as a path component rather than at the end of the URL.
+    tar_name = None
+    for url in urls:
+        for part in url.strip().split("/"):
+            if part.endswith(".tar.gz"):
+                tar_name = part
+                break
+        if tar_name:
+            break
+    if tar_name is None:
         raise RuntimeError(f"No .tar.gz found in Zenodo record {record}")
-
-    tar_name = os.path.basename(tarballs[0].strip())
     tar_path = download_dir / tar_name
     extract_dir = download_dir / tar_name[:-len(".tar.gz")]
 
