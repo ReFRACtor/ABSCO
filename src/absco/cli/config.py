@@ -36,23 +36,23 @@ def build_parser():
         "if omitted).",
     )
     parser.add_argument(
-        "--wn1",
+        "--begin",
         type=float,
         nargs="+",
-        help="Band start value(s) in --units (wavenumber or wavelength). Pair with --wn2.",
+        help="Band start value(s) in --units (wavenumber or wavelength). Pair with --end.",
     )
     parser.add_argument(
-        "--wn2",
+        "--end",
         type=float,
         nargs="+",
-        help="Band end value(s) in --units (wavenumber or wavelength). Pair with --wn1.",
+        help="Band end value(s) in --units (wavenumber or wavelength). Pair with --begin.",
     )
     parser.add_argument(
         "--range",
         type=float,
         nargs=2,
-        metavar=("WN1", "WN2"),
-        help="Convenience for a single band: --range WN1 WN2 (in --units).",
+        metavar=("BEGIN", "END"),
+        help="Convenience for a single band: --range BEGIN END (in --units).",
     )
     parser.add_argument(
         "--molnames",
@@ -104,28 +104,28 @@ def _prompt(message):
 
 
 def _resolve_bands(args):
-    """Determine wn1/wn2 arrays from --range or --wn1/--wn2, prompting if needed."""
-    wn1, wn2 = args.wn1, args.wn2
+    """Determine begin/end arrays from --range or --begin/--end, prompting if needed."""
+    begin, end = args.begin, args.end
 
     if args.range is not None:
-        if wn1 or wn2:
-            sys.exit("Use either --range or --wn1/--wn2, not both.")
-        wn1, wn2 = [args.range[0]], [args.range[1]]
+        if begin or end:
+            sys.exit("Use either --range or --begin/--end, not both.")
+        begin, end = [args.range[0]], [args.range[1]]
 
-    if not wn1 or not wn2:
+    if not begin or not end:
         if not args.interactive:
-            sys.exit("Spectral range required: use --range or --wn1/--wn2.")
-        raw = _prompt("Spectral range as 'WN1 WN2' (in %s): " % args.units)
+            sys.exit("Spectral range required: use --range or --begin/--end.")
+        raw = _prompt("Spectral range as 'BEGIN END' (in %s): " % args.units)
         parts = raw.split()
         if len(parts) != 2:
             sys.exit("Please provide exactly two numbers for the range.")
-        wn1, wn2 = [float(parts[0])], [float(parts[1])]
+        begin, end = [float(parts[0])], [float(parts[1])]
 
-    wn1 = np.atleast_1d(np.asarray(wn1, dtype=float))
-    wn2 = np.atleast_1d(np.asarray(wn2, dtype=float))
-    if wn1.size != wn2.size:
-        sys.exit("--wn1 and --wn2 must have the same number of values.")
-    return wn1, wn2
+    begin = np.atleast_1d(np.asarray(begin, dtype=float))
+    end = np.atleast_1d(np.asarray(end, dtype=float))
+    if begin.size != end.size:
+        sys.exit("--begin and --end must have the same number of values.")
+    return begin, end
 
 
 def _resolve_outres(args, n_bands):

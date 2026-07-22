@@ -72,7 +72,7 @@ absco-generate -e2e -i custom_config.ini
 
 ```bash
 # Assemble a config (suggests lblres from outres)
-absco-config --outres 0.01 --wn1 4166 --wn2 4358 --molnames ch4 co h2o
+absco-config --outres 0.01 --begin 4166 --end 4358 --molnames ch4 co h2o
 
 # Read absorption coefficient from output netCDF
 absco-read nc_ABSCO/output.nc -p 500 -T 250 -s 800 cm-1 -wv 10 -tol 0.05

@@ -54,7 +54,7 @@ any working directory (they are on `PATH` inside the shell):
 ```
 pixi shell                   # activate the environment (run from the ABSCO checkout)
 mkdir -p ~/absco_work && cd ~/absco_work
-absco-config --outres 0.01 --wn1 4166 --wn2 4358 --molnames ch4 co h2o
+absco-config --outres 0.01 --begin 4166 --end 4358 --molnames ch4 co h2o
 absco-generate -e2e -y
 absco-read nc_ABSCO/*.nc -p 500 -T 250 -s 4200 cm-1 -wv 10 -tol 0.05
 ```
@@ -65,7 +65,7 @@ absco-read nc_ABSCO/*.nc -p 500 -T 250 -s 4200 cm-1 -wv 10 -tol 0.05
 pip install absco            # (prebuilt binary wheel; or `pip install -e .` from a checkout)
 absco-init                   # download the AER line file (+ stage bundled binaries)
 cd my_work_dir
-absco-config --outres 0.01 --wn1 4166 --wn2 4358 --molnames ch4 co h2o
+absco-config --outres 0.01 --begin 4166 --end 4358 --molnames ch4 co h2o
 absco-generate -e2e -y
 absco-read nc_ABSCO/*.nc -p 500 -T 250 -s 4200 cm-1 -wv 10 -tol 0.05
 ```
@@ -159,7 +159,7 @@ and molecules and fills in the rest (including a suggested `lblres`) from the bu
 template:
 
 ```
-absco-config --outres 0.01 --wn1 4166 --wn2 4358 --molnames ch4 co h2o
+absco-config --outres 0.01 --begin 4166 --end 4358 --molnames ch4 co h2o
 ```
 
 `absco-config` writes the data/executable/line-file path fields **blank**; ABSCO then
@@ -175,7 +175,7 @@ automatically.
 
 LBLRTM and the spectral-degradation kernel operate on a wavenumber (cm<sup>-1</sup>)
 grid, so `lblres`/`outres` must be cm<sup>-1</sup> spacings. If you specify `--units um`
-or `--units nm`, `absco-config` treats `--wn1`/`--wn2` as wavelengths and `--outres` as a
+or `--units nm`, `absco-config` treats `--begin`/`--end` as wavelengths and `--outres` as a
 wavelength spacing (in those same units), then **converts everything to cm<sup>-1</sup>
 before writing the file**:
 

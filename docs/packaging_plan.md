@@ -189,7 +189,7 @@ Mapped to three usage paths:
    idempotent (skips existing). Dev path: `absco-build` recompiles Fortran from source and
    populates the same layout.
 3. **Config assistant**: from an empty scratch dir,
-   `absco-config --outres 0.01 --wn1 4166 --wn2 4358 --molnames ch4 co h2o`
+   `absco-config --outres 0.01 --begin 4166 --end 4358 --molnames ch4 co h2o`
    → writes `./ABSCO_config.ini` with `lblres = 7.8125e-05` (matches notebook output). Assert
    `outres/lblres` is a power of 2 by loading it through `absco.preprocess.configure(...)` with no error.
 4. **Path independence**: run the above and `absco-generate` from a directory unrelated to the
