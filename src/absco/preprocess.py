@@ -339,7 +339,11 @@ class configure():
           # endif header
 
           if param == 'intdir':
-            val = os.getcwd() if val == '.' else str(val)
+            # intdir must be absolute: compute.py chdir's into the run dirs and
+            # then references intdir-derived paths, so a relative intdir (e.g. the
+            # "./01" that split_config writes) would resolve against the wrong cwd.
+            val = os.getcwd() if val == '.' else os.path.abspath(
+              os.path.expanduser(str(val)))
             if not os.path.exists(val): os.makedirs(val)
           # endif
 
