@@ -56,6 +56,39 @@ def test_build_config_fills_channels_and_leaves_paths_blank():
     assert cfg["data files"]["pfile"].strip() == ""
 
 
+def test_convert_bands_cm1_passthrough():
+    wn1, wn2, outres = ca.convert_bands_to_cm1([750.0], [850.0], [1.2e-3], "cm-1")
+    assert np.allclose(wn1, [750.0])
+    assert np.allclose(wn2, [850.0])
+    assert np.allclose(outres, [1.2e-3])
+
+
+@pytest.mark.parametrize("units,const", [("um", 1e4), ("nm", 1e7)])
+def test_convert_bands_wavelength_to_cm1(units, const):
+    # a wavelength window converts to wavenumber bounds (reordered ascending)
+    lo, hi = 2295.0, 2400.0  # in the given wavelength units
+    wn1, wn2, outres = ca.convert_bands_to_cm1([lo], [hi], [0.5], units)
+    assert np.isclose(wn1[0], const / hi)
+    assert np.isclose(wn2[0], const / lo)
+    assert wn1[0] < wn2[0]
+    # spacing converted at band center: |dv| = const / wl_center**2 * dwl
+    wl_center = 0.5 * (lo + hi)
+    assert np.isclose(outres[0], const / wl_center ** 2 * 0.5)
+
+
+def test_build_config_wavelength_writes_cm1_power_of_two():
+    # nm inputs -> config in cm-1 with an exact power-of-2 outres/lblres ratio
+    cfg = ca.build_config(
+        wn1=[2295.0], wn2=[2400.0], outres=[0.5], molnames=["ch4"], units="nm"
+    )
+    assert cfg["channels"]["units"] == "cm-1"
+    wn1 = float(cfg["channels"]["wn1"])
+    wn2 = float(cfg["channels"]["wn2"])
+    assert 4166 < wn1 < 4167 and 4357 < wn2 < 4358
+    ratio = float(cfg["channels"]["outres"]) / float(cfg["channels"]["lblres"])
+    assert np.isclose(np.log2(ratio), round(np.log2(ratio)))
+
+
 def test_build_config_rejects_non_power_of_two_lblres():
     with pytest.raises(ValueError):
         ca.build_config(

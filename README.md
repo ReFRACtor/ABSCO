@@ -171,6 +171,24 @@ to set one of these fields if you want to override a default with a custom file.
 `--lblres` computation and the required power-of-2 `outres/lblres` ratio are handled
 automatically.
 
+### Wavelength units
+
+LBLRTM and the spectral-degradation kernel operate on a wavenumber (cm<sup>-1</sup>)
+grid, so `lblres`/`outres` must be cm<sup>-1</sup> spacings. If you specify `--units um`
+or `--units nm`, `absco-config` treats `--wn1`/`--wn2` as wavelengths and `--outres` as a
+wavelength spacing (in those same units), then **converts everything to cm<sup>-1</sup>
+before writing the file**:
+
+- band bounds convert via `wavenumber = C / wavelength` (C = 10<sup>4</sup> for um,
+  10<sup>7</sup> for nm) and are reordered so `wn1 < wn2`;
+- `outres` is converted to a cm<sup>-1</sup> spacing at each band's center wavelength
+  (`|dν| = C / λ² · dλ`);
+- `lblres` is then suggested from the converted cm<sup>-1</sup> `outres`.
+
+The generated config always has `units = cm-1` (with a header comment noting the
+original units), so it is consistent with what LBLRTM expects. An explicit `--lblres`
+is always interpreted as a cm<sup>-1</sup> spacing.
+
 For reference, the full set of parameters recognized in the file is given in
 [Table 2](#Table2). Any field left blank falls back to the resolved default described
 above.

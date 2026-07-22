@@ -9,6 +9,10 @@ time.
 The ``lblres`` suggestion mirrors ``notebooks/create_absco_config-tropomi.ipynb``:
 target ``lblres <= TARGET_LBLRES`` while keeping ``outres/lblres`` an exact power of
 2 (a hard requirement enforced in :mod:`absco.preprocess`).
+
+Inputs may be given in wavenumbers (cm-1) or wavelengths (um/nm). Because LBLRTM and
+the degradation kernel work on a wavenumber grid, wavelength inputs are converted to
+cm-1 (see :func:`convert_bands_to_cm1`) and the config is always written in cm-1.
 """
 
 from __future__ import annotations
@@ -23,12 +27,17 @@ from absco import paths
 __all__ = [
     "TARGET_LBLRES",
     "suggest_lblres",
+    "convert_bands_to_cm1",
     "build_config",
     "write_config",
     "estimate_ram_gb",
     "WN_FORMAT",
     "RES_FORMAT",
 ]
+
+# Multiplicative constants to convert a wavelength [um or nm] to wavenumber [cm-1]
+# via wavenumber = CONST / wavelength.
+_WL_TO_CM1 = {"um": 1e4, "nm": 1e7}
 
 # One-line description per config field, drawn from the README configuration-field
 # table, emitted as a comment above each key by write_config().
@@ -149,6 +158,42 @@ def estimate_ram_gb(wn1, wn2, outres, molnames):
     return total
 
 
+def convert_bands_to_cm1(wn1, wn2, outres, units):
+    """Convert band bounds and output resolution from ``units`` to cm-1.
+
+    ``units`` is ``cm-1`` (returned unchanged), ``um``, or ``nm``. For wavelength
+    units the bounds are converted with ``wavenumber = CONST / wavelength`` (and
+    reordered so wn1 < wn2), and each band's ``outres`` -- a *spacing* expressed in
+    the same wavelength units -- is converted to a cm-1 spacing at the band-center
+    wavelength using ``|d(wavenumber)| = CONST / wavelength**2 * d(wavelength)``.
+
+    Returns ``(wn1_cm1, wn2_cm1, outres_cm1)`` as 1-D numpy arrays.
+    """
+    wn1 = np.atleast_1d(np.asarray(wn1, dtype=float))
+    wn2 = np.atleast_1d(np.asarray(wn2, dtype=float))
+    outres = np.atleast_1d(np.asarray(outres, dtype=float))
+
+    units = str(units).lower()
+    if units == "cm-1":
+        return wn1, wn2, outres
+    if units not in _WL_TO_CM1:
+        raise ValueError("units must be 'cm-1', 'um', or 'nm' (got %r)" % units)
+
+    const = _WL_TO_CM1[units]
+    wl_lo = np.minimum(wn1, wn2)
+    wl_hi = np.maximum(wn1, wn2)
+
+    # bounds: wavenumber = const / wavelength (larger wavelength -> smaller wavenumber)
+    v1 = const / wl_hi
+    v2 = const / wl_lo
+
+    # spacing at band center: |dv| = const / wl_center**2 * d(wavelength)
+    wl_center = 0.5 * (wl_lo + wl_hi)
+    outres_cm1 = const / wl_center ** 2 * outres
+
+    return v1, v2, outres_cm1
+
+
 def build_config(wn1, wn2, outres, molnames, units="cm-1", wv_vmr=None,
                  lblres=None, overrides=None):
     """Return a ConfigParser for ABSCO_config.ini built from the bundled template.
@@ -158,8 +203,15 @@ def build_config(wn1, wn2, outres, molnames, units="cm-1", wv_vmr=None,
     ``(section, key) -> value`` for custom data-file paths etc.). All path fields
     left in the template stay blank so absco.paths resolves them at run time.
 
-    ``lblres`` defaults to :func:`suggest_lblres` of ``outres`` when not given.
-    Raises ValueError unless every band's outres/lblres is an exact power of 2.
+    ``units`` is the units of the *input* ``wn1``/``wn2``/``outres`` (``cm-1``,
+    ``um``, or ``nm``). Wavelength inputs are converted to cm-1 via
+    :func:`convert_bands_to_cm1`, and the written config is ALWAYS in cm-1 with
+    ``units = cm-1`` -- LBLRTM and the degradation kernel operate on a wavenumber
+    grid, so ``lblres``/``outres`` must be cm-1 spacings.
+
+    ``lblres`` defaults to :func:`suggest_lblres` of the (converted) ``outres`` when
+    not given; if provided explicitly it is interpreted as a cm-1 spacing. Raises
+    ValueError unless every band's outres/lblres is an exact power of 2.
     """
     wn1 = np.atleast_1d(np.asarray(wn1, dtype=float))
     wn2 = np.atleast_1d(np.asarray(wn2, dtype=float))
@@ -167,6 +219,10 @@ def build_config(wn1, wn2, outres, molnames, units="cm-1", wv_vmr=None,
 
     if not (wn1.size == wn2.size == outres.size):
         raise ValueError("wn1, wn2, and outres must have the same number of bands")
+
+    orig_units = str(units).lower()
+    # convert bounds + output spacing to cm-1; the config is always written in cm-1
+    wn1, wn2, outres = convert_bands_to_cm1(wn1, wn2, outres, orig_units)
 
     if lblres is None:
         lblres = suggest_lblres(outres)
@@ -184,7 +240,7 @@ def build_config(wn1, wn2, outres, molnames, units="cm-1", wv_vmr=None,
     config["channels"]["wn2"] = " ".join(WN_FORMAT.format(v) for v in wn2)
     config["channels"]["lblres"] = " ".join(RES_FORMAT.format(v) for v in lblres)
     config["channels"]["outres"] = " ".join(RES_FORMAT.format(v) for v in outres)
-    config["channels"]["units"] = str(units)
+    config["channels"]["units"] = "cm-1"
 
     config["molecules"]["molnames"] = " ".join(m.lower() for m in molnames)
 
@@ -236,13 +292,23 @@ def _resolved_default(section, key):
     return None
 
 
-def write_config(config, fh):
+def write_config(config, fh, header_note=None):
     """Write ``config`` (a ConfigParser) to file object ``fh`` with comments.
 
     Each field is preceded by a one-line description (from :data:`FIELD_DOC`), and
     any blank path field gets an extra comment naming the packaged/data-dir file
     that will be used at run time (or a note that the artifact is not yet available).
+
+    ``header_note`` is an optional string (or list of lines) written as a comment
+    block at the top of the file -- used to record e.g. that wavelength inputs were
+    converted to cm-1.
     """
+    if header_note:
+        lines = [header_note] if isinstance(header_note, str) else list(header_note)
+        for line in lines:
+            fh.write("; %s\n" % line)
+        fh.write("\n")
+
     for section in config.sections():
         fh.write("[%s]\n" % section)
         for key, value in config.items(section):

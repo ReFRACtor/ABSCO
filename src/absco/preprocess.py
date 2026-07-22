@@ -211,11 +211,18 @@ class configure():
           # endif channels
         # end key loop
 
-        # make sure degradation is an integer exponent of 2
-        if not np.all(np.log2(channels['kernwidth']) % 1 == 0):
+        # make sure degradation is an integer exponent of 2. outres and lblres are
+        # each written to the config with finite precision, so their ratio may be
+        # off from an exact power of 2 by a tiny floating-point amount; validate
+        # with a tolerance and then snap kernwidth to the exact integer used by the
+        # degradation kernel.
+        exponent = np.log2(channels['kernwidth'])
+        if not np.all(np.isclose(exponent, np.round(exponent), atol=1e-6)):
           errMsg = 'Please provide an outres/lblres ratio that ' + \
             'is an integer exponent of 2 (2, 4, 8, 16, etc.)'
           sys.exit(errMsg)
+        channels['kernwidth'] = np.round(
+          2.0 ** np.round(exponent)).astype(float)
         # endif degrade
 
         # LBLRTM can only handle 2000 cm-1 chunks at a time, so break
