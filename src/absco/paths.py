@@ -51,7 +51,7 @@ DEFAULT_DATA_FILES = {
 }
 
 # Layout of the AER line file database beneath the data dir.  Mirrors the structure
-# staged by build_models.py (line_file/<aer_ver>, line_file/lncpl_lines, ...).
+# staged by absco.artifacts (line_file/<aer_ver>, line_file/lncpl_lines, ...).
 LINE_FILE_SUBDIR = "AER_Line_File"
 
 

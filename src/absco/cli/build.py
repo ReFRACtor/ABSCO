@@ -1,15 +1,94 @@
-"""``absco-build`` — developer Fortran-compile CLI (implemented in a later plan item).
+"""``absco-build`` -- developer command to compile LNFL/LBLRTM from source.
 
-The compilation logic currently lives in :mod:`absco.build_models`; this entry point
-will wrap it once the packaging refactor of that module is done (see
-docs/packaging_plan.md, item 4).
+For contributors working from a source checkout (rather than a prebuilt binary
+wheel).  It compiles the Fortran executables from the ``LNFL`` and ``LBLRTM``
+submodule directories and stages them into the ABSCO data directory, giving the
+same layout an ``absco-init`` user would have.  Optionally also fetches the AER line
+file so a from-source developer is fully set up in one command.
 """
+
+from __future__ import annotations
+
+import argparse
+import os
+
+from absco import artifacts, paths
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="absco-build",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Compile the LNFL and LBLRTM Fortran executables from a source "
+        "checkout and stage them into the ABSCO data directory.",
+    )
+    parser.add_argument(
+        "-c",
+        "--compiler",
+        default="gfortran",
+        help="Fortran compiler to build with (gfortran, ifort, pgf90). "
+        "Case-insensitive.",
+    )
+    parser.add_argument(
+        "--lnfl-path",
+        default="LNFL",
+        help="Top-level LNFL source directory (contains build/).",
+    )
+    parser.add_argument(
+        "--lblrtm-path",
+        default="LBLRTM",
+        help="Top-level LBLRTM source directory (contains build/).",
+    )
+    parser.add_argument(
+        "--data-dir",
+        help="Directory for staged artifacts. Overrides $ABSCO_DATA_DIR and the "
+        "platform default for this run.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite already-staged executables.",
+    )
+    parser.add_argument(
+        "--lines",
+        action="store_true",
+        help="Also download and stage the AER line file from Zenodo.",
+    )
+    parser.add_argument(
+        "--record",
+        type=int,
+        default=artifacts.DEFAULT_ZENODO_RECORD,
+        help="Zenodo record ID for the AER line file (used with --lines).",
+    )
+    return parser
 
 
 def main():
-    raise SystemExit(
-        "absco-build is not implemented yet (see docs/packaging_plan.md, item 4)."
-    )
+    args = build_parser().parse_args()
+
+    if args.data_dir:
+        os.environ[paths.DATA_DIR_ENV] = os.path.abspath(
+            os.path.expanduser(args.data_dir)
+        )
+
+    data_dir = paths.data_dir(create=True)
+    print(f"Using ABSCO data directory: {data_dir}")
+
+    lnfl_exe = artifacts.compile_model("lnfl", args.lnfl_path, compiler=args.compiler)
+    artifacts.stage_executable(lnfl_exe, force=args.force)
+
+    lbl_exe = artifacts.compile_model("lblrtm", args.lblrtm_path, compiler=args.compiler)
+    artifacts.stage_executable(lbl_exe, force=args.force)
+
+    if args.lines:
+        extracted = artifacts.fetch_line_file(record=args.record, force=args.force)
+        artifacts.stage_line_file(extracted, force=args.force)
+
+    print("\nBuild complete.")
+    print(f"  lnfl exe  : {paths.lnfl_exe()}")
+    print(f"  lblrtm exe: {paths.lblrtm_exe()}")
+    if args.lines:
+        print(f"  line file : {paths.line_file_root()}")
 
 
 if __name__ == "__main__":

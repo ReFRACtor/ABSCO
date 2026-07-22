@@ -208,5 +208,14 @@ Mapped to three usage paths:
   macOS). If wheels stall, the interim fallback is a from-source install + `absco-build` compiling
   on the user's machine, then `absco-init --lines-only` for the line file — the runtime resolution
   in `paths.py` supports both bundled-binary and compiled-locally without code change.
+- **CONFIRMED (item 4): the LBLRTM v12.9 / LNFL v3.2 submodules do not compile cleanly on the
+  conda-forge toolchain pixi installs (gfortran 15.2, modern GNU Make).** `absco-build` adds a
+  PATH shim that injects `-std=legacy -fallow-argument-mismatch` (the makefiles pin FC/FCFLAG, so
+  a shim is the only clean hook), which gets `lnfl.f` to compile; the build then fails on a latent
+  makefile bug (`OBPATH = ${SRCS:.f=.o} ${SRCS:.f90=.o}` leaves `util_gfortran.f90` in the object
+  list, unfindable via the `VPATH` line). A clean native build needs an upstream makefile patch,
+  an older pinned gfortran, or the prebuilt-binary-wheel path. The `absco-build` orchestration
+  itself is verified (correct target/dir, failure detection, exe glob+stage); only the native
+  compile on gfortran 15 is blocked.
 - LBLRTM/LNFL license terms must permit binary redistribution — confirm before publishing wheels.
 - Line file (`AER_Line_File`) is far too large for PyPI; it stays a fetched artifact regardless.
