@@ -363,10 +363,11 @@ absco-join-tables FILENAME [FILENAME ...] [-o OUT_FILENAME]
 absco-join-tables nc_ABSCO/01/H2O_*.nc nc_ABSCO/02/H2O_*.nc -o H2O_full.nc
 ```
 
-The `join_multiple.sh` and `run_multiple_configs.sh` helper scripts at the repository root
-illustrate one way to drive many split configs and then join their outputs (they predate
-the packaging refactor and still call the old script names, so treat them as a reference
-for the workflow rather than ready-to-run).
+The `scripts/run_multiple_configs.sh` and `scripts/join_multiple.sh` helper scripts drive
+this workflow: the former runs a set of split config files concurrently across the
+available cores (with `absco-generate`), and the latter joins the per-chunk outputs back
+into one table per molecule (with `absco-join-tables`). Both expect the environment to be
+active (e.g. `pixi shell`) so the `absco-*` commands are on `PATH`.
 
 # Output netCDF <a name="output"></a>
 
