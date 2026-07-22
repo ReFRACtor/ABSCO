@@ -34,46 +34,54 @@ The software generates netCDF tables of absorption coefficients indexed by waven
 
 ## Common Commands
 
+The package installs console commands: `absco-build` (dev: compile LNFL/LBLRTM), `absco-init` (end user: fetch line file + stage binaries), `absco-config` (write a config), `absco-generate` (run the pipeline), `absco-read` (read output), plus `absco-split-config` / `absco-join-tables`. pixi tasks wrap the common ones (`build-fortran`, `init`, `config`, `generate`, `read`, `test`).
+
 ### Initial Setup
 ```bash
-# Clone with submodules
+# Clone with submodules (LNFL/LBLRTM have nested submodules -> --recursive required)
 git clone --recursive git@github.com:ReFRACtor/ABSCO.git
+cd ABSCO
 
-# Build Fortran executables and download line file
-./build_models.py -c gfortran -i ABSCO_config.ini
+# Create the environment and install absco (editable)
+pixi install
 
-# Setup environment
-conda env create -n absco -f environment.yml
-conda activate absco
+# Compile LNFL/LBLRTM into the data dir, then download+stage the AER line file
+pixi run build-fortran
+pixi run init
 ```
 
 ### Running ABSCO Generation
 
+Activate the environment (`pixi shell`) and run from any working directory:
+
 ```bash
 # Full end-to-end run (LNFL + LBLRTM + netCDF output)
-./run_LBLRTM_ABSCO.py -e2e
+absco-generate -e2e
 
 # Generate binary line files only (TAPE3)
-./run_LBLRTM_ABSCO.py -lnfl
+absco-generate -lnfl
 
 # Run LBLRTM and generate netCDF (assumes TAPE3 exists)
-./run_LBLRTM_ABSCO.py -lbl
+absco-generate -lbl
 
 # Specify custom config file
-./run_LBLRTM_ABSCO.py -e2e -i custom_config.ini
+absco-generate -e2e -i custom_config.ini
 ```
 
 ### Utilities
 
 ```bash
+# Assemble a config (suggests lblres from outres)
+absco-config --outres 0.01 --wn1 4166 --wn2 4358 --molnames ch4 co h2o
+
 # Read absorption coefficient from output netCDF
-./read_ABSCO_tables.py nc_ABSCO/output.nc -p 500 -T 250 -s 800 cm-1 -wv 10000
+absco-read nc_ABSCO/output.nc -p 500 -T 250 -s 800 cm-1 -wv 10 -tol 0.05
 
 # Split config for parallel processing
-./split_config.py -i ABSCO_config.ini -n 4
+absco-split-config ABSCO_config.ini -m 1
 
 # Join multiple ABSCO tables
-./join_tables.py -i table1.nc table2.nc -o combined.nc
+absco-join-tables table1.nc table2.nc -o combined.nc
 ```
 
 ## Configuration (`ABSCO_config.ini`)
@@ -84,10 +92,10 @@ Key parameters to modify for new runs:
 - **Resolution**: `lblres` (LBLRTM resolution), `outres` (degraded output resolution)
 - **Molecules**: `molnames` (case-insensitive HITRAN names; leave empty for auto-detection)
 - **Water vapor VMR**: `wv_vmr` (space-delimited ppmv values, e.g., `1.0e1 4.0e4`)
-- **Pressure grid**: `pfile` (default: `PT_grid/AIRS_P_air.txt`)
+- **Pressure grid**: `pfile` (blank = packaged `PT_grid/AIRS_P_air.txt`; set an absolute path to override)
 - **Output directory**: `outdir` (relative to `intdir`)
 
-Critical: Run `./build_models.py -c <compiler> -i ABSCO_config.ini` after cloning to auto-populate paths for executables and line files.
+Data-file, executable, and line-file path fields are left blank by `absco-config` and resolved at run time (`absco.paths`): bundled data from the installed package, executables/line file from the data dir (`$ABSCO_DATA_DIR` or a platformdirs location) populated by `absco-build`/`absco-init`. Set a field only to override with a custom path.
 
 ## Allowed Molecules
 
@@ -118,7 +126,7 @@ cd LBLRTM && git pull origin master
 
 ## VMR Profile Generation
 
-To use non-default atmospheric profiles:
+To use non-default atmospheric profiles (run inside the environment, e.g. after `pixi shell`, since these scripts import `absco._common`):
 
 ```bash
 cd VMR
