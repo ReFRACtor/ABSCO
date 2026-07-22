@@ -179,7 +179,7 @@ def main():
         sys.exit("Error: %s" % exc)
 
     with open(args.output, "w") as fh:
-        config.write(fh)
+        ca.write_config(config, fh)
 
     # report
     print("Wrote %s" % args.output)

@@ -24,10 +24,47 @@ __all__ = [
     "TARGET_LBLRES",
     "suggest_lblres",
     "build_config",
+    "write_config",
     "estimate_ram_gb",
     "WN_FORMAT",
     "RES_FORMAT",
 ]
+
+# One-line description per config field, drawn from the README configuration-field
+# table, emitted as a comment above each key by write_config().
+FIELD_DOC = {
+    ("data files", "header"): "80-character header written into each final OD file (coarse grid)",
+    ("data files", "pfile"): "text file with one pressure level [mbar] per line; the pressures on which ABSCOs are calculated",
+    ("data files", "ptfile"): "text file mapping each pressure level to its allowed layer-average temperatures [K]",
+    ("data files", "vmrfile"): "CSV of interpolated/extrapolated volume mixing ratios (VMRs) for the full profile",
+    ("data files", "hdofile"): "CSV HDO profile (used when HDO is among the molecules)",
+    ("data files", "xs_lines"): "CSV of species/bands where HITRAN recommends line parameters over cross sections",
+    ("channels", "wn1"): "starting spectral point(s) for each band (in 'units'); space-delimited",
+    ("channels", "wn2"): "ending spectral point(s) for each band (in 'units'); space-delimited",
+    ("channels", "lblres"): "LBLRTM computation resolution(s) [cm-1]; outres/lblres must be a power of 2",
+    ("channels", "outres"): "output (degraded) resolution(s) [cm-1] after spectral degradation",
+    ("channels", "units"): "spectral units for wn1/wn2: cm-1, um, or nm",
+    ("vmr", "wv_vmr"): "two water-vapor VMR values [ppmv] for H2O/CO2/O2/N2 (continua depend on water vapor)",
+    ("molecules", "molnames"): "HITRAN molecule names, space-delimited, case-insensitive",
+    ("makeTAPE5", "scale"): "continuum/extinction scaling factor(s)",
+    ("makeTAPE5", "tape5_dir"): "subdirectory (under the LNFL/LBL run dirs) for generated TAPE5 files",
+    ("runLNFL", "lnfl_run_dir"): "directory (under intdir) where LNFL runs occur",
+    ("runLNFL", "tape1_path"): "TAPE1 ASCII line file used in LNFL runs",
+    ("runLNFL", "tape2_path"): "TAPE2 ASCII line-coupling file used in LNFL runs (O2, CO2, CH4)",
+    ("runLNFL", "lnfl_path"): "LNFL executable",
+    ("runLNFL", "extra_params"): "directory of broadening / speed-dependence parameter files",
+    ("runLNFL", "tape3_dir"): "directory (under intdir) for LNFL output binary line files (TAPE3)",
+    ("runLBL", "lbl_path"): "LBLRTM executable",
+    ("runLBL", "xs_path"): "LBLRTM cross-section file directory",
+    ("runLBL", "fscdxs"): "cross-section lookup file used with xs_path",
+    ("runLBL", "lbl_run_dir"): "directory (under intdir) where LBLRTM runs occur",
+    ("output", "intdir"): "top-level directory for intermediate and output files ('.' = current working directory)",
+    ("output", "outdir"): "directory (under intdir) where output netCDFs are written",
+    ("output", "sw_ver"): "software version string recorded in the output netCDF",
+    ("output", "out_file_desc"): "run description used in the output file name (no spaces)",
+    ("output", "nc_compress"): "netCDF compression level (0-9)",
+    ("output", "freq_chunk"): "chunk size for the frequency dimension of the cross-section dataset",
+}
 
 # Upper bound for the LBLRTM computation resolution [cm-1]. LBLRTM wants a fine
 # grid (~1.5e-4 or smaller); see the notebook and ABSCO docs.
@@ -161,3 +198,59 @@ def build_config(wn1, wn2, outres, molnames, units="cm-1", wv_vmr=None,
             config[section][key] = str(value)
 
     return config
+
+
+def _resolved_default(section, key):
+    """Return the path a blank config field will resolve to at run time, or None.
+
+    Mirrors the resolution in absco.paths so the generated config can annotate each
+    blank path field with the bundled/data-dir file that will actually be used.
+    """
+    data_keys = {
+        "pfile": "pfile",
+        "ptfile": "ptfile",
+        "vmrfile": "vmrfile",
+        "hdofile": "hdofile",
+        "xs_lines": "xs_lines",
+    }
+    if section == "data files" and key in data_keys:
+        try:
+            return paths.default_data_file(data_keys[key])
+        except Exception:
+            return None
+    if section == "runLNFL" and key == "lnfl_path":
+        return paths.lnfl_exe()
+    if section == "runLBL" and key == "lbl_path":
+        return paths.lblrtm_exe()
+    line_defaults = None
+    if (section, key) in {
+        ("runLNFL", "tape1_path"), ("runLNFL", "tape2_path"),
+        ("runLNFL", "extra_params"), ("runLBL", "xs_path"), ("runLBL", "fscdxs"),
+    }:
+        line_defaults = paths.line_file_paths()
+        return line_defaults.get(key)
+    return None
+
+
+def write_config(config, fh):
+    """Write ``config`` (a ConfigParser) to file object ``fh`` with comments.
+
+    Each field is preceded by a one-line description (from :data:`FIELD_DOC`), and
+    any blank path field gets an extra comment naming the packaged/data-dir file
+    that will be used at run time (or a note that the artifact is not yet available).
+    """
+    for section in config.sections():
+        fh.write("[%s]\n" % section)
+        for key, value in config.items(section):
+            doc = FIELD_DOC.get((section, key))
+            if doc:
+                fh.write("; %s\n" % doc)
+            if value.strip() == "":
+                default = _resolved_default(section, key)
+                if default is not None:
+                    fh.write("; (blank -> using packaged/default: %s)\n" % default)
+                elif (section, key) in {("runLNFL", "lnfl_path"), ("runLBL", "lbl_path")}:
+                    fh.write("; (blank -> resolved from the data dir; run absco-build or absco-init)\n")
+            fh.write("%s = %s\n" % (key, value))
+            # blank line after each parameter for readability
+            fh.write("\n")
