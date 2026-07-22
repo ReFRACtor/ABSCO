@@ -20,6 +20,9 @@ line_file_list.txt
 build/
 dist/
 
+# pytest
+.pytest_cache/
+
 # pixi
 .pixi/
 

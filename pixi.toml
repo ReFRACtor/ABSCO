@@ -22,6 +22,7 @@ make = "*"
 # LBLRTM v12.17 unconditionally builds its netCDF read module, so the Fortran
 # netCDF headers/libs (netcdf.inc, libnetcdff) are required even for non-netCDF runs.
 netcdf-fortran = "*"
+pytest = "*"
 
 [pypi-dependencies]
 zenodo-get = ">=1.3"
@@ -34,3 +35,7 @@ submodules = "git submodule update --init --recursive"
 build-fortran = { cmd = "absco-build", depends-on = ["submodules"] }
 config = "absco-config"
 generate = "absco-generate"
+# Fast unit tests only. The end-to-end integration test skips unless the
+# LNFL/LBLRTM binaries + AER line file are staged (set ABSCO_TEST_BUILD=1 to
+# build/fetch them first); see tests/conftest.py.
+test = "pytest -v"
