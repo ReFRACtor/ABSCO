@@ -11,11 +11,24 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 
 from absco import artifacts, paths
 
 
+def _source_root():
+    """Best guess at the repository checkout containing the LNFL/LBLRTM submodules.
+
+    For an editable install this package lives at ``<repo>/src/absco/cli/build.py``,
+    so the checkout is three parents up. Used only to default ``--lnfl-path`` /
+    ``--lblrtm-path`` so ``absco-build`` works from any working directory; an
+    explicit flag always overrides.
+    """
+    return Path(__file__).resolve().parents[3]
+
+
 def build_parser():
+    src_root = _source_root()
     parser = argparse.ArgumentParser(
         prog="absco-build",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -31,12 +44,12 @@ def build_parser():
     )
     parser.add_argument(
         "--lnfl-path",
-        default="LNFL",
+        default=os.fspath(src_root / "LNFL"),
         help="Top-level LNFL source directory (contains build/).",
     )
     parser.add_argument(
         "--lblrtm-path",
-        default="LBLRTM",
+        default=os.fspath(src_root / "LBLRTM"),
         help="Top-level LBLRTM source directory (contains build/).",
     )
     parser.add_argument(
