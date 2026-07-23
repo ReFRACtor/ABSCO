@@ -30,6 +30,7 @@ ABSCO is packaged as an installable Python tool (`absco`) with console commands:
 | `absco-config` | write an `ABSCO_config.ini` from a spectral range, output resolution, and molecule list (suggests `lblres` automatically) |
 | `absco-generate` | run the LNFL → LBLRTM → netCDF pipeline |
 | `absco-read` | read a coefficient out of an output netCDF |
+| `absco-info` | display ABSCO file metadata (spectral, pressure, temperature, VMR ranges) |
 
 The tool is designed to be installed once and then run from any working directory;
 all intermediate/temporary files are written under the current directory, and the
@@ -520,3 +521,33 @@ options:
                         relative tolerance (e.g. 0.01 would mean P from netCDF
                         is within 1% of in_pressure). (default: None)
 ```
+
+`absco-read` now validates that all command-line arguments are within the bounds of the netCDF file before attempting to read. If any argument is out of bounds, all errors are reported to stderr and the command exits with status 1.
+
+## Inspecting ABSCO Files
+
+The `absco-info` command displays metadata from an ABSCO netCDF file in a human-readable format:
+
+```
+% absco-info CO2_00620-00950_v2.0.0_TES_2B1.nc
+ABSCO File: CO2_00620-00950_v2.0.0_TES_2B1.nc
+
+Molecule: CO2
+
+Spectral Range: [620.00, 950.00] cm-1
+  Number of points: 825001
+
+Pressure Range: [1.34e-01, 1156.00] mbar
+  Number of levels: 85
+  Number of layers: 84
+
+Temperature Range: [180.00, 320.00] K
+  Number of temperature points: 15
+
+H2O VMR Range: [1.00e-02, 11423.06] ppmv
+  Number of H2O VMR points: 2
+
+Cross Section Shape: (825001, 15, 84, 2)
+```
+
+Values are formatted with 2 decimal places for standard ranges, or in exponential notation for values smaller than 1 or larger than 100000. This is useful for quickly checking the contents and dimensions of an ABSCO file before using it.

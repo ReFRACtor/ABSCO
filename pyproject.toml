@@ -46,6 +46,7 @@ absco-generate = "absco.cli.generate:main"
 absco-init = "absco.cli.init:main"
 absco-build = "absco.cli.build:main"
 absco-read = "absco.cli.read_tables:main"
+absco-info = "absco.cli.info:main"
 absco-split-config = "absco.cli.split_config:main"
 absco-join-tables = "absco.cli.join_tables:main"
 

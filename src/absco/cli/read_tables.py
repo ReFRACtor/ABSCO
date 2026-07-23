@@ -49,9 +49,9 @@ class testABSCO():
 
   def valueLocate(self):
     """
-    Find array indices that correspond to the user-provided 
+    Find array indices that correspond to the user-provided
     coordinates (P, T, wavenumber, WV VMR), then make sure the values
-    from the netCDF are within the user-provided tolerance of the 
+    from the netCDF are within the user-provided tolerance of the
     user-provided value
     """
 
@@ -63,6 +63,28 @@ class testABSCO():
       if self.h2o: ncH2O = np.array(xaObj['H2O_VMR'])
       if self.o2: ncO2 = np.array(xaObj['O2_VMR'])
     # endwith
+
+    # check bounds for user input
+    errors = []
+    if self.userP < ncP.min() or self.userP > ncP.max():
+      errors.append(f'Pressure {self.userP:.2f} mbar is out of bounds [{ncP.min():.2f}, {ncP.max():.2f}]')
+
+    if self.userT < ncT.min() or self.userT > ncT.max():
+      errors.append(f'Temperature {self.userT:.2f} K is out of bounds [{ncT.min():.2f}, {ncT.max():.2f}]')
+
+    if self.userWN < ncWN.min() or self.userWN > ncWN.max():
+      errors.append(f'Wavenumber {self.userWN:.2f} cm-1 is out of bounds [{ncWN.min():.2f}, {ncWN.max():.2f}]')
+
+    if self.h2o and (self.userH2O < ncH2O.min() or self.userH2O > ncH2O.max()):
+      errors.append(f'H2O VMR {self.userH2O:.2e} ppmv is out of bounds [{ncH2O.min():.2e}, {ncH2O.max():.2e}]')
+
+    if self.o2 and (self.userO2 < ncO2.min() or self.userO2 > ncO2.max()):
+      errors.append(f'O2 VMR {self.userO2:.2e} ppmv is out of bounds [{ncO2.min():.2e}, {ncO2.max():.2e}]')
+
+    if errors:
+      for error in errors:
+        print(f'ERROR: {error}', file=sys.stderr)
+      sys.exit(1)
 
     # find closest values for each coordinate
     idxP = np.nanargmin(np.abs(ncP-self.userP))
