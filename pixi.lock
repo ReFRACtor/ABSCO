@@ -415,7 +415,7 @@ packages:
 - pypi: ./
   name: absco
   version: 2.0.0
-  sha256: b36a9abf0b1c31df7f7529cf4578a04d294303dd8af2707aac6f28c78460353d
+  sha256: 40c75a47e0817a56a0d89960d42fd6767a49d7a016870456cc27bb8734f61d05
   requires_dist:
   - numpy>=1.24
   - scipy>=1.10

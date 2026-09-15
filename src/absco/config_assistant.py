@@ -27,6 +27,7 @@ from absco import paths
 __all__ = [
     "TARGET_LBLRES",
     "suggest_lblres",
+    "suggest_freq_chunk",
     "convert_bands_to_cm1",
     "build_config",
     "write_config",
@@ -79,6 +80,18 @@ FIELD_DOC = {
 # grid (~1.5e-4 or smaller); see the notebook and ABSCO docs.
 TARGET_LBLRES = 1.5e-4
 
+# Target *uncompressed* size [MB] of a single Cross_Section HDF5 chunk. Kept well
+# under the default HDF5 per-dataset chunk cache (1 MB, see H5Pset_cache) with
+# headroom, so libhdf5/h5py/netCDF4 readers doing scattered nearest-neighbor
+# wavenumber lookups (the AbscoInterpolator access pattern) don't repeatedly
+# decompress a huge chunk for each lookup that lands in a new frequency chunk.
+TARGET_CHUNK_MB = 4.0
+
+# Per-temperature-point count baked into the packaged pressure/temperature grid
+# (see data/PT_grid/build_temp_array.txt); mirrors the constant used in
+# estimate_ram_gb / preprocess.calcRAM.
+_NTEMP = 15
+
 # String formats used when writing the .ini, matching the notebook so the values
 # round-trip cleanly (and the power-of-2 ratio survives the text representation).
 WN_FORMAT = "{:.4f}"
@@ -126,6 +139,39 @@ def _verify_power_of_two(outres, lblres):
                 "outres/lblres = %g/%g = %g is not a power of 2 after formatting"
                 % (o_rt, l_rt, ratio)
             )
+
+
+def suggest_freq_chunk(molnames, target_chunk_mb=TARGET_CHUNK_MB):
+    """Suggest a ``freq_chunk`` (frequency-dimension chunk size) for the output netCDF.
+
+    ``compute.py`` chunks ``Cross_Section`` as ``(freq_chunk, ntemp, nlay[, nvmr])``
+    -- every other dimension is chunked outright (the full axis in one chunk). A
+    frequency chunk that is too large forces HDF5 to decompress the *entire* chunk
+    on every out-of-cache lookup; ``AbscoInterpolator``-style access does scattered
+    per-wavenumber nearest-neighbor lookups, so a chunk sized for a coarse output
+    resolution becomes pathological once ``outres`` is refined (more points per
+    band -> same ``freq_chunk`` -> much bigger chunk) unless ``freq_chunk`` is
+    recomputed for the new resolution.
+
+    Returns the largest ``freq_chunk`` (>= 1) such that
+    ``freq_chunk * ntemp * nlay * nvmr * 8 bytes <= target_chunk_mb`` (using the
+    worst-case ``nvmr`` across ``molnames``, i.e. 2 if any H2O-affected molecule --
+    O2, CO2, N2, H2O, HDO -- is present, matching ``compute.molH2O`` handling; this
+    keeps a single ``freq_chunk`` config value valid for every molecule in the run).
+    Falls back to the template default (5000) if the pressure grid can't be read.
+    """
+    try:
+        pressures = np.loadtxt(paths.default_data_file("pfile"))
+        n_lay = int(np.atleast_1d(pressures).size) - 1
+    except Exception:
+        return 5000
+
+    nvmr = 2 if any(str(m).upper() in _MOL_H2O for m in molnames) else 1
+    bytes_per_freq = 8 * _NTEMP * n_lay * nvmr
+    target_bytes = target_chunk_mb * 1e6
+
+    freq_chunk = int(target_bytes // bytes_per_freq)
+    return max(freq_chunk, 1)
 
 
 def estimate_ram_gb(wn1, wn2, outres, molnames):
@@ -247,6 +293,12 @@ def build_config(wn1, wn2, outres, molnames, units="cm-1", wv_vmr=None,
     # record the installed package version so the output netCDF's sw_ver matches
     from absco import __version__ as absco_version
     config["output"]["sw_ver"] = str(absco_version)
+
+    # size the Cross_Section frequency chunk for *this* outres/molecules
+    # combination -- the template's static default (5000) was tuned for a
+    # coarser outres and produces multi-hundred-MB HDF5 chunks once outres is
+    # refined, making scattered per-wavenumber lookups pathologically slow.
+    config["output"]["freq_chunk"] = str(suggest_freq_chunk(molnames))
 
     if wv_vmr is not None:
         config["vmr"]["wv_vmr"] = " ".join(str(v) for v in np.atleast_1d(wv_vmr))
