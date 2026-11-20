@@ -9,8 +9,9 @@
 4. [Setup](#setup)
 5. [HITRAN Cross Sections](#xs)
 6. [Driver Script](#driver)
-7. [Parallel Processing](#parallel)
-8. [Output](#output)
+7. [Memory and Disk Use](#memory)
+8. [Parallel Processing](#parallel)
+9. [Output](#output)
 
 **Tables**
 
@@ -261,11 +262,11 @@ The generation pipeline is built from two modules -- `absco.preprocess` and `abs
   - Determine when to use cross section parameters as opposed to the line parameter database (as specified by `FSCDXS_line_params.csv`)
   - Calculate the kernel and weights for spectral degradation
   - Ascertain the source (AER LPD v3.9 or HITRAN 2012) for each molecule and each band
-  - Compute the amount of memory needed for the calculation and output file
+  - Estimate the peak memory and the scratch disk needed for the calculation (see [Memory and Disk Use](#memory))
 
 These items are part of a `configure` object that is required input for the `makeABSCO` class.
 
-Note that the objects contain the information for all user specified species. In the driver, we loop over each molecule so that a single netCDF output file is made for each molecule. This allows for parallelization of the processing (e.g., using a single core per molecule), but the code to facilitate it has not yet been written (partially because of concerns of the amount of HD space and RAM is needed for a single molecule).
+Note that the objects contain the information for all user specified species. In the driver, we loop over each molecule so that a single netCDF output file is made for each molecule. This allows for parallelization of the processing (e.g., using a single core per molecule), but the code to facilitate it has not yet been written (partially because of concerns of the amount of HD space needed for a single molecule).
 
 Additionally, this driver handles H<sub>2</sub>O-affected molecules (CO<sub>2</sub>, N<sub>2</sub>, O<sub>2</sub>, H<sub>2</sub>O) and O<sub>2</sub> by looping over VMRs (in ppmv) for both species, and then generating ABSCO objects at these VMRs. The water vapor VMRs are provided in the configuration file, while the oxygen VMRs are hard set at 1.9 * 10<sup>5</sup> and 2.3 * 10<sup>5</sup>. For this processing, the H<sub>2</sub> and O<sub>2</sub> profiles are held constant at a given VMR while others (N2 and CO2) follow the profiles given by `vmrfile` (see [Table 2](#Table2)).
 
@@ -310,11 +311,13 @@ In the call, we assume `ABSCO_config.ini` to be the configuration file, which co
 
 LNFL runs are performed inside an `LNFL_Runs` directory (also defined in `ABSCO_config.ini`). Links to the LNFL executable and necessary input files (line coupling TAPE2, broadening parameters, full ASCII TAPE1 line file), and TAPE5 files that direct LNFL on what to do are also automatically generated and saved in the `LNFL_Runs/TAPE5_dir` subdirectory by default.
 
+Every TAPE3 is checked before it is used, including TAPE3 files that already exist and are skipped by LNFL. The check stops the run (`absco.validate.Tape3Error`) if the line data contain a non-finite value, or if the CO<sub>2</sub> broadening of an H<sub>2</sub>O line differs from `wv_co2_brd_param` in the broadening directory. LBLRTM does not stop on such values, so without the check they end up as blocks of NaN in the table. If the check fails, you likely have a version of LNFL that includes a bug fixed in 2.1.0. Rebuild LNFL (`absco-build --force`) and delete the old TAPE3 files so they are regenerated.
+
 ## Optical Depth and Absorption Coefficient Calculation
 
 For the absorption coefficient calculation, LBLRTM must be run to compute a) optical depths, and b) layer amounts (done with the LBLATM subroutine). Once TAPE3 files are generated for the specified molecule and bands, LBLRTM TAPE5s (LBLRTM input file with state specifications and radiative transfer parameters) are written for every specified pressure level, temperature, and band combination. In each iteration, the optical depth spectrum is converted to absorption coefficients (*k* values) by dividing them by the layer amount for the given molecule. This *k* spectrum is then degraded to lessen the amount of RAM and hard drive space needed for the output.
 
-The LBLRTM runs are followed by array manipulation (i.e., tranposing arrays to the dimensions that were agreed upon, adding fill values, etc.) and writing the necessary arrays to an output netCDF for the given species. LBLRTM is run inside the directory specified by `lbl_run_dir` in [Table 2](#Table2).
+Each LBLRTM optical-depth spectrum is checked as it is read, and the run stops (`absco.validate.Tape3Error`) if it has non-finite values. Each spectrum is written to a scratch file as soon as it is computed (see [Memory and Disk Use](#memory)); when all runs are done, the table is written to the output netCDF for the given species. LBLRTM is run inside the directory specified by `lbl_run_dir` in [Table 2](#Table2).
 
 To run this LBLRTM process, use the driver script with the `-lbl` keyword.
 
@@ -380,10 +383,20 @@ values for that pressure/temperature. To sanity-check results (rather than run s
 read a coefficient back from the output netCDF with `absco-read` and confirm it is finite
 and positive.
 
+# Memory and Disk Use <a name="memory"></a>
+
+Each LBLRTM spectrum is written to a scratch file as soon as it is computed, and the output netCDF is compressed one block of `freq_chunk` frequencies at a time, so memory does not grow with the size of the table. The scratch files hold the uncompressed float64 table, one file per band and mixing-ratio combination, in a `scratch_tables` directory next to `outdir`, and they are deleted when the netCDF has been written. The run directory therefore needs free disk for:
+
+- the scratch files: the size of the uncompressed table, `8 bytes x nfreq x ntemp x nlay x nvmr` (for O<sub>2</sub> with two H<sub>2</sub>O and two O<sub>2</sub> mixing ratios, `nvmr` is 4; `nlay` is two fewer than the number of pressure levels). Molecules are processed one after another and the scratch files of one are deleted before the next starts, so only the largest molecule counts;
+- the output netCDF, which is compressed and typically a fraction of that (6.2 GB for a 13.4 GB table of O<sub>2</sub> 12900-13250 cm<sup>-1</sup> at 1.2e-3 cm<sup>-1</sup>);
+- the LBLRTM and LNFL intermediate files (`LBL_Runs`, `LNFL_Runs`, `TAPE3_dir`).
+
+Peak memory is a fixed part (about 0.6 GB for the interpreter and libraries) plus a few copies of one block of `freq_chunk` frequencies (`freq_chunk x ntemp x nlay x nvmr x 8 bytes`). On the O<sub>2</sub> case above, with `freq_chunk = 171`, the measured peak was 0.44 GB. Before this was done (version 2.0.0 and earlier) the peak was several times the table size and exceeded 53 GB for the same case. A larger `freq_chunk` raises memory in proportion; `absco-config` suggests a value. The generator prints the estimate of RAM and scratch disk before it starts and asks whether to proceed, and `absco-config` prints it when it writes a configuration. The estimate is in `absco.ram`; the block part of it has been measured only for a small `freq_chunk`.
+
 # Parallel Processing (split and join) <a name="parallel"></a>
 
 A single `absco-generate` run processes all molecules and the full spectral range in
-series, which can be slow and memory-hungry. Two helper commands let you break a run
+series, which can be slow. Two helper commands let you break a run
 into independent pieces, run them concurrently (e.g. one per core, or across a cluster),
 and stitch the resulting tables back together.
 
@@ -443,7 +456,7 @@ active (e.g. `pixi shell`) so the `absco-*` commands are on `PATH`.
 
 # Output netCDF <a name="output"></a>
 
-Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the potential size of the file and memory footprint of the code). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation. The output are stored in a netCDF in the `outdir` directory listed in [Table 2](#Table2) (`nc_ABSCO` by default). A single netCDF is generated for each molecule.
+Output from this software is relatively simple but potentially very large (when the software is run, a prompt will warn the user of the estimated memory and scratch disk needed; see [Memory and Disk Use](#memory)). This is primarily because of the many dimensions of the cross section arrays (`[nP x nT x nSpec]`), with the `nSpec` dimension being the biggest contributor. The number of spectral points can be manipulated by the input bandwidth, resolution, and spectral degradation. The output are stored in a netCDF in the `outdir` directory listed in [Table 2](#Table2) (`nc_ABSCO` by default). A single netCDF is generated for each molecule.
 
 Cross section array dimensions are also dependent on the molecule, because species whose continuum is dependent on water vapor amount contain an extra dimension for the water vapor VMR. Absorption coefficients are calculated at two different H<sub>2</sub>O VMRs at all applicable pressures and temperatures, so another dimension is necessary to store all of the calculations. All possible dimensions are given in [Table 3](#Table3).
 

@@ -14,8 +14,9 @@ The software generates netCDF tables of absorption coefficients indexed by waven
 1. **Configuration** (`ABSCO_preprocess.py`) - Parse `ABSCO_config.ini`, validate inputs, check spectral ranges, verify molecule activity, compute spectral degradation kernels
 2. **Line File Generation** - LNFL converts ASCII line parameters to binary TAPE3 files required by LBLRTM
 3. **Optical Depth Calculation** (`ABSCO_compute.py`) - LBLRTM computes optical depths at specified P/T/spectral points
-4. **Absorption Coefficient Calculation** - Divide optical depths by layer amounts to produce cross sections
-5. **Output** - Write multi-dimensional netCDF with dimensions: [nfreq × ntemp × nlay × nvmr]
+4. **Absorption Coefficient Calculation** - Divide optical depths by layer amounts to produce cross sections. Each spectrum is written to a scratch file (`absco/scratch.py`) as soon as it is computed; `compute.combineVMR` joins mixing-ratio tables without copying
+5. **Output** - `makeNC` reads the scratch table one `freq_chunk` of frequencies at a time and writes the compressed multi-dimensional netCDF with dimensions: [nfreq × ntemp × nlay × nvmr], then deletes the scratch files. Peak memory is set by `freq_chunk`, scratch disk equals the uncompressed table (`absco/ram.py` estimates both)
+6. **Checks** - `absco/validate.py` stops the run on non-finite or wrong values in a TAPE3 and on non-finite LBLRTM optical depths
 
 ### Key Design Patterns
 - **H₂O-affected molecules** (H₂O, CO₂, O₂, N₂) require dual VMR calculations because their continua depend on water vapor amount
@@ -28,7 +29,7 @@ The software generates netCDF tables of absorption coefficients indexed by waven
   - `src/absco/_common/` - Shared utilities vendored from AER-RC/common: `lblTools.py` (LBLRTM I/O), `RC_utils.py`, `utils.py`, `FortranFile.py`. These are vendored (copied in), not a submodule, so the installed package has no runtime dependence on the `common` repository.
   - `src/absco/data/` - Bundled data files resolved from the installed package (see `src/absco/paths.py`): `PT_grid/` (default AIRS instrument grid), `VMR/` profiles, `FSCDXS_line_params.csv`, and `ABSCO_config.template.ini`
 - `LBLRTM/` - Fortran source code submodule (AER-RC/LBLRTM v12.17). Has nested submodules `aer_rt_utils` and `cross-sections` — requires `--recursive` init.
-- `LNFL/` - Fortran line file converter submodule. Points at the ReFRACtor fork (`ReFRACtor/LNFL`, branch `fix-wv-co2-brd-array-size`), which is AER-RC/LNFL master (v3.2-30, `e79c278`) plus one commit that gives `COMMON /WV_CO2_BRD/` the same size (`MXBRDW=320000`) in the main program and `BRDMATCH` as in `RDWVCO2`; without it LNFL writes wrong CO2-broadening values into TAPE3 for H2O lines and LBLRTM gives NaN H2O optical depths (AER-RC/LNFL PR 17). Move the URL back to AER-RC/LNFL once that PR is merged. Has nested submodule `aer_rt_utils` — requires `--recursive` init.
+- `LNFL/` - Fortran line file converter submodule. Points at the ReFRACtor fork (`ReFRACtor/LNFL`, branch `fix-wv-co2-brd-array-size`), which is AER-RC/LNFL master (v3.2-30, `e79c278`) plus one commit that gives `COMMON /WV_CO2_BRD/` the same size (`MXBRDW=320000`) in the main program and `BRDMATCH` as in `RDWVCO2`; without it LNFL writes wrong CO2-broadening values into TAPE3 for H2O lines and LBLRTM gives NaN H2O optical depths (AER-RC/LNFL PR 17). The fork is kept deliberately (AER's LNFL changes rarely); moving the URL back to AER-RC/LNFL after that PR is merged is optional. Has nested submodule `aer_rt_utils` — requires `--recursive` init.
 - `scripts/` - Helper scripts: parallel-run drivers (`run_multiple_configs.sh`, `join_multiple.sh`) and VMR profile generators (`standard_atm_profiles.py`, `standard_atm_HDO_profile.py`)
 - `AER_Line_File/` - Line parameter database (v3.9, Zenodo record 18881607, downloaded via Zenodo by `absco-init`). v3.9 layout: `lncpl_lines` is at the top level (not under `line_file/`) and there is no `xs_files/` — cross sections (`xs/`, `FSCDXS`) come from the LBLRTM `cross-sections` submodule, staged into the data dir by `absco-build`.
 
