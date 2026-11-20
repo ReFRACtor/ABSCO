@@ -213,9 +213,10 @@ def main():
           % config["channels"]["lblres"])
     print("  molecules = %s" % config["molecules"]["molnames"])
 
-    ram = ca.estimate_ram_gb(wn1_cm1, wn2_cm1, outres_cm1, molnames)
-    if ram is not None:
-        print("\nEstimated peak RAM for generation: up to %.3f GB" % ram)
+    est = ca.estimate_ram_gb(wn1_cm1, wn2_cm1, outres_cm1, molnames)
+    if est is not None:
+        print("\nEstimated peak RAM for generation: up to %.3f GB; scratch disk in the "
+              "run directory: %.3f GB" % est)
 
 
 if __name__ == "__main__":

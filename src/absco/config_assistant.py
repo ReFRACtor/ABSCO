@@ -22,7 +22,7 @@ from configparser import ConfigParser
 
 import numpy as np
 
-from absco import paths
+from absco import paths, ram
 
 __all__ = [
     "TARGET_LBLRES",
@@ -88,9 +88,8 @@ TARGET_LBLRES = 1.5e-4
 TARGET_CHUNK_MB = 4.0
 
 # Per-temperature-point count baked into the packaged pressure/temperature grid
-# (see data/PT_grid/build_temp_array.txt); mirrors the constant used in
-# estimate_ram_gb / preprocess.calcRAM.
-_NTEMP = 15
+# (see data/PT_grid/build_temp_array.txt); the RAM estimate uses the same constant.
+_NTEMP = ram.N_TEMP
 
 # String formats used when writing the .ini, matching the notebook so the values
 # round-trip cleanly (and the power-of-2 ratio survives the text representation).
@@ -174,12 +173,14 @@ def suggest_freq_chunk(molnames, target_chunk_mb=TARGET_CHUNK_MB):
     return max(freq_chunk, 1)
 
 
-def estimate_ram_gb(wn1, wn2, outres, molnames):
-    """Best-effort RAM estimate [GB] for the run, mirroring preprocess.calcRAM.
+def estimate_ram_gb(wn1, wn2, outres, molnames, freq_chunk=None):
+    """Best-effort ``(peak RAM, scratch disk)`` estimate [GB] for the run, from :mod:`absco.ram`.
 
-    Uses the packaged pressure grid for the layer count. Returns the total across
-    all molecules (H2O-affected molecules counted twice for their extra VMR
-    dimension). Returns None if the pressure grid cannot be read.
+    Uses the packaged pressure grid for the layer count and ``freq_chunk`` (default: the
+    value :func:`suggest_freq_chunk` gives for the molecules). RAM is the sum over all
+    molecules of each molecule's estimate (molecules run one after another, so the sum is
+    an upper bound for a serial run); disk is the largest single table. Returns None if the
+    pressure grid cannot be read.
     """
     try:
         pressures = np.loadtxt(paths.default_data_file("pfile"))
@@ -187,21 +188,10 @@ def estimate_ram_gb(wn1, wn2, outres, molnames):
     except Exception:
         return None
 
-    wn1 = np.atleast_1d(np.asarray(wn1, dtype=float))
-    wn2 = np.atleast_1d(np.asarray(wn2, dtype=float))
-    outres = np.atleast_1d(np.asarray(outres, dtype=float))
-
-    # number of output spectral points across all bands
-    n_out_wn = float(np.sum((wn2 - wn1) / outres))
-
-    # 16 bytes (wavenumber + absco, float64) x nOutWN x 15 temperatures x nLayers
-    per_mol_gb = 16 * 2 * n_out_wn * 15 * n_p / 1e9
-
-    total = 0.0
-    for mol in molnames:
-        scale = 2 if mol.upper() in _MOL_H2O else 1
-        total += scale * per_mol_gb
-    return total
+    if freq_chunk is None:
+        freq_chunk = suggest_freq_chunk(molnames)
+    _, total = ram.estimate_gb(wn1, wn2, outres, n_p, molnames, freq_chunk)
+    return total, ram.disk_gb(wn1, wn2, outres, n_p, molnames)
 
 
 def convert_bands_to_cm1(wn1, wn2, outres, units):
