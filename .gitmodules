@@ -3,4 +3,4 @@
 	url = git@github.com:AER-RC/LBLRTM.git
 [submodule "LNFL"]
 	path = LNFL
-	url = git@github.com:AER-RC/LNFL.git
+	url = git@github.com:ReFRACtor/LNFL.git
