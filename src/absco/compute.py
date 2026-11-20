@@ -14,6 +14,7 @@ import pandas as pd
 from absco import paths
 from absco import logutil
 from absco import validate
+from absco import scratch
 from absco import preprocess as preproc
 
 # vendored common utilities
@@ -572,6 +573,16 @@ class makeABSCO():
     return True
   # end lblT5()
 
+  def _scratchPath(self, mol, band):
+    """Scratch file for one band of one table, next to the output directory"""
+    scratchDir = os.path.join(os.path.dirname(os.path.abspath(self.outDir)), 'scratch_tables')
+    os.makedirs(scratchDir, exist_ok=True)
+    name = 'scratch_%s_%s' % (mol, band)
+    if self.vmrWV is not None: name += '_vmrWV%06.0f' % self.vmrWV
+    if self.vmrO2 is not None: name += '_vmrO2%06.0f' % self.vmrO2
+    return os.path.join(scratchDir, name + '.f8')
+  # end _scratchPath()
+
   def calcABSCO(self, mol):
     """
     Run LBLRTM for each TAPE5 made in lblT5(). Extract spectrum and
@@ -653,7 +664,13 @@ class makeABSCO():
       # "pLayP": layer pressure (P) associated with level pressure (p)
       # "TLayP": layer temperature (T) associated with p
       levP = []
-      pABSCO, pLayP, pLayT = {}, {}, {}
+      pLayP, pLayT = {}, {}
+
+      # each spectrum is written to a scratch file as soon as it is computed (see
+      # absco.scratch), so memory does not grow with the number of levels. the layers
+      # are the levels that are neither the surface level nor the skipped TOA level
+      layerIdx = [i for i in range(len(pLevs)) if i != 0 and i != self.nP-1]
+      store, bandWN = None, None
       for iP, pLev in enumerate(pLevs):
         # skip the TOA level because (from Karen):
         # LBL is calculating the altitude of the observer level and
@@ -672,7 +689,9 @@ class makeABSCO():
         # in lblT5() (we need 2 levels for 1 layer)
         if iP == 0: continue
 
-        tempABSCO, tempLayP, tempLayT = [], [], []
+        tempLayP, tempLayT = [], []
+        iLay = layerIdx.index(iP)
+        iMatchT = np.where(np.isin(self.allT, self.tLev[iP]))[0]
         for iT, tLev in enumerate(self.tLev[iP]):
 
           # find LBL TAPE5s corresponding to band
@@ -697,7 +716,6 @@ class makeABSCO():
             # temperature
             tempLayP.append(np.nan)
             tempLayT.append(np.nan)
-            tempABSCO.append([np.nan])
             continue
           else:
             t5 = molT5[0]
@@ -730,7 +748,6 @@ class makeABSCO():
           # if LBL does not finish, no OD file is generated
           if not os.path.exists(odFile):
             tempLayP.append(np.nan)
-            tempABSCO.append([np.nan])
             continue
           # endif odFile check
 
@@ -771,25 +788,31 @@ class makeABSCO():
           abscoCoarse = np.convolve(abscoFine, kernel)
           abscoCoarse[0], abscoCoarse[-1] = \
             abscoFine[0], abscoFine[-1]
-          tempABSCO.append(abscoFine[coarseRes])
+          spectrum = abscoFine[coarseRes]
 
-          # have to do 2nd conditional in case the first couple of
-          # runs did not extend the entire spectral range
-          bandWN = wnFine[coarseRes]
+          # the first spectrum sets the size of the band; a run that stopped early
+          # is padded with NaN at the end
+          if store is None:
+            bandWN = wnFine[coarseRes]
+            store = scratch.BandStore(self._scratchPath(mol, band), len(layerIdx),
+              self.nT, spectrum.size)
+          # endif first spectrum
+          store.write_spectrum(iLay, iMatchT[iT], spectrum)
         # end temperature loop
 
-        # dimensions in tempABSCO are not consistent right now because
-        # of the NaNs. we will fix this in arrABSCO()
-        pABSCO[str(pLev)] = np.array(tempABSCO)
         pLayP[str(pLev)] = np.array(tempLayP)
         pLayT[str(pLev)] = np.array(tempLayT)
       # end pressure loop
+
+      if store is None:
+        raise RuntimeError('LBLRTM produced no spectrum for %s band %s' % (mol, band))
+      store.finish()
 
       # save the important parameters in outList
       # number of frequencies will be the same for every LBL run
       bandDict['wavenum'] = np.array(bandWN)
       bandDict['nWN'] = bandWN.size
-      bandDict['ABSCO'] = dict(pABSCO)
+      bandDict['store'] = store
       bandDict['layerP'] = dict(pLayP)
       bandDict['levelP'] = np.array(levP)
       bandDict['layerT'] = dict(pLayT)
@@ -805,25 +828,22 @@ class makeABSCO():
 
   def arrABSCO(self):
     """
-    Organize an array from the complicated dictionary returned by
-    calcABSCO(). This is where the (nWN x nP x nT) arrays
-    are generated.
+    Organize the results of calcABSCO(). The spectra are already in scratch
+    files, laid out (nP x nT x nWN) for each band, so this builds the small
+    arrays (layer pressures and temperatures, level temperatures, frequencies)
+    and the scratch.Table that reads the full (nWN x nT x nP) table back one
+    block of frequencies at a time.
 
     Not every LBL run produces spectra of the same size for a given
     band, and we know that different temperatures apply depending on
-    the pressure, so this is where we reconcile differences in
-    dimensions
+    the pressure; calcABSCO() padded short spectra and empty runs with NaN
     """
 
-    # construct the array, filling in NaNs with pABSCO
     wnAll = []
     for iBand, bandABSCO in enumerate(self.ABSCO):
-      # each ABSCO dictionary has a different key for each P run
-      pKeys = bandABSCO['ABSCO'].keys()
+      # each layerP dictionary has a different key for each P run
+      pKeys = bandABSCO['layerP'].keys()
       numP = len(pKeys)
-
-      nBandWN = int(bandABSCO['nWN'])
-      bandArr = np.ones((numP, self.nT, nBandWN)) * np.nan
       wnAll.append(bandABSCO['wavenum'])
 
       # only need to do this once because it's the same for all bands
@@ -833,49 +853,26 @@ class makeABSCO():
         levelT = np.ones((numP+1, self.nT)) * np.nan
         iMatchT = np.where(np.isin(self.allT, self.tLev[0]))[0]
         if iMatchT.size != 0: levelT[0, iMatchT] = self.allT[iMatchT]
-      # endif band
 
-      for iP, pLev in enumerate(pKeys):
-        # we skipped over the surface level P in the LBL runs, so
-        # indexing has to be changed accordingly
-        offsetP = iP + 1
+        for iP, pLev in enumerate(pKeys):
+          # we skipped over the surface level P in the LBL runs, so
+          # indexing has to be changed accordingly
+          offsetP = iP + 1
 
-        # our T array spans from 180-320, but not every temperature
-        # is used. whatever range is used, it is in increments of 10 K
-        # so let's find the indices of the T values that are used
-        # for this pressure that correspond to the allT array
-        iMatchT = np.where(np.isin(self.allT, self.tLev[offsetP]))[0]
+          # our T array spans from 180-320, but not every temperature
+          # is used. whatever range is used, it is in increments of 10 K
+          # so let's find the indices of the T values that are used
+          # for this pressure that correspond to the allT array
+          iMatchT = np.where(np.isin(self.allT, self.tLev[offsetP]))[0]
 
-        # NaN spectrum for this P over all T if no match
-        if iMatchT.size == 0: continue
+          # NaN spectrum for this P over all T if no match
+          if iMatchT.size == 0: continue
 
-        # layer P and level T population
-        if iBand == 0:
           layPArr[iP, iMatchT] = bandABSCO['layerP'][pLev]
           layTArr[iP, iMatchT] = bandABSCO['layerT'][pLev]
           levelT[offsetP, iMatchT] = self.allT[iMatchT]
-        # endif band 0
-
-        # now build the spectrum array
-        inArr = bandABSCO['ABSCO'][pLev]
-        for iT in range(len(inArr)):
-          # FILL IN EMPTY SPECTRA
-          # here, we assume that if the LBL run did not extend the
-          # entire spectral range, then it stopped early and we
-          # append fill values to the end of the array
-          nWN = len(inArr[iT])
-          if nWN < nBandWN:
-            nMiss = nBandWN - nWN
-            inArr[iT] = np.hstack( \
-              (inArr[iT], np.repeat(np.nan, nMiss) ))
-          # endif nWN
-          bandArr[iP, iMatchT[iT], :] = np.array(inArr[iT])
-        # end T loop
-      # end pLev loop
-
-      arrABSCO = np.array(bandArr) if iBand == 0 else \
-        np.append(arrABSCO, bandArr, axis=2)
-
+        # end pLev loop
+      # endif band
     # end band loop
 
     # stack the frequencies and keep track of the start/end indices
@@ -898,10 +895,9 @@ class makeABSCO():
     self.freq = np.array(wnStack)
     self.indBands = np.array([iStart, iEnd]).T
 
-    # replace the ABSCO dictionary with the array we'll use in output
-    # ABSCO axes need to be (nfreq, ntemp, npress)
-    outAx = (2, 1, 0)
-    self.ABSCO = np.transpose(np.array(arrABSCO), axes=outAx)
+    # replace the ABSCO list with the table we'll use in output
+    # ABSCO axes are (nfreq, ntemp, npress)
+    self.ABSCO = scratch.Table([b['store'] for b in self.ABSCO])
     self.layerP = np.array(layPArr)
     self.layerT = np.array(layTArr)
     self.levelT = np.array(levelT)
@@ -1005,7 +1001,14 @@ class makeABSCO():
     outVar = outFP.createVariable('Cross_Section', float, abscoDim, \
       zlib=True, complevel=self.compress, chunksizes=chunksizes, \
       fill_value=np.nan)
-    outVar[:] = np.ma.array(self.ABSCO, mask=np.isnan(self.ABSCO))
+    # read the table back from the scratch files one block of frequencies (one
+    # chunk of the netCDF variable) at a time
+    nBlock = chunksizes[0]
+    for f0 in range(0, nFreq, nBlock):
+      f1 = min(f0 + nBlock, nFreq)
+      block = self.ABSCO.read(f0, f1)
+      outVar[f0:f1] = np.ma.array(block, mask=np.isnan(block))
+    # end block loop
     outVar.units = 'cm2/molecule'
     outVar.long_name = 'Absorption Coefficients'
     outVar.valid_range = (0, 1e-15)
@@ -1084,6 +1087,9 @@ class makeABSCO():
 
     outFP.close()
 
+    # the scratch files are no longer needed
+    self.ABSCO.remove()
+
     print('Wrote %s' % outNC)
   # end makeNC()
 # end makeABSCO()
@@ -1104,22 +1110,10 @@ def combineVMR(inList):
       arrays
   """
 
-  abscoList, vmrList = [], []
-  for obj in inList:
-    abscoList.append(obj.ABSCO)
-  # end object loop
-
-  # the rest of the makeABSCO objects should be the same, so just
-  # replace vmrWV and ABSCO; make the VMR dimension the last one
-  # in the outAxes and convert vmr to ppmv
-  outAxes = (1, 2, 3, 0)
-
-  # another dimension if we're working with O2
-  if len(np.array(abscoList).shape) == 5: outAxes = (1, 2, 3, 4, 0)
-
+  # the mixing ratio becomes the last axis of the table; the tables stay in their
+  # scratch files and are joined without copying (scratch.StackedTable)
   outObj = inList[0]
-
-  outObj.ABSCO = np.transpose(np.array(abscoList), axes=outAxes)
+  outObj.ABSCO = scratch.StackedTable([obj.ABSCO for obj in inList])
 
   return outObj
 # end combineVMR()

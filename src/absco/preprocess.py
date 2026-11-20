@@ -715,13 +715,13 @@ class configure():
 
   def calcRAM(self):
     """
-    Estimate the peak memory of the ABSCO computation and show it to the user
+    Estimate the peak memory and scratch disk of the ABSCO computation and show
+    them to the user
 
-    The table is built entirely in memory before it is written, and several
-    full copies of it exist at once (one per mixing ratio, the stacked table,
-    and the masked copy given to netCDF4), so the estimate is several times
-    the size of the table. See absco.ram for the model and the measurements
-    it comes from.
+    Spectra are written to scratch files as they are computed and the netCDF is
+    compressed one block of frequencies at a time, so memory depends on
+    freq_chunk, not on the size of the table; the disk needed is the size of
+    the uncompressed table. See absco.ram for the model and the measurements.
 
     Molecules are handled in series, so the by-molecule value is the one
     that matters unless the code is run in parallel; the total shown is the
@@ -730,8 +730,11 @@ class configure():
 
     from absco import ram
 
-    per, totEst = ram.estimate_gb(self.channels['wn1'], self.channels['wn2'],
+    freqChunk = getattr(self, 'freq_chunk', ram.DEFAULT_FREQ_CHUNK)
+    args = (self.channels['wn1'], self.channels['wn2'],
       self.channels['outres'], self.pressures.size, self.molnames)
+    per, totEst = ram.estimate_gb(*args, freq_chunk=freqChunk)
+    disk = ram.disk_gb(*args)
 
     print()
     print('RAM per molecule (peak, estimated):')
@@ -741,7 +744,7 @@ class configure():
     # end mol loop
 
     prompt = 'Full ABSCO table netCDF generation expected to ' + \
-      'consume up to %.3f GB of RAM' % totEst
+      'consume up to %.3f GB of RAM and %.3f GB of scratch disk in the run directory' % (totEst, disk)
     self.show_prompt(prompt)
   # end calcRAM()
 

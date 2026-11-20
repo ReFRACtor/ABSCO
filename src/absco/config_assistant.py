@@ -173,13 +173,14 @@ def suggest_freq_chunk(molnames, target_chunk_mb=TARGET_CHUNK_MB):
     return max(freq_chunk, 1)
 
 
-def estimate_ram_gb(wn1, wn2, outres, molnames):
-    """Best-effort peak RAM estimate [GB] for the run, from :mod:`absco.ram`.
+def estimate_ram_gb(wn1, wn2, outres, molnames, freq_chunk=None):
+    """Best-effort ``(peak RAM, scratch disk)`` estimate [GB] for the run, from :mod:`absco.ram`.
 
-    Uses the packaged pressure grid for the layer count. Returns the sum over
-    all molecules of each molecule's estimate (molecules run one after another,
-    so the sum is an upper bound for a serial run). Returns None if the pressure
-    grid cannot be read.
+    Uses the packaged pressure grid for the layer count and ``freq_chunk`` (default: the
+    value :func:`suggest_freq_chunk` gives for the molecules). RAM is the sum over all
+    molecules of each molecule's estimate (molecules run one after another, so the sum is
+    an upper bound for a serial run); disk is the largest single table. Returns None if the
+    pressure grid cannot be read.
     """
     try:
         pressures = np.loadtxt(paths.default_data_file("pfile"))
@@ -187,8 +188,10 @@ def estimate_ram_gb(wn1, wn2, outres, molnames):
     except Exception:
         return None
 
-    _, total = ram.estimate_gb(wn1, wn2, outres, n_p, molnames)
-    return total
+    if freq_chunk is None:
+        freq_chunk = suggest_freq_chunk(molnames)
+    _, total = ram.estimate_gb(wn1, wn2, outres, n_p, molnames, freq_chunk)
+    return total, ram.disk_gb(wn1, wn2, outres, n_p, molnames)
 
 
 def convert_bands_to_cm1(wn1, wn2, outres, units):

@@ -105,8 +105,8 @@ def test_build_config_band_count_mismatch():
 
 
 def test_estimate_ram_positive():
-    ram = ca.estimate_ram_gb([4166], [4358], [0.01], ["ch4", "co", "h2o"])
-    assert ram is not None and ram > 0
+    est = ca.estimate_ram_gb([4166], [4358], [0.01], ["ch4", "co", "h2o"])
+    assert est is not None and est[0] > 0 and est[1] > 0
 
 
 def test_write_config_adds_comments_and_defaults():
