@@ -715,45 +715,35 @@ class configure():
 
   def calcRAM(self):
     """
-    Determine the approximate amount of RAM needed for the entirety
-    of the ABSCO computation
+    Estimate the peak memory of the ABSCO computation and show it to the user
 
-    This calculation is simply 8 bytes (np.float64.itemsize) x
-    2 (wavenumber and absco) x number of output wavenumbers (degraded
-    spectrum) for all bands combined x number of temperatures x
-    number of layers
+    The table is built entirely in memory before it is written, and several
+    full copies of it exist at once (one per mixing ratio, the stacked table,
+    and the masked copy given to netCDF4), so the estimate is several times
+    the size of the table. See absco.ram for the model and the measurements
+    it comes from.
 
-    Less HD space is needed because of netCDF compression
-
-    If multiple molecules are provided in the .ini file, they will be
-    handled in series, so the by-molecule RAM usage is of greater
-    importance unless the code is run in parallel
+    Molecules are handled in series, so the by-molecule value is the one
+    that matters unless the code is run in parallel; the total shown is the
+    sum, which is an upper bound for a serial run.
     """
 
-    # how many total spectral points?
-    nOutWN = (self.channels['wn2']-self.channels['wn1'])
-    nOutWN /= self.channels['outres']
-    nOutWN = nOutWN.sum()
+    from absco import ram
 
-    estimate = 16 * 2 * nOutWN * 15 * self.pressures.size
-    estimateGB = estimate/1e9
+    per, totEst = ram.estimate_gb(self.channels['wn1'], self.channels['wn2'],
+      self.channels['outres'], self.pressures.size, self.molnames)
 
     print()
-    print('RAM per molecule:')
+    print('RAM per molecule (peak, estimated):')
     print()
-
-    totEst = 0
     for mol in self.molnames:
-      # another factor of two to account for 2 H2O VMRs
-      scale = 2 if mol in self.molH2O else 1
-      est = scale * estimateGB
-      totEst += est
-      print('\t%s, %.3f GB' % (mol, est))
+      print('\t%s, %.3f GB' % (mol, per[mol]))
     # end mol loop
 
     prompt = 'Full ABSCO table netCDF generation expected to ' + \
       'consume up to %.3f GB of RAM' % totEst
     self.show_prompt(prompt)
+  # end calcRAM()
 
   def show_prompt(self, message):
     if self.prompt_user:
@@ -763,5 +753,4 @@ class configure():
     else:
       print(message)
 
-  # end calcRAM()
 # end configure()
