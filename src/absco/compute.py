@@ -13,6 +13,7 @@ import pandas as pd
 # local module (part of the ABSCO library)
 from absco import paths
 from absco import logutil
+from absco import validate
 from absco import preprocess as preproc
 
 # vendored common utilities
@@ -327,7 +328,10 @@ class makeABSCO():
         split = os.path.basename(t5).split('_')
         band = split[-1]
         outT3 = '%s/TAPE3_%s_%s' % (outDirT3, mol, band)
-        if os.path.exists(outT3): continue
+        if os.path.exists(outT3):
+          # an existing TAPE3 may have come from an LNFL with a known defect
+          validate.validate_tape3(outT3, brd_dir=self.dirExtras)
+          continue
 
         print('Running LNFL for %s' % os.path.basename(t5))
         if os.path.islink('TAPE5'): os.unlink('TAPE5')
@@ -336,6 +340,7 @@ class makeABSCO():
           os.path.join(self.logDir, 'lnfl.log'),
           header='LNFL %s' % os.path.basename(t5))
         os.rename('TAPE3', outT3)
+        validate.validate_tape3(outT3, brd_dir=self.dirExtras)
       # end TAPE5 loop
 
     # end mol loop
@@ -745,6 +750,8 @@ class makeABSCO():
 
           # extract the spectrum
           wnFine, odFine = lblTools.readOD(odFile, double=True)
+          validate.check_od_finite(wnFine, odFine, '%s P=%s mbar T=%s K, band %s' % \
+            (mol, pLev, tLev, band))
 
           if mol.upper() == 'HDO':
             # molDen at this point is H2O because iDen is 0
