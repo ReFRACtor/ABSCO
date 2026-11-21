@@ -307,7 +307,39 @@ A band is processed for a molecule only if it overlaps one of that molecule's *a
 - `basis` says why the region is there: `lines` (the AER line list has lines), `continuum` (an LBLRTM continuum applies; `reference` names the block of `contnm.f90` and the paper), `cross_section` (cross-section files drive it), joined with `+` when more than one applies;
 - `source` is `2018` for a region from the original hand-compiled table, whose origin is not documented, or `derived` for a region set from the line list and the LBLRTM source.
 
-`absco-active-regions` compares the file with the AER line list. For each molecule it reports the 10 cm<sup>-1</sup> bins of 400-50000 cm<sup>-1</sup> where the strongest line has a peak optical depth above 1e-3 (`S N / (pi gamma)`, for the column of the standard profile and the line's own air-broadened width) that no region covers, and the `lines` regions in which no bin reaches that value. With `--check` it exits with status 1 if there are uncovered bins, so a new line file or a changed file cannot leave a gap unnoticed. The reduced line table that the check reads ships with the package (`active_regions_summary.csv`); `absco-active-regions --write-summary FILE` rebuilds it from the line file (about 25 s), and a unit test requires the packaged one to match a rebuild when the line file is present.
+`absco-active-regions` reports the regions and compares them with the AER line list. With no arguments it prints two parts:
+
+```
+ACTIVE REGIONS PER MOLECULE
+mol    wn1 [cm-1] wn2 [cm-1]  basis                  source
+C2H2          650        800  lines                  2018
+             3100       3400  lines                  2018
+                         450  (total width, 2 regions)
+CH4           100      11510  lines                  derived
+...
+DEVIATIONS OF THE REGION FILE FROM THE LINE LIST
+peak optical depth threshold 0.001 of the standard column, checked over 400-50000 cm-1
+lines above the threshold that no region covers (these fail --check):
+  none
+regions with lines but no bin above the threshold (reported, do not fail --check):
+  C2H4   600-1175 (lines, source 2018)
+  ...
+```
+
+The deviations are, for each molecule, the 10 cm<sup>-1</sup> bins of 400-50000 cm<sup>-1</sup> where the strongest line has a peak optical depth above 1e-3 (`S N / (pi gamma)`, for the column of the standard profile and the line's own air-broadened width) that no region covers, and the `lines` regions in which no bin reaches that value.
+
+| Option | Effect |
+| --- | --- |
+| `--summary-only` | print only the regions per molecule |
+| `--deviations-only` | print only the deviations from the line list |
+| `--check` | exit with status 1 if bins above the threshold are not covered, so a new line file or a changed region file cannot leave a gap unnoticed |
+| `--threshold TAU` | peak optical depth above which a bin counts as active (default 1e-3) |
+| `--regions CSV` | check this region file instead of the packaged one |
+| `--profile CSV` | standard profile that sets each molecule's column |
+| `--line-file FILE` | read the AER line list (about 25 s) instead of the packaged summary |
+| `--write-summary CSV` | rebuild the summary from the line list and stop |
+
+The reduced line table that the check reads ships with the package (`active_regions_summary.csv`); a unit test requires it to match a rebuild when the line file is present.
 
 A band outside a molecule's regions is skipped for that molecule and the run says so. If no band of a molecule can be computed, `absco-generate` goes on to the next molecule and exits with an error at the end naming the molecules that have no table.
 
