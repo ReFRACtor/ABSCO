@@ -49,6 +49,7 @@ absco-read = "absco.cli.read_tables:main"
 absco-info = "absco.cli.info:main"
 absco-split-config = "absco.cli.split_config:main"
 absco-join-tables = "absco.cli.join_tables:main"
+absco-active-regions = "absco.cli.active_regions:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
