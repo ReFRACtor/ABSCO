@@ -604,14 +604,19 @@ class makeABSCO():
 
     # find TAPE3s and their associated TAPE5s (for every TAPE3,
     # there is a TAPE5 for every pressure and every temperature)
-    molT3 = []
-    for wn1, wn2 in zip(self.bands['wn1'], self.bands['wn2']):
+    # keep the configured index of each band that has a TAPE3: a band that was skipped
+    # (molecule not active there) leaves a gap, and the kernel and cross-section flag of a
+    # band are indexed by its position in the configuration, not in this list
+    molT3, bandIdx = [], []
+    for iCfg, (wn1, wn2) in enumerate(zip(self.bands['wn1'], self.bands['wn2'])):
       searchStr = '%s/%s/TAPE3_%s_%05d-%05d' % (\
         self.dirT3, mol, mol, wn1, wn2)
 
       # there should be only 1 match
       pathT3 = sorted(glob.glob(searchStr))
-      if len(pathT3) == 1: molT3.append(pathT3[0])
+      if len(pathT3) == 1:
+        molT3.append(pathT3[0])
+        bandIdx.append(iCfg)
     # end band loop
 
     if len(molT3) != len(self.bands['wn1']):
@@ -647,7 +652,7 @@ class makeABSCO():
     # and we will only need to store it once since it remains constant
     # over all bands
     outList = []
-    for iBand, t3 in enumerate(molT3):
+    for iBand, t3 in zip(bandIdx, molT3):
       # should be one TAPE3 per band, and we are assuming they're
       # sorted by band
       base = os.path.basename(t3)

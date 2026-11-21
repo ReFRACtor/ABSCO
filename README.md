@@ -31,6 +31,7 @@ ABSCO is packaged as an installable Python tool (`absco`) with console commands:
 | `absco-config` | write an `ABSCO_config.ini` from a spectral range, output resolution, and molecule list (suggests `lblres` automatically) |
 | `absco-generate` | run the LNFL → LBLRTM → netCDF pipeline |
 | `absco-read` | read a coefficient out of an output netCDF |
+| `absco-active-regions` | compare the active-region file with the AER line list |
 | `absco-info` | display ABSCO file metadata (spectral, pressure, temperature, VMR ranges) |
 
 The tool is designed to be installed once and then run from any working directory;
@@ -298,6 +299,18 @@ allowed = ['H2O', 'CO2', 'O3', 'N2O', 'CO', 'CH4', 'O2', \
 ```
 
 The molecule names match those in the HITRAN database and are case-insensitive.
+
+### Active regions
+
+A band is processed for a molecule only if it overlaps one of that molecule's *active regions*, and the regions are what `absco-generate` suggests when the configuration names no molecules. They are in `src/absco/data/active_regions.csv`, one row per region (`molecule, wn1, wn2, basis, source, reference, note`):
+
+- `basis` says why the region is there: `lines` (the AER line list has lines), `continuum` (an LBLRTM continuum applies; `reference` names the block of `contnm.f90` and the paper), `cross_section` (cross-section files drive it), joined with `+` when more than one applies;
+- `source` is `2018` for a region from the original hand-compiled table, whose origin is not documented, or `derived` for a region set from the line list and the LBLRTM source.
+
+`absco-active-regions` compares the file with the AER line list. For each molecule it reports the 10 cm<sup>-1</sup> bins of 400-50000 cm<sup>-1</sup> where the strongest line has a peak optical depth above 1e-3 (`S N / (pi gamma)`, for the column of the standard profile and the line's own air-broadened width) that no region covers, and the `lines` regions in which no bin reaches that value. With `--check` it exits with status 1 if there are uncovered bins, so a new line file or a changed file cannot leave a gap unnoticed. The reduced line table that the check reads ships with the package (`active_regions_summary.csv`); `absco-active-regions --write-summary FILE` rebuilds it from the line file (about 25 s), and a unit test requires the packaged one to match a rebuild when the line file is present.
+
+A band outside a molecule's regions is skipped for that molecule and the run says so. If no band of a molecule can be computed, `absco-generate` goes on to the next molecule and exits with an error at the end naming the molecules that have no table.
+
 
 ## Binary Line Files (TAPE3)
 

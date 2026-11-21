@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import os, sys, argparse
+import os
+import sys, argparse
 
 # conda modules
 import numpy as np
@@ -104,6 +105,17 @@ def main():
     _run(args, iniFile, logDir)
 
 
+class _NoTable(Exception):
+  """calcABSCO found nothing to compute for a molecule (no TAPE3 for any of its bands)."""
+
+
+def _calc(kObj, mol):
+  """Run calcABSCO and stop work on this molecule if it computed nothing; calcABSCO returns
+  False when there is no TAPE3 for any band, and arrABSCO has nothing to arrange then."""
+  if kObj.calcABSCO(mol) is False:
+    raise _NoTable(mol)
+
+
 def _run(args, iniFile, logDir):
   # early, actionable warning if executables / line file are not set up
   check_artifacts()
@@ -124,57 +136,67 @@ def _run(args, iniFile, logDir):
   # end LNFL
 
   if args.run_lbl or args.end_to_end:
+    noTable = []
     for mol in ini.molnames:
-      if mol in ini.molH2O:
+      try:
+        if mol in ini.molH2O:
 
-        # we have to handle water vapor-effected molecules a little
-        # differently (they will have an extra dimension in their
-        # output ABSCO arrays)
+          # we have to handle water vapor-effected molecules a little
+          # differently (they will have an extra dimension in their
+          # output ABSCO arrays)
 
-        if mol == 'O2':
-          # oxygen is even weirder, because we have to implement its
-          # own vmr dimension
-          # we do this by just repeating what we do with the objects
-          # for H2O, but running with each O2/H2O VMR pair
-          o2ObjList = []
-          for o2ppm in ini.vmrO2:
-            wvObjList = []
-            for wvppm in ini.wv_vmr:
-              kObj = absco.makeABSCO(ini, mol, debug=args.debug, \
-                vmrWV=wvppm, vmrO2=o2ppm)
+          if mol == 'O2':
+            # oxygen is even weirder, because we have to implement its
+            # own vmr dimension
+            # we do this by just repeating what we do with the objects
+            # for H2O, but running with each O2/H2O VMR pair
+            o2ObjList = []
+            for o2ppm in ini.vmrO2:
+              wvObjList = []
+              for wvppm in ini.wv_vmr:
+                kObj = absco.makeABSCO(ini, mol, debug=args.debug, \
+                  vmrWV=wvppm, vmrO2=o2ppm)
+                kObj.lblT5(mol)
+                _calc(kObj, mol)
+                kObj.arrABSCO()
+                wvObjList.append(kObj)
+              # end H2O VMR loop
+
+              o2ObjList.append(absco.combineVMR(wvObjList))
+
+            # end O2 VMR loop
+
+            kObj = absco.combineVMR(o2ObjList)
+          else:
+            vmrObjList = []
+            for ppm in ini.wv_vmr:
+              kObj = absco.makeABSCO(ini,mol,debug=args.debug,vmrWV=ppm)
               kObj.lblT5(mol)
-              kObj.calcABSCO(mol)
+              _calc(kObj, mol)
               kObj.arrABSCO()
-              wvObjList.append(kObj)
-            # end H2O VMR loop
+              vmrObjList.append(kObj)
+            # end VMR loop
 
-            o2ObjList.append(absco.combineVMR(wvObjList))
+            kObj = absco.combineVMR(vmrObjList)
+          # endif
 
-          # end O2 VMR loop
-
-          kObj = absco.combineVMR(o2ObjList)
+          kObj.makeNC(mol)
         else:
-          vmrObjList = []
-          for ppm in ini.wv_vmr:
-            kObj = absco.makeABSCO(ini,mol,debug=args.debug,vmrWV=ppm)
-            kObj.lblT5(mol)
-            kObj.calcABSCO(mol)
-            kObj.arrABSCO()
-            vmrObjList.append(kObj)
-          # end VMR loop
-
-          kObj = absco.combineVMR(vmrObjList)
-        # endif
-
-        kObj.makeNC(mol)
-      else:
-        kObj = absco.makeABSCO(ini, mol, debug=args.debug)
-        kObj.lblT5(mol)
-        kObj.calcABSCO(mol)
-        kObj.arrABSCO()
-        kObj.makeNC(mol)
-      # endif H2O
+          kObj = absco.makeABSCO(ini, mol, debug=args.debug)
+          kObj.lblT5(mol)
+          _calc(kObj, mol)
+          kObj.arrABSCO()
+          kObj.makeNC(mol)
+        # endif H2O
+      except _NoTable:
+        # the molecule has no TAPE3 for any band (not active, or LNFL gave nothing)
+        print('No table made for %s: no band of %.2f-%.2f cm-1 could be computed for it' % \
+          (mol, min(ini.channels['wn1']), max(ini.channels['wn2'])))
+        noTable.append(mol)
     # end mol loop
+
+    if noTable:
+      sys.exit('No table was made for: %s' % ' '.join(noTable))
   # end LBL
 
 

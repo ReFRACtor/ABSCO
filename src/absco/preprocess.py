@@ -8,6 +8,7 @@ from absco._common import utils
 
 # package data / runtime artifact resolution
 from absco import paths
+from absco import active_regions
 
 # miniconda-installed libs
 import numpy as np
@@ -431,44 +432,10 @@ class configure():
     on the input spectral range
     """
 
-    # "active" spectral regions for each allowed molecule
-    # these will only be used if the user does not specify a molecule
-    regions = {}
-    regions['H2O'] = [[100, 25000]]
-    regions['CO2'] = [[500, 12785]]
-    regions['O3'] = [[100, 4000], [8500, 24665], [27370, 54000]]
-    regions['N2O'] = [[550, 7800]]
-    regions['CO'] = [[2000, 2250], [4150, 4350], [6200, 6500], \
-      [8200, 8465]]
-    regions['CH4'] = [[100, 9100]]
-    regions['O2'] = [[0, 150], [1350, 1850], [6200, 6500], \
-      [7500, 8500], [9100, 11000], [12990, 13224], [15000, 29870], \
-      [36000, 50000]]
-    regions['NO'] = [[1750, 2000]]
-    regions['SO2'] = [[450, 600], [1050, 1450], [2440, 2450], \
-      [3950, 4150], [23995, 43985]]
-    regions['NO2'] = [[1550, 1650], [2850, 2950], [15000, 42002]]
-    regions['NH3'] = [[750, 1200], [1450, 1800], [3200, 3600]]
-    regions['HNO3'] = [[400, 950], [1050, 1450], [1600, 1770]]
-    regions['OCS'] = [[500, 2200]]
-    regions['H2CO'] = [[25919, 33300]]
-    regions['N2'] = [[0, 350], [2000, 2900], [4300, 4950]]
-    regions['HCN'] = [[0, 100], [600, 800], [1300, 1500], \
-      [3200, 3500]]
-    regions['C2H2'] = [[650, 800], [3100, 3400]]
-    regions['HCOOH'] = [[950, 1250], [1700, 1890]]
-    regions['C2H4'] = [[600, 1175], [1350, 1550], [2900, 3243]]
-    regions['CH3OH'] = [[950, 1408], [2600, 3250]]
-    regions['CCL4'] = [[740, 820]]
-    regions['CF4'] = [[1250, 1300]]
-    regions['F11'] = [[830, 860], [1060, 1110]]
-    regions['F12'] = [[860, 940], [1080, 1180]]
-    regions['F22'] = [[780, 840], [1080, 1150], [1290, 1335]]
-    regions['ISOP'] = [[850, 1100], [2800, 3200]]
-    regions['PAN'] = [[560, 1400], [1650, 1900]]
-    regions['HDO'] = [[1100, 1800], [2500, 3000], [3300, 4300], \
-      [4800, 5400], [7000, 7500]]
-    regions['BRO'] = [[25927, 34919]]
+    # "active" spectral regions for each allowed molecule: a band is processed for a molecule
+    # only if it overlaps one of these, and they are what is suggested when the configuration
+    # names no molecules. They are in data/active_regions.csv, with the basis and source of each
+    regions = active_regions.by_molecule()
 
     # find active species inside specified bands
     # any mol that is active in ANY user-specified band is returned

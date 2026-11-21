@@ -1,0 +1,76 @@
+# Spectral regions (cm-1) in which a band is processed for a molecule; used by absco.preprocess.
+# basis: lines = the line list has lines here; continuum = an LBLRTM continuum applies (reference column);
+#        cross_section = driven by cross-section files; joined with + when more than one applies.
+# source: 2018 = from the original hand-compiled table (origin not documented); derived = set from the line list and LBLRTM.
+molecule,wn1,wn2,basis,source,reference,note
+BRO,25927,34919,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+C2H2,650,800,lines,2018,,
+C2H2,3100,3400,lines,2018,,
+C2H4,600,1175,lines,2018,,band shapes match the line list; below the standard-profile threshold because the profile holds the gas at 1e-20
+C2H4,1350,1550,lines,2018,,band shapes match the line list; below the standard-profile threshold because the profile holds the gas at 1e-20
+C2H4,2900,3243,lines,2018,,band shapes match the line list; below the standard-profile threshold because the profile holds the gas at 1e-20
+CCL4,740,820,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+CF4,1250,1300,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+CH3OH,950,1408,lines,2018,,band shapes match the line list; below the standard-profile threshold because the profile holds the gas at 1e-20
+CH3OH,2600,3250,lines,2018,,band shapes match the line list; below the standard-profile threshold because the profile holds the gas at 1e-20
+CH4,100,11510,lines,derived,,2018: 100-9100; HITRAN2020 CH4 lines reach 11502 cm-1
+CO,1990,2260,lines,derived,,"2018: 2000-2250; widened a bin each side, strong lines there"
+CO,4150,4350,lines,2018,,
+CO,6200,6500,lines,2018,,
+CO,8200,8465,lines,2018,,
+CO2,470,12785,lines,derived,,2018: 500-12785; line list has strong lines at 470-500; AER CO2 line file with line mixing (Lamouroux 2015)
+F11,830,860,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+F11,1060,1110,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+F12,860,940,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+F12,1080,1180,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+F22,780,840,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+F22,1080,1150,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+F22,1290,1335,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+H2CO,1670,1810,lines,derived,,HITRAN2020 H2CO lines; the 2018 table has only the 25919-33300 range
+H2CO,2640,3040,lines,derived,,HITRAN2020 H2CO lines; the 2018 table has only the 25919-33300 range
+H2CO,25919,33300,cross_section,2018,FSCDXS_line_params.csv / cross-section files,"range is the cross-section range (HCHO 25919.6-33299.4 in FSCDXS) but H2CO is not in xsNames or xsLines, so the generator treats it as a line molecule; the molecule has no lines here (open item)"
+H2O,100,42000,lines+continuum,derived,contnm.f90 H2O self -20-20000 and foreign -20-10000 cm-1 (Mlawer 2012),2018: 100-25000; HITRAN2020 H2O lines reach 41999.7 cm-1 (Gordon 2022); MT_CKD H2O continuum stops at 20000 cm-1
+HCN,0,100,lines,2018,,
+HCN,600,800,lines,2018,,
+HCN,1300,1500,lines,2018,,
+HCN,3200,3500,lines,2018,,
+HCOOH,950,1250,lines,2018,,band shapes match the line list; below the standard-profile threshold because the profile holds the gas at 1e-20
+HCOOH,1700,1890,lines,2018,,band shapes match the line list; below the standard-profile threshold because the profile holds the gas at 1e-20
+HDO,1100,1800,lines,2018,,
+HDO,2500,3000,lines,2018,,
+HDO,3300,4300,lines,2018,,
+HDO,4800,5400,lines,2018,,
+HDO,7000,7500,lines,2018,,
+HNO3,400,950,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+HNO3,1050,1450,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+HNO3,1600,1770,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+ISOP,850,1100,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+ISOP,2800,3200,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+N2,0,350,continuum,2018,contnm.f90 N2-N2 continuum -10-350 cm-1,
+N2,2000,2900,continuum,2018,contnm.f90 N2 fundamental 2001.8-2897.6 (Lafferty 1996),
+N2,4300,4950,continuum,2018,"contnm.f90 N2 first overtone 4340-4910 (Shapiro and Gush 1966, Mlawer and Gombos 2015)",
+N2O,540,7800,lines,derived,,2018: 550-7800; strong lines at 540-550
+NH3,750,1200,lines,2018,,
+NH3,1450,1800,lines,2018,,
+NH3,3200,10400,lines,derived,,2018: 3200-3600; HITRAN2020 NH3 lines reach 10349 cm-1
+NO,1750,2000,lines,2018,,
+NO2,1550,1650,lines,2018,,
+NO2,2850,2950,lines,2018,,
+NO2,15000,42002,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+O2,0,150,lines,2018,,
+O2,1350,1850,lines+continuum,2018,contnm.f90 O2 fundamental 1340-1850 cm-1 (Thibault 1997),
+O2,6200,6500,lines,2018,,no continuum block and no CIA entry here; weak lines
+O2,7500,8500,lines+continuum,2018,contnm.f90 O2 1.27 um 7536-8500 cm-1 (Mate 1999),
+O2,9100,36000,lines+continuum,derived,"contnm.f90 O2 1.06 um 9100-11000 (Mlawer 1998); A band 12961.5-13221.5 (Mlawer, Payne 2020); visible 15000-29870 (Greenblatt 1990)","2018 had 9100-11000, 12990-13224 and 15000-29870 separately; joined and extended to 36000: weak lines between the bands, and Schumann-Runge lines at 34000-36000 (peak tau up to 0.5); HITRAN2020 O2 lines reach 57028 cm-1"
+O2,36000,50000,continuum,2018,contnm.f90 O2 Herzberg above 36000 cm-1; Schumann-Runge above 56740 not included,
+O3,100,4040,lines,derived,,2018: 100-4000; strong lines at 4000-4040
+O3,8500,24665,continuum,2018,contnm.f90 O3 Chappuis 8920-24665 and Hartley-Huggins 27370-54000,
+O3,27370,54000,continuum,2018,contnm.f90 O3 Chappuis 8920-24665 and Hartley-Huggins 27370-54000,
+OCS,500,2200,lines,2018,,
+PAN,560,1400,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+PAN,1650,1900,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
+SO2,450,600,lines,2018,,
+SO2,1050,1450,lines,2018,,
+SO2,2440,2450,lines,2018,,
+SO2,3950,4150,lines,2018,,
+SO2,23995,43985,cross_section,2018,FSCDXS_line_params.csv / cross-section files,
