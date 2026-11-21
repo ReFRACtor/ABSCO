@@ -421,8 +421,10 @@ class makeABSCO():
       # generate free-format record 1.2
       record12a = ' '.join(scales.astype(str))
 
-      # record 1.3 is kinda long...first, band limits
-      record13 = '%10.3e%10.3e' % \
+      # record 1.3 is kinda long...first, band limits. these are read with a 10-character
+      # field (E10.3, which takes a decimal point in the field as written); '%10.3e' keeps
+      # only 4 significant digits and moves an edge such as 10649 to 10650
+      record13 = '%10.4f%10.4f' % \
         (self.bands['wn1'][iBand], self.bands['wn2'][iBand])
 
       # concatenate (NOT append) 6 zeros in scientific notation
