@@ -468,6 +468,11 @@ class makeABSCO():
           # eventually decided to use VMR in ppmv
           levVMR *= 1e6
 
+          # O2 is run at each of the fixed O2 mixing ratios (self.vmrO2, ppmv), constant with
+          # pressure, so the table has an O2 axis; the profile file gives the shape of the
+          # other molecules but not this one
+          if mol == 'O2': levVMR = self.vmrO2
+
           # record 3.6: provide VMR at a given level, but only for the
           # given mol (VMR)
           lblAll = np.repeat(0.0, self.molMaxLBL)
