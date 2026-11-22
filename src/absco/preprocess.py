@@ -258,6 +258,11 @@ class configure():
             wn2 = channels['wn2'][iBand]
           # endif wn2/wn1 switch
 
+          if wn2 == wn1:
+            sys.exit('Band %d has wn1 equal to wn2 (%s cm-1); a band needs a width.' % \
+              (iBand+1, wn1))
+          # endif empty band
+
           bandwidth = wn2-wn1
           if bandwidth > 2000:
             print('Breaking down channels so they do not ' + \
